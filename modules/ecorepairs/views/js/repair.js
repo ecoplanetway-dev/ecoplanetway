@@ -33,6 +33,7 @@ window.ECOR.ready(function () {
     '</div>' +
     '<div id="er-banners"></div>' +
     '<div class="er-steps" id="er-steps"></div>' +
+    (r.id_brand ? '<div class="er-panel er-p-parts" id="er-p-parts"></div>' : '') +
     '<div class="er-grid2">' +
       '<div class="er-stack er-rgrid">' +
         '<div class="er-panel" id="er-p-cust"></div>' +
@@ -501,6 +502,31 @@ window.ECOR.ready(function () {
     });
   }
 
+  /* ---------- Piezas de este modelo ---------- */
+  function renderParts() {
+    var box = $('#er-p-parts');
+    if (!box) return;
+    box.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(r.device_name) + '<span class="er-r">' +
+      (D.modelUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.modelUrl + '&tab=parts') + '" target="_blank" rel="noopener">' + icon('book', true) + 'Ficha del modelo</a> ' : '') +
+      '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></span></h3><div id="er-dwr"></div>';
+    E.PartsDiagram(box.querySelector('#er-dwr'), { parts: D.modelParts || [], zones: D.zones, shape: D.shape, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+      onAdd: canEdit ? function (p, btn) {
+        btn.disabled = true;
+        E.api('quoteAddParts', { id_ecorepair: r.id }, { lines: JSON.stringify([{ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name,
+          reference: p.product.reference, qty: 1, price: p.product.price, tax_rate: p.product.tax_rate }]) }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok) { E.toast(res.error, true); return; }
+          D.quotes = res.quotes; log = res.log; renderQuote(); renderLog(); renderHead();
+          E.toast('«' + p.product.name + '» añadido al presupuesto (borrador)');
+          if (p.product.stock <= 0) E.toast('Ojo: no hay stock en la tienda. Ábrelo en el presupuesto para encargarla.', true);
+        });
+      } : null,
+      onEdit: canEdit ? function (p, zone) {
+        E.partDialog(p, zone, { zones: D.zones, admin: !!D.isAdmin, canDelete: !!D.canDelete, id_brand: r.id_brand, id_model: r.id_model, title: r.device_name,
+          onSaved: function (list) { D.modelParts = list; renderParts(); } });
+      } : null });
+  }
+
   /* ---------- Presupuesto ---------- */
   function renderQuote() {
     var qs = D.quotes || [];
@@ -799,6 +825,7 @@ window.ECOR.ready(function () {
   renderDevice();
   renderPhotos();
   renderLog();
+  renderParts();
   renderQuote();
   renderPay();
   renderAssign();

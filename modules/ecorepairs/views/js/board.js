@@ -30,6 +30,7 @@ window.ECOR.ready(function () {
           (open ? '<span class="er-badge' + (rc.arrived ? ' er-badge-hot' : '') + '">' + (rc.arrived || open) + '</span>' : '') + '</a>';
       })() +
       '<a class="er-btn" href="' + esc(E.boot.links.cash) + '">' + icon('tag') + '<span>Caja</span></a>' +
+      '<a class="er-btn" href="' + esc(E.boot.links.parts) + '">' + icon('box') + '<span>Piezas</span></a>' +
       '<a class="er-btn" href="' + esc(E.boot.links.techs) + '">' + icon('assign') + '<span>Técnicos</span></a>' +
       '<a class="er-btn" href="' + esc(E.boot.links.stats) + '">' + icon('chart') + '<span>Indicadores</span></a>' +
       '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +

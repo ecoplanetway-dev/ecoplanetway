@@ -448,6 +448,57 @@ class EcoRepairQuote
         return array('ok' => true, 'totals' => $totals);
     }
 
+    /**
+     * Añade piezas al borrador del presupuesto (lo crea si hace falta; si el principal está aceptado, va a un adicional).
+     * $new: líneas con id_product, id_product_attribute, name, reference, qty, price (IVA incl.), tax_rate.
+     */
+    public static function appendToDraft(array $repair, array $new, $idEmployee, $who)
+    {
+        $idRepair = (int) $repair['id_ecorepair'];
+        $draft = null;
+        foreach (self::forRepair($idRepair) as $q) {
+            if ($q['status'] === self::DRAFT) {
+                $draft = $q;
+            }
+            if ($q['status'] === self::SENT) {
+                return array('ok' => false, 'error' => 'Hay un presupuesto enviado esperando respuesta del cliente. Haz una versión nueva para cambiarlo.');
+            }
+        }
+        if (!$draft) {
+            $res = self::create($idRepair, $idEmployee);
+            if (!$res['ok']) {
+                return $res;
+            }
+            $draft = self::get($res['id']);
+        }
+        $lines = array();
+        foreach (self::lines((int) $draft['id_ecorepair_quote']) as $l) {
+            $lines[] = array('type' => $l['type'], 'id_product' => $l['id_product'], 'id_product_attribute' => $l['id_product_attribute'], 'name' => $l['name'],
+                'reference' => $l['reference'], 'qty' => $l['qty'], 'price' => $l['price'], 'tax_rate' => $l['tax_rate'], 'warranty' => $l['warranty'], 'discount' => $l['discount']);
+        }
+        $names = array();
+        foreach ($new as $n) {
+            if (!is_array($n)) {
+                continue;
+            }
+            $n['type'] = isset($n['type']) && $n['type'] === 'labour' ? 'labour' : 'part';
+            $n['warranty'] = (int) $repair['warranty'];
+            $n['discount'] = 0;
+            $lines[] = $n;
+            $names[] = (isset($n['qty']) ? (float) $n['qty'] : 1) . ' × ' . (isset($n['name']) ? $n['name'] : '');
+        }
+        if (!$names) {
+            return array('ok' => false, 'error' => 'Elige alguna pieza.');
+        }
+        $res = self::saveDraft($draft, $lines, (string) $draft['notes']);
+        if (!$res['ok']) {
+            return $res;
+        }
+        EcoRepairLog::add($idRepair, $idEmployee, 'quote', 'Piezas añadidas al ' . Tools::strtolower(self::label($draft)) . ' (borrador)' . ($who ? ' por ' . $who : '') . ': ' . implode(', ', $names));
+
+        return array('ok' => true, 'added' => count($names), 'id_quote' => (int) $draft['id_ecorepair_quote']);
+    }
+
     public static function newVersion(array $q, $idEmployee)
     {
         if (!in_array($q['status'], array(self::SENT, self::REJECTED), true) || !self::isLatest($q)) {

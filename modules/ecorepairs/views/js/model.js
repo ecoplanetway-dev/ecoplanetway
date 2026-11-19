@@ -6,7 +6,8 @@ window.ECOR.ready(function () {
   var app = E.root();
   if (!app || app.getAttribute('data-view') !== 'model') return;
 
-  var kb = D.kb, tab = 'codes', q = D.code || '', canEdit = !!D.canEdit, canDelete = !!D.canDelete;
+  var kb = D.kb, tab = D.tab === 'parts' ? 'parts' : 'codes', q = D.code || '', canEdit = !!D.canEdit, canDelete = !!D.canDelete;
+  var parts = D.parts || [];
   var title = D.brand + (D.model ? ' ' + D.model : '');
 
   function base() { return E.boot.links.model + '&id_brand=' + D.id_brand; }
@@ -20,11 +21,20 @@ window.ECOR.ready(function () {
         '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
       '</div>' +
-      '<div class="er-filters">' + [['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
+      '<div class="er-filters">' + [['parts', 'Piezas', parts.length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
         return '<button type="button" class="er-chip" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
       }).join('') + '</div>' +
       '<div class="er-panel" id="er-kb"></div>';
     var el = app.querySelector('#er-kb');
+    if (tab === 'parts') {
+      el.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(title) + '<span class="er-r">Pulsa una zona del dibujo</span></h3><div id="er-dwp"></div>';
+      E.PartsDiagram(el.querySelector('#er-dwp'), { parts: parts, zones: D.zones, shape: D.shape, admin: !!D.isAdmin,
+        onEdit: canEdit ? function (p, zone) {
+          E.partDialog(p, zone, { zones: D.zones, admin: !!D.isAdmin, canDelete: canDelete, id_brand: D.id_brand, id_model: D.id_model, title: title,
+            onSaved: function (list) { parts = list; render(); } });
+        } : null });
+      return;
+    }
     if (tab === 'codes') {
       el.innerHTML = '<h3>' + icon('code') + 'Códigos de error' + (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-pri er-r" data-new="code" style="margin-left:auto">' + icon('plus', true) + 'Añadir código</button>' : '') + '</h3>' +
         '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-kq" placeholder="Busca el código que sale en la pantalla" value="' + esc(q) + '"></label><div id="er-kl" class="er-stack" style="gap:8px"></div>';

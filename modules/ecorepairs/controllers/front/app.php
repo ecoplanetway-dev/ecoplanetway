@@ -73,7 +73,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         );
         $this->context->smarty->assign(array(
             'css' => array($base . 'views/css/admin.css' . $v, $base . 'views/css/app.css' . $v),
-            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
+            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/parts.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
             'boot' => json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'data' => json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'shopName' => Configuration::get('PS_SHOP_NAME'),
@@ -215,6 +215,13 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                         $res['kb'] = EcoRepairKnowledge::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'));
                     }
                     $this->out($res);
+                    // no break
+                case 'modelParts':
+                    $this->out(array('ok' => true, 'parts' => EcoRepairParts::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'), false),
+                        'zones' => EcoRepairParts::zones()));
+                    // no break
+                case 'partSearch':
+                    $this->out(array('ok' => true, 'results' => EcoRepairParts::search((string) Tools::getValue('q'), false)));
                     // no break
                 case 'catalog':
                     $this->out(array('ok' => true, 'catalog' => EcoRepairCatalog::tree(true)));
@@ -382,6 +389,10 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'log' => $log,
             'repeat' => $repeat,
             'kbCount' => $kbCount,
+            'modelParts' => (int) $r['id_brand'] ? EcoRepairParts::forModel((int) $r['id_brand'], (int) $r['id_model'], false) : array(),
+            'zones' => EcoRepairParts::zones(),
+            'suggestedZones' => EcoRepairParts::zonesForFaults($r['faults'], $r['fault_customer'] . ' ' . $r['diagnosis']),
+            'shape' => $r['category_icon'] === 'bike' ? 'bike' : 'scooter',
             'statuses' => EcoRepairStatus::all(),
         );
     }
@@ -476,45 +487,11 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             return array('ok' => false, 'error' => 'Elige alguna pieza.');
         }
         $idRepair = (int) $r['id_ecorepair'];
-        $draft = null;
-        foreach (EcoRepairQuote::forRepair($idRepair) as $q) {
-            if ($q['status'] === EcoRepairQuote::DRAFT) {
-                $draft = $q;
-            }
-            if ($q['status'] === EcoRepairQuote::SENT) {
-                return array('ok' => false, 'error' => 'Hay un presupuesto enviado esperando respuesta del cliente. Avisa en la tienda para hacer una versión nueva.');
-            }
-        }
-        if (!$draft) {
-            $res = EcoRepairQuote::create($idRepair, $this->emp());
-            if (!$res['ok']) {
-                return $res;
-            }
-            $draft = EcoRepairQuote::get($res['id']);
-        }
-        $lines = array();
-        foreach (EcoRepairQuote::lines((int) $draft['id_ecorepair_quote']) as $l) {
-            $lines[] = array('type' => $l['type'], 'id_product' => $l['id_product'], 'id_product_attribute' => $l['id_product_attribute'], 'name' => $l['name'],
-                'reference' => $l['reference'], 'qty' => $l['qty'], 'price' => $l['price'], 'tax_rate' => $l['tax_rate'], 'warranty' => $l['warranty'], 'discount' => $l['discount']);
-        }
-        $names = array();
-        foreach ($new as $n) {
-            if (!is_array($n)) {
-                continue;
-            }
-            $n['type'] = isset($n['type']) && $n['type'] === 'labour' ? 'labour' : 'part';
-            $n['warranty'] = (int) $r['warranty'];
-            $n['discount'] = 0;
-            $lines[] = $n;
-            $names[] = (isset($n['qty']) ? (float) $n['qty'] : 1) . ' × ' . (isset($n['name']) ? $n['name'] : '');
-        }
-        $res = EcoRepairQuote::saveDraft($draft, $lines, (string) $draft['notes']);
+        $res = EcoRepairQuote::appendToDraft($r, $new, $this->emp(), $this->staff['name'] . ' (móvil)');
         if (!$res['ok']) {
             return $res;
         }
-        EcoRepairLog::add($idRepair, $this->emp(), 'quote', 'Piezas añadidas al ' . Tools::strtolower(EcoRepairQuote::label($draft)) . ' (borrador) por ' . $this->staff['name'] . ' (móvil): ' . implode(', ', $names));
-
-        return $this->repairData(EcoRepair::get($idRepair)) + array('added' => count($names));
+        return $this->repairData(EcoRepair::get($idRepair)) + array('added' => $res['added']);
     }
 
     /** Nueva reparación desde recepción (versión sencilla). */

@@ -663,3 +663,36 @@
 }
 /* Campo de archivo invisible pero «visible» para el móvil (con display:none algunos móviles no abren la cámara) */
 .er-vh { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none; }
+
+/* ===== 1.7.0 · Piezas por modelo: dibujo por zonas ===== */
+.ecor .er-dw-wrap { background: linear-gradient(180deg, #FAFBFC 0%, #EEF1F4 100%); border: 1px solid var(--er-line2); border-radius: var(--er-r-card); padding: 8px; }
+.ecor .er-dw { width: 100%; height: auto; display: block; max-height: 300px; }
+.ecor .er-dw-tyre { fill: none; stroke: #2B2F36; stroke-width: 12; }
+.ecor .er-dw-rim { fill: none; stroke: #9AA1AE; stroke-width: 3; }
+.ecor .er-dw-body { fill: #2B2F36; }
+.ecor .er-dw-line { stroke: #2B2F36; stroke-linecap: round; fill: none; }
+.ecor .er-dw-other { font-size: 13px; font-weight: 600; fill: var(--er-fg2); pointer-events: none; }
+.ecor .er-z { cursor: pointer; outline: none; }
+.ecor .er-z > :not(.er-zb):not(title) { fill: rgba(11,110,75,.06); stroke: rgba(11,110,75,.35); stroke-width: 2; stroke-dasharray: 5 4; transition: fill .15s, stroke .15s; }
+.ecor .er-z.has > :not(.er-zb):not(title) { fill: rgba(23,166,115,.16); stroke: #17A673; stroke-dasharray: none; }
+.ecor .er-z:hover > :not(.er-zb):not(title), .ecor .er-z:focus-visible > :not(.er-zb):not(title) { fill: rgba(23,166,115,.32); stroke: #0B6E4B; stroke-width: 3; }
+.ecor .er-z.on > :not(.er-zb):not(title) { fill: rgba(11,110,75,.45); stroke: #0B6E4B; stroke-width: 3; stroke-dasharray: none; }
+.ecor .er-z.sug > :not(.er-zb):not(title) { stroke: #D2601A; stroke-width: 3; stroke-dasharray: none; animation: er-sugpulse 1.4s ease-in-out infinite; }
+@keyframes er-sugpulse { 50% { fill: rgba(210,96,26,.28); } }
+.ecor .er-zb circle { fill: #0B6E4B; stroke: #fff; stroke-width: 2; }
+.ecor .er-z.sug .er-zb circle { fill: #D2601A; }
+.ecor .er-zb text { fill: #fff; font-size: 13px; font-weight: 700; pointer-events: none; }
+.ecor .er-dw-chips { margin-top: 8px; }
+.ecor .er-dw-chips .er-chip { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.ecor .er-parts { display: flex; flex-direction: column; gap: 8px; }
+.ecor .er-part { display: flex; gap: 12px; align-items: flex-start; padding: 10px; border: 1px solid var(--er-line2); border-radius: 12px; background: var(--er-card); animation: er-pop .25s var(--er-ease) both; }
+.ecor .er-part .er-pimg { width: 56px; height: 56px; }
+.ecor .er-part-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ecor .er-part-act { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.ecor .er-spec { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #14161A; color: #fff; font-variant-numeric: tabular-nums; }
+.ecor .er-supplier { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 4px 8px; border-radius: 8px; background: #FFF8E8; color: #6B4A00; }
+.ecor .er-p-parts > #er-dwr { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: start; }
+.ecor .er-p-parts > #er-dwr > .er-dw-wrap { grid-row: span 4; }
+@media (max-width: 1000px) { .ecor .er-p-parts > #er-dwr { display: block; } .ecor .er-p-parts > #er-dwr > * + * { margin-top: 10px; } }
+.ecor .er-p-parts { margin-bottom: 16px; }
+.ecor .er-part-main > .er-spec, .ecor .er-part-main > .er-tag { align-self: flex-start; }

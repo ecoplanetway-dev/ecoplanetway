@@ -26,6 +26,7 @@ require_once __DIR__ . '/classes/EcoRepairRequest.php';
 require_once __DIR__ . '/classes/EcoRepairRateLimit.php';
 require_once __DIR__ . '/classes/EcoRepairKnowledge.php';
 require_once __DIR__ . '/classes/EcoRepairKnowledgeData.php';
+require_once __DIR__ . '/classes/EcoRepairParts.php';
 require_once __DIR__ . '/classes/EcoRepairStaff.php';
 
 /**
@@ -38,7 +39,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.6.6';
+        $this->version = '1.7.0';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';

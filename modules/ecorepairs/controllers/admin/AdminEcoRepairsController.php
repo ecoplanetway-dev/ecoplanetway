@@ -49,6 +49,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/vendor/qrcode.js' . $v, false);
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
             $this->addJS($base . 'views/js/notify.js' . $v, false);
+            $this->addJS($base . 'views/js/parts.js' . $v, false);
             $this->addJS($base . 'views/js/repair.js' . $v, false);
         } elseif ($view === 'stats') {
             $this->addJS($base . 'views/js/stats.js' . $v, false);
@@ -57,7 +58,10 @@ class AdminEcoRepairsController extends ModuleAdminController
         } elseif ($view === 'techs') {
             $this->addJS($base . 'views/js/techs.js' . $v, false);
         } elseif ($view === 'model') {
+            $this->addJS($base . 'views/js/parts.js' . $v, false);
             $this->addJS($base . 'views/js/model.js' . $v, false);
+        } elseif ($view === 'parts') {
+            $this->addJS($base . 'views/js/parts.js' . $v, false);
         } elseif ($view === 'requests') {
             $this->addJS($base . 'views/js/notify.js' . $v, false);
             $this->addJS($base . 'views/js/requests.js' . $v, false);
@@ -86,6 +90,9 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         if (Tools::getValue('view') === 'techs') {
             return 'techs';
+        }
+        if (Tools::getValue('view') === 'parts') {
+            return 'parts';
         }
         if (Tools::getValue('view') === 'model' && (int) Tools::getValue('id_brand')) {
             return 'model';
@@ -122,7 +129,13 @@ class AdminEcoRepairsController extends ModuleAdminController
             'ecor_data' => '{}',
         ));
 
-        if ($view === 'techs') {
+        if ($view === 'parts') {
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array('zones' => EcoRepairParts::zones(), 'isAdmin' => $this->isAdmin(), 'q' => (string) Tools::getValue('q'))),
+                'ecor_view' => 'parts',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'techs') {
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array(
                     'stats' => EcoRepairStats::technicians((int) $this->context->shop->id, date('Y-m-01'), date('Y-m-d')),
@@ -150,6 +163,11 @@ class AdminEcoRepairsController extends ModuleAdminController
                         return array('id' => (int) $m['id'], 'name' => $m['name']);
                     }, $models),
                     'kb' => EcoRepairKnowledge::forModel($idBrand, $names && $names['model'] ? $idModel : 0),
+                    'parts' => EcoRepairParts::forModel($idBrand, $names && $names['model'] ? $idModel : 0, $this->isAdmin()),
+                    'zones' => EcoRepairParts::zones(),
+                    'isAdmin' => $this->isAdmin(),
+                    'shape' => (string) Db::getInstance()->getValue('SELECT c.icon FROM `' . _DB_PREFIX_ . 'ecorepair_brand` b INNER JOIN `' . _DB_PREFIX_ . 'ecorepair_category` c ON c.id_ecorepair_category = b.id_ecorepair_category WHERE b.id_ecorepair_brand = ' . $idBrand) === 'bike' ? 'bike' : 'scooter',
+                    'tab' => (string) Tools::getValue('tab'),
                     'canEdit' => (bool) $this->access('edit'),
                     'canDelete' => (bool) $this->access('delete'),
                     'code' => (string) Tools::getValue('code'),
@@ -320,6 +338,10 @@ class AdminEcoRepairsController extends ModuleAdminController
                     'days' => max(0, (int) floor((strtotime($r['date_add']) - strtotime($o['date_status'])) / 86400))) : null;
             })(EcoRepair::get((int) $repair['repeat_of']), $repair) : null,
             'kbCount' => (int) $repair['id_brand'] ? EcoRepairKnowledge::counts((int) $repair['id_brand'], (int) $repair['id_model']) : null,
+            'modelParts' => (int) $repair['id_brand'] ? EcoRepairParts::forModel((int) $repair['id_brand'], (int) $repair['id_model'], $this->isAdmin()) : array(),
+            'zones' => EcoRepairParts::zones(),
+            'suggestedZones' => EcoRepairParts::zonesForFaults($repair['faults'], $repair['fault_customer'] . ' ' . $repair['diagnosis']),
+            'shape' => $repair['category_icon'] === 'bike' ? 'bike' : 'scooter',
             'modelUrl' => (int) $repair['id_brand'] ? $this->baseUrl() . '&view=model&id_brand=' . (int) $repair['id_brand'] . '&id_model=' . (int) $repair['id_model'] : '',
             'reviewUrl' => (string) Configuration::get('ECOREPAIRS_REVIEW_URL'),
             'parent' => (int) $repair['id_parent_repair'] ? EcoRepair::get((int) $repair['id_parent_repair']) : null,
@@ -430,6 +452,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             'exportQuarter' => array('ajaxExportQuarter', 'view', false),
             'notifyPreview' => array('ajaxNotifyPreview', 'view', false),
             'kbSave' => array('ajaxKbSave', 'edit', true),
+            'partSave' => array('ajaxPartSave', 'edit', true),
+            'partDelete' => array('ajaxPartDelete', 'delete', true),
+            'partSearch' => array('ajaxPartSearch', 'view', false),
+            'quoteAddParts' => array('ajaxQuoteAddParts', 'edit', true),
             'kbDelete' => array('ajaxKbDelete', 'delete', true),
             'kbLookup' => array('ajaxKbLookup', 'view', false),
             'photoPublic' => array('ajaxPhotoPublic', 'edit', true),
@@ -578,7 +604,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     protected function checkLocked($action)
     {
         $locked = array('updateField', 'updateDevice', 'setStatus', 'uploadPhoto', 'saveSignature', 'deletePhoto', 'addInvoiceAddress',
-            'quoteCreate', 'quoteSave', 'quoteSend', 'quoteNewVersion', 'quoteDiscard', 'quoteAccept', 'quoteReject',
+            'quoteCreate', 'quoteAddParts', 'quoteSave', 'quoteSend', 'quoteNewVersion', 'quoteDiscard', 'quoteAccept', 'quoteReject',
             'deposit', 'checkout', 'devicePhoto', 'deviceReset', 'deviceToModel');
         if (!in_array($action, $locked, true) || $this->isAdmin()) {
             return;
@@ -935,6 +961,48 @@ class AdminEcoRepairsController extends ModuleAdminController
         );
         $this->context->smarty->assign(array('ecor_data' => $this->json($data), 'ecor_view' => 'customer'));
         $this->setTemplate('app.tpl');
+    }
+
+    protected function ajaxPartSave()
+    {
+        $d = json_decode((string) Tools::getValue('data'), true) ?: array();
+        $id = (int) Tools::getValue('id');
+        if (!$this->isAdmin()) {
+            // Los datos del proveedor solo los cambia el administrador
+            foreach (array('supplier_name', 'supplier_ref', 'supplier_url', 'supplier_price') as $k) {
+                unset($d[$k]);
+            }
+            if ($id) {
+                $old = Db::getInstance()->getRow('SELECT supplier_name, supplier_ref, supplier_url, supplier_price FROM `' . _DB_PREFIX_ . 'ecorepair_part` WHERE id_ecorepair_part = ' . $id);
+                $d = array_merge($d, $old ?: array());
+            }
+        }
+        $res = EcoRepairParts::save($id, (int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'), $d);
+        $res['parts'] = EcoRepairParts::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'), $this->isAdmin());
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxPartDelete()
+    {
+        $res = EcoRepairParts::delete((int) Tools::getValue('id'));
+        $res['parts'] = EcoRepairParts::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'), $this->isAdmin());
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxPartSearch()
+    {
+        $this->jsonOut(array('ok' => true, 'results' => EcoRepairParts::search((string) Tools::getValue('q'), $this->isAdmin())));
+    }
+
+    protected function ajaxQuoteAddParts()
+    {
+        $repair = $this->loadRepairOr404();
+        $lines = json_decode((string) Tools::getValue('lines'), true);
+        $res = EcoRepairQuote::appendToDraft($repair, is_array($lines) ? $lines : array(), (int) $this->context->employee->id, '');
+        if ($res['ok']) {
+            $res['quotes'] = EcoRepairQuote::summary((int) $repair['id_ecorepair']);
+        }
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
     }
 
     protected function ajaxKbSave()
@@ -1556,6 +1624,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'cash' => $this->baseUrl() . '&view=cash',
             'requests' => $this->baseUrl() . '&view=requests',
             'techs' => $this->baseUrl() . '&view=techs',
+            'parts' => $this->baseUrl() . '&view=parts',
             'model' => $this->baseUrl() . '&view=model',
             'customer' => $this->baseUrl() . '&view=customer&id_customer=',
             'repair' => $this->baseUrl() . '&id_ecorepair=',

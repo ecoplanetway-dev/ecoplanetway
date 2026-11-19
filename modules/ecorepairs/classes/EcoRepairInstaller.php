@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.6.1';
+    const SCHEMA = '1.7.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -380,6 +380,28 @@ class EcoRepairInstaller
             `date_upd` DATETIME NOT NULL,
             PRIMARY KEY (`id_ecorepair_knowledge`),
             KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_part` (
+            `id_ecorepair_part` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `zone` VARCHAR(16) NOT NULL DEFAULT 'other',
+            `name` VARCHAR(128) NOT NULL,
+            `spec` VARCHAR(96) NOT NULL DEFAULT '',
+            `notes` TEXT NULL,
+            `id_product` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_product_attribute` INT UNSIGNED NOT NULL DEFAULT 0,
+            `supplier_name` VARCHAR(96) NOT NULL DEFAULT '',
+            `supplier_ref` VARCHAR(64) NOT NULL DEFAULT '',
+            `supplier_url` VARCHAR(255) NOT NULL DEFAULT '',
+            `supplier_price` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `position` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_part`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`),
+            KEY `id_product` (`id_product`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_kit` (

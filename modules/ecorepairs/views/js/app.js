@@ -99,7 +99,8 @@ window.ECOR.ready(function () {
     if (h[0] === 'rep') return repairView({ code: decodeURIComponent(h[1] || '') }, h[2] || 'work');
     if (h[0] === 'id') return repairView({ id: h[1] }, h[2] || 'work');
     if (h[0] === 'models') return modelsView();
-    if (h[0] === 'model') return modelView(+h[1], +h[2], h[3] || '', h[4] || 'codes');
+    if (h[0] === 'psearch') return partSearchView();
+    if (h[0] === 'model') return modelView(+h[1], +h[2], h[3] || '', h[4] || 'parts');
     if (h[0] === 'new' && me.reception) return newView();
     return homeView();
   }
@@ -236,7 +237,14 @@ window.ECOR.ready(function () {
       });
     });
     var el = main.querySelector('#er-tab');
-    if (tab === 'parts') partsTab(el, canWork);
+    if (tab === 'parts') {
+      el.innerHTML = (R.modelParts.length ? '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div>' : '') + '<div id="er-pt"></div>';
+      var pt = partsTab(el.querySelector('#er-pt'), canWork);
+      if (R.modelParts.length) {
+        E.PartsDiagram(el.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, shape: R.shape, suggested: R.suggestedZones, admin: false,
+          onAdd: canWork ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
+      }
+    }
     else if (tab === 'codes' || tab === 'manual') kbTab(el, r.id_brand, r.id_model, r.device_name, tab, r.id);
     else workTab(el, canWork);
   }
@@ -331,6 +339,15 @@ window.ECOR.ready(function () {
     }
     var results = [], last = '', timer, seq = 0;
     draw();
+    var api2 = {
+      add: function (p) {
+        var ex = cart.filter(function (c) { return c.id_product === p.id_product && c.id_product_attribute === p.id_product_attribute; })[0];
+        if (ex) ex.qty++; else cart.push({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference, qty: 1, price: p.price, tax_rate: p.tax_rate });
+        if (navigator.vibrate) navigator.vibrate(30);
+        draw(results);
+        var c = el.querySelector('.er-app-cart'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
     el.addEventListener('input', function (e) {
       if (e.target.id !== 'er-app-q') return;
       last = e.target.value.trim(); clearTimeout(timer);
@@ -371,6 +388,7 @@ window.ECOR.ready(function () {
         });
       }
     });
+    return api2;
   }
 
   /* ---------- Códigos y manual ---------- */
@@ -446,7 +464,8 @@ window.ECOR.ready(function () {
   function loadCatalog() { return catalog ? Promise.resolve(catalog) : api('catalog', {}, null).then(function (res) { catalog = res.catalog || []; return catalog; }); }
   function modelsView() {
     tabbar('models');
-    main.innerHTML = header('Códigos y manuales', '#home') + '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-m-q" type="search" placeholder="Buscar marca o modelo"></label><div id="er-m-list" class="er-mini" style="margin-top:12px"></div>';
+    main.innerHTML = header('Códigos, manuales y piezas', '#home') + '<a class="er-bigbtn" href="#psearch">' + icon('box') + '<span><b>Buscar una pieza</b><small>Por medida o nombre: en qué modelos va y si hay stock</small></span></a>' +
+      '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-m-q" type="search" placeholder="Buscar marca o modelo"></label><div id="er-m-list" class="er-mini" style="margin-top:12px"></div>';
     loadCatalog().then(function (cat) {
       var all = [];
       cat.forEach(function (c) { c.brands.forEach(function (b) { all.push({ brand: b, cat: c, model: null }); b.models.forEach(function (m) { all.push({ brand: b, cat: c, model: m }); }); }); });
@@ -468,10 +487,24 @@ window.ECOR.ready(function () {
     tabbar('models');
     name = decodeURIComponent(name || '');
     var base = '#model/' + idBrand + '/' + idModel + '/' + encodeURIComponent(name);
-    main.innerHTML = header(esc(name), '#models') + '<div class="er-seg">' + [['codes', 'Códigos de error'], ['manual', 'Menú y soluciones']].map(function (t) {
+    main.innerHTML = header(esc(name), '#models') + '<div class="er-seg">' + [['parts', 'Piezas'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
       return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
     }).join('') + '</div><div id="er-tab"></div>';
+    if (tab === 'parts') {
+      var box = main.querySelector('#er-tab');
+      box.innerHTML = '<div class="er-empty">Cargando…</div>';
+      api('modelParts', { id_brand: idBrand, id_model: idModel }).then(function (res) {
+        box.innerHTML = '<div class="er-panel" id="er-mp"></div>';
+        E.PartsDiagram(box.querySelector('#er-mp'), { parts: res.parts || [], zones: res.zones || {}, shape: 'scooter', admin: false });
+      });
+      return;
+    }
     kbTab(main.querySelector('#er-tab'), idBrand, idModel, name, tab, 0);
+  }
+  function partSearchView() {
+    tabbar('models');
+    main.innerHTML = header('Buscar piezas', '#models') + '<div class="er-panel" id="er-ps"></div>';
+    E.PartsSearch(main.querySelector('#er-ps'), { admin: false, post: true, modelLink: function (m) { return '#model/' + m.id_brand + '/' + m.id_model + '/' + encodeURIComponent(m.label) + '/parts'; } });
   }
 
   /* ---------- Nueva reparación (recepción) ---------- */
