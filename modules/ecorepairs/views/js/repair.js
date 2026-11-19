@@ -550,7 +550,7 @@ window.ECOR.ready(function () {
       } : null });
       return;
     }
-    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, zonesUrl: D.modelUrl && r.id_model ? D.modelUrl + '&tab=parts' : '', suggested: D.suggestedZones || [], admin: !!D.isAdmin,
       incompat: D.incompat || [],
       onIncompat: canEdit ? function () {
         E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {

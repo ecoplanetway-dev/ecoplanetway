@@ -171,7 +171,10 @@
     }
     function visual() {
       var map = opts.map, photo = opts.photo;
-      return (photo && map && map.polys ? '<div class="er-dw-photo">' + photoMap(photo, map, sections, { compact: true, sel: st.mode === 'sec' ? st.sec : null, sug: sugSecs(), count: function (s) { return inSec(s).length; } }) + '</div>' : '') + secList();
+      if (photo && map && map.polys) return '<div class="er-dw-photo">' + photoMap(photo, map, sections, { compact: true, sel: st.mode === 'sec' ? st.sec : null, sug: sugSecs(), count: function (s) { return inSec(s).length; } }) + '</div>' + secList();
+      // Foto sin partes marcadas: se enseña igual y se avisa de dónde marcarlas
+      return (photo ? '<div class="er-dw-photo"><div class="er-pmap"><img src="' + esc(photo) + '" alt="" draggable="false"></div>' +
+        '<div class="er-dw-hint">' + icon('pen', true) + (opts.zonesUrl ? '<a href="' + esc(opts.zonesUrl) + '" target="_blank" rel="noopener">Marca las partes sobre la foto</a> para tocar directamente en el patín.' : 'Las partes se marcan sobre la foto en la ficha del modelo.') + '</div></div>' : '') + secList();
     }
     function list() {
       if (st.mode === 'suggested') return parts.filter(function (p) { return sug.indexOf(p.zone) > -1; });

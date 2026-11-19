@@ -915,3 +915,5 @@
 .ecor .er-set-nav .er-search { flex: none; }
 .ecor .er-phb-n { width: 26px; height: 26px; padding: 0; justify-content: center; background: var(--c); color: #fff; font-size: 12px; font-weight: 700; border-color: #fff; }
 .ecor .er-phb-n.on { box-shadow: 0 0 0 3px var(--c), 0 2px 8px rgba(0,0,0,.2); }
+.ecor .er-dw-hint { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #5B6170; padding: 6px 4px 2px; }
+.ecor .er-dw-hint a { color: var(--er-pri); font-weight: 600; }
