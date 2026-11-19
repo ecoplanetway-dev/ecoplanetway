@@ -56,7 +56,6 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
 
         $repair = EcoRepair::get((int) $q['id_ecorepair']);
         $pq = EcoRepairQuote::publicQuote($q);
-        $logo = Configuration::get('PS_LOGO');
         $this->render(array(
             'state' => EcoRepairQuote::linkState($q),
             'result' => $result,
@@ -69,7 +68,7 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
             'shop' => array(
                 'name' => Configuration::get('PS_SHOP_NAME'),
                 'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'logo' => $logo ? $this->context->link->getMediaLink(_PS_IMG_ . $logo) : '',
+                'logo' => EcoRepairs::logoUrl(),
             ),
         ));
     }

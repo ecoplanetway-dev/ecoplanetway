@@ -1283,7 +1283,6 @@ class AdminEcoRepairsController extends ModuleAdminController
         $format = in_array($format, array('80mm', 'a4'), true) ? $format : '80mm';
         $label = Configuration::get('ECOREPAIRS_LABEL_SIZE');
         $label = in_array($label, array('62x29', '50x25', '62x100'), true) ? $label : '62x29';
-        $logo = Configuration::get('PS_LOGO');
 
         $this->context->smarty->assign(array(
             'r' => $repair,
@@ -1298,7 +1297,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'phone' => Configuration::get('PS_SHOP_PHONE'),
                 'email' => Configuration::get('PS_SHOP_EMAIL'),
                 'details' => Configuration::get('PS_SHOP_DETAILS'),
-                'logo' => $logo ? $this->context->link->getMediaLink(_PS_IMG_ . $logo) : '',
+                'logo' => EcoRepairs::logoUrl(),
             ),
             'conditions' => preg_split('/\r\n|\r|\n/', (string) Configuration::get('ECOREPAIRS_CONDITIONS')),
             'trackingUrl' => $this->trackingUrl($repair['tracking_code']),
@@ -1459,7 +1458,6 @@ class AdminEcoRepairsController extends ModuleAdminController
         $format = Tools::getValue('format', Configuration::get('ECOREPAIRS_PRINT_FORMAT'));
         $format = in_array($format, array('80mm', 'a4'), true) ? $format : 'a4';
         $pq = EcoRepairQuote::publicQuote($q);
-        $logo = Configuration::get('PS_LOGO');
         $this->context->smarty->assign(array(
             'r' => $repair,
             'q' => $pq,
@@ -1471,7 +1469,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ' ' . Configuration::get('PS_SHOP_ADDR2')),
                 'city' => trim(Configuration::get('PS_SHOP_CODE') . ' ' . Configuration::get('PS_SHOP_CITY')),
                 'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'logo' => $logo ? $this->context->link->getMediaLink(_PS_IMG_ . $logo) : '',
+                'logo' => EcoRepairs::logoUrl(),
             ),
             'conditions' => preg_split('/\r\n|\r|\n/', (string) Configuration::get('ECOREPAIRS_QUOTE_CONDITIONS')),
             'qrJs' => $this->module->getPathUri() . 'views/js/vendor/qrcode.js',

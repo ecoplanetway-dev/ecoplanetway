@@ -73,12 +73,11 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             }
         }
 
-        $logo = Configuration::get('PS_LOGO');
         $vars['shop'] = array(
             'name' => Configuration::get('PS_SHOP_NAME'),
             'phone' => Configuration::get('PS_SHOP_PHONE'),
             'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ', ' . Configuration::get('PS_SHOP_CITY'), ', '),
-            'logo' => $logo ? $this->context->link->getMediaLink(_PS_IMG_ . $logo) : '',
+            'logo' => EcoRepairs::logoUrl(),
             'url' => $this->context->link->getBaseLink(),
         );
         $vars['action'] = $this->context->link->getBaseLink() . 'seguimiento';

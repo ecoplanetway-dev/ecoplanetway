@@ -71,14 +71,13 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'accessories' => EcoRepairCatalog::configList('ECOREPAIRS_ACCESSORIES'),
             'damages' => EcoRepairCatalog::configList('ECOREPAIRS_DAMAGES'),
         );
-        $logo = Configuration::get('PS_LOGO');
         $this->context->smarty->assign(array(
             'css' => array($base . 'views/css/admin.css' . $v, $base . 'views/css/app.css' . $v),
             'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
             'boot' => json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'data' => json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'shopName' => Configuration::get('PS_SHOP_NAME'),
-            'logo' => $logo ? $this->context->link->getMediaLink(_PS_IMG_ . $logo) : '',
+            'logo' => EcoRepairs::logoUrl(),
         ));
         header('Content-Type: text/html; charset=utf-8');
         echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/app.tpl');

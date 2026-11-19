@@ -38,7 +38,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.6.5';
+        $this->version = '1.6.6';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
@@ -96,6 +96,21 @@ class EcoRepairs extends PaymentModule
                 'params' => array('fc' => 'module', 'module' => 'ecorepairs', 'controller' => 'app'),
             ),
         );
+    }
+
+    /**
+     * Logo del taller (negro y azul, para fondos claros): views/img/logo-taller.png.
+     * Si no existe, el logo de la tienda.
+     */
+    public static function logoUrl()
+    {
+        $file = _PS_MODULE_DIR_ . 'ecorepairs/views/img/logo-taller.png';
+        if (is_file($file)) {
+            return Tools::getShopDomainSsl(true) . _MODULE_DIR_ . 'ecorepairs/views/img/logo-taller.png?v=' . filemtime($file);
+        }
+        $logo = Configuration::get('PS_LOGO');
+
+        return $logo ? Context::getContext()->link->getMediaLink(_PS_IMG_ . $logo) : '';
     }
 
     public function getContent()

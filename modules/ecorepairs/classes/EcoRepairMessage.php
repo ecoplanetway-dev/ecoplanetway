@@ -245,6 +245,7 @@ class EcoRepairMessage
             '{button_text}' => $buttonUrl ? 'Ver el presupuesto' : 'Ver cómo va mi reparación',
             '{tracking_url}' => $trackingUrl,
             '{shop_phone}' => (string) Configuration::get('PS_SHOP_PHONE'),
+            '{taller_logo}' => EcoRepairs::logoUrl(),
         );
         try {
             $ok = Mail::Send($idLang, 'ecorepairs_notice', $subject, $vars, $c['email'], $c['name'], null, null, null, null,
