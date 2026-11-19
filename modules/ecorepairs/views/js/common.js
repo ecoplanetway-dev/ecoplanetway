@@ -519,8 +519,13 @@
     var r = micField.getBoundingClientRect();
     if (!micField.isConnected || !r.width || r.bottom < 0 || r.top > window.innerHeight || (document.activeElement !== micField && !micOn)) { micBtn.hidden = true; return; }
     micBtn.hidden = false;
-    micBtn.style.top = (r.top + (micField.tagName === 'TEXTAREA' ? r.height - 40 : (r.height - 34) / 2)) + 'px';
-    micBtn.style.left = (r.right - 40) + 'px';
+    // Va dentro del mismo bloque que el campo (posición absoluta), así no se descoloca con el desplazamiento ni con la plantilla
+    var host = micField.parentElement;
+    if (window.getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    if (micBtn.parentNode !== host) host.appendChild(micBtn);
+    var hr = host.getBoundingClientRect();
+    micBtn.style.top = (r.top - hr.top + (micField.tagName === 'TEXTAREA' ? r.height - 40 : (r.height - 34) / 2)) + 'px';
+    micBtn.style.left = (r.right - hr.left - 40) + 'px';
   }
   function insertText(field, text) {
     if (!text) return;
@@ -549,7 +554,7 @@
           micOn = true; micBtn.classList.add('on');
           listen().then(function (t) { micOn = false; micBtn.classList.remove('on'); if (f) { f.focus(); insertText(f, t); } });
         });
-        document.body.appendChild(micBtn);
+        micBtn.hidden = true;
       }
       micBtn.hidden = false;
       placeMic();
