@@ -219,7 +219,11 @@
       };
     }
     render();
-    return { get: api, render: render };
+    return { get: api, render: render, set: function (nv) {
+      v.cat = nv.cat || 0; v.brand = nv.brand || 0; v.model = nv.model || 0;
+      if (nv.faults) v.faults = nv.faults.slice();
+      render();
+    } };
   }
 
   /**
@@ -294,7 +298,10 @@
       addOther();
     });
     render();
-    return { get: function () { return selected.slice(); } };
+    return { get: function () { return selected.slice(); }, set: function (list) {
+      (list || []).forEach(function (o) { if (options.indexOf(o) < 0) options.push(o); });
+      selected = (list || []).slice(); render(); changed();
+    }, options: function () { return options.slice(); } };
   }
 
   /**

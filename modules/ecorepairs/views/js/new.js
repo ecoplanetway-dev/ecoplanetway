@@ -19,7 +19,9 @@ window.ECOR.ready(function () {
     '<div class="er-f-head">' +
       '<a class="er-btn er-btn-ghost er-icon-btn" href="' + esc(E.boot.links.board) + '" aria-label="Volver al tablero">' + icon('back') + '</a>' +
       '<div class="er-f-title"><h1>Nueva reparación</h1></div>' +
+      '<button type="button" class="er-btn er-btn-pri" id="er-voice" style="margin-left:auto">' + icon('mic') + 'Rellenar por voz</button>' +
     '</div>' +
+    (D.fromTag ? '<div class="er-banner">' + icon('qr') + '<div>Patín con pegatina <b>' + esc(D.fromTag.tag) + '</b>: cliente y equipo copiados de ' + esc(D.fromTag.reference) + '. Solo falta la avería.</div></div>' : '') +
     '<div class="er-banner er-bad" id="er-errors" hidden></div>' +
     '<div class="er-grid2">' +
       '<div class="er-stack er-new-grid">' +
@@ -64,6 +66,71 @@ window.ECOR.ready(function () {
   var device = E.DevicePicker($('#er-device'), { catalog: D.catalog, canAdd: true, canManage: !!D.canEdit, showFaults: true });
   var acc = E.ChipSet($('#er-acc'), { options: D.accessories, allowOther: true, list: 'accessories', canManage: !!D.canEdit });
   var dmg = E.ChipSet($('#er-dmg'), { options: D.damages, warn: true, allowOther: true, list: 'damages', canManage: !!D.canEdit });
+  if (D.fromTag) {
+    device.set({ cat: D.fromTag.id_category, brand: D.fromTag.id_brand, model: D.fromTag.id_model });
+    $('#er-serial').value = D.fromTag.serial || '';
+    $('#er-color').value = D.fromTag.color || '';
+  }
+
+  /* ---------- Entrada por voz (pregunta y escucha, paso a paso) ---------- */
+  function deviceIndex() {
+    var out = [];
+    D.catalog.forEach(function (c) {
+      c.brands.forEach(function (b) {
+        out.push({ cat: c.id, brand_id: b.id, model_id: 0, brand: b.name, model: '', faults: c.faults });
+        b.models.forEach(function (m) { out.push({ cat: c.id, brand_id: b.id, model_id: m.id, id_model: m.id, brand: b.name, model: m.name, faults: c.faults }); });
+      });
+    });
+    return out;
+  }
+  function cap(t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
+  $('#er-voice').addEventListener('click', function () {
+    var steps = [];
+    if (!st.customer) steps.push({ key: 'name', q: '¿Cómo se llama el cliente?' }, { key: 'phone', q: '¿Cuál es su teléfono?', hint: 'Dilo número a número o seguido.' });
+    if (!D.fromTag) steps.push({ key: 'device', q: '¿Qué marca y modelo es?' }, { key: 'serial', q: '¿Número de serie?' });
+    steps.push({ key: 'km', q: '¿Cuántos kilómetros tiene?' }, { key: 'fault', q: '¿Qué le pasa?' },
+      { key: 'acc', q: '¿Qué trae con el patín?', hint: 'Por ejemplo: cargador y llave. Di «no» si no trae nada.' },
+      { key: 'dmg', q: '¿Tiene algún daño previo?' }, { key: 'urgent', q: '¿Es urgente?', hint: 'Di sí o no.' });
+    E.voiceEntry(steps, 'Nueva reparación por voz').then(function (a) {
+      if (!a) return;
+      var done = [];
+      if (a.device) {
+        var best = E.findModels(deviceIndex(), a.device, 1)[0];
+        if (best) { device.set({ cat: best.cat, brand: best.brand_id, model: best.model_id }); done.push('equipo'); }
+        else E.toast('No encontré «' + a.device + '» en el catálogo: elígelo a mano.', true);
+      }
+      if (a.serial) $('#er-serial').value = a.serial.replace(/\s+/g, '').toUpperCase();
+      if (a.km) $('#er-km').value = E.phoneFromText(a.km).slice(0, 9);
+      if (a.fault) {
+        $('#er-fault').value = cap(a.fault);
+        var dv = device.get(), cat = D.catalog.filter(function (c) { return c.id === dv.id_category; })[0];
+        var fl = cat ? E.pickFromText(a.fault, cat.faults.map(function (f) { return f.name; })) : [];
+        if (fl.length) device.set({ cat: dv.id_category, brand: dv.id_brand, model: dv.id_model, faults: fl });
+      }
+      if (a.acc) { var al = E.pickFromText(a.acc, acc.options()); acc.set(al.length ? al : [cap(a.acc)]); }
+      if (a.dmg) { var dl = E.pickFromText(a.dmg, dmg.options()); dmg.set(dl.length ? dl : [cap(a.dmg)]); }
+      if (a.urgent && /^s[ií]/.test(E.fold(a.urgent))) $('#er-urgent').checked = true;
+      if (a.name || a.phone) voiceCustomer(cap(a.name), E.phoneFromText(a.phone || ''));
+      E.toast('Revisa los datos y pulsa «Crear reparación»');
+    });
+  });
+  function voiceCustomer(name, phone) {
+    var q = phone.length >= 6 ? phone : name;
+    if (!q) return;
+    E.api('searchCustomers', { q: q }).then(function (res) {
+      var list = (res.customers || []).filter(function (c) {
+        return phone.length >= 6 ? String(c.phone || '').replace(/\D/g, '').indexOf(phone.slice(-9)) > -1 : E.fuzzyScore(name, c.name) >= 80;
+      });
+      if (list.length === 1) { st.customer = list[0]; renderCustomer(); E.toast('Cliente encontrado: ' + list[0].name); return; }
+      st.customer = null; st.newCustomer = true; renderCustomer();
+      var parts = name.split(/\s+/);
+      var f = custEl.querySelector('[data-k="firstname"]'), l = custEl.querySelector('[data-k="lastname"]'), ph = custEl.querySelector('[data-k="phone"]');
+      if (f) f.value = parts.shift() || '';
+      if (l) l.value = parts.join(' ');
+      if (ph) ph.value = phone;
+      E.toast(list.length > 1 ? 'Hay varios clientes parecidos: búscalo o crea uno nuevo.' : 'Cliente nuevo: revisa los datos y pulsa «Guardar cliente».');
+    });
+  }
 
   /* ---------- Cliente ---------- */
   var custEl = $('#er-cust');
@@ -327,7 +394,8 @@ window.ECOR.ready(function () {
       accessories: acc.get(), damages: dmg.get(),
       id_employee_tech: +$('#er-tech').value, eta_date: $('#er-eta').value,
       urgent: $('#er-urgent').checked, warranty: $('#er-warranty').checked,
-      consent_rgpd: $('#er-rgpd').checked, consent_whatsapp: $('#er-wa').checked
+      consent_rgpd: $('#er-rgpd').checked, consent_whatsapp: $('#er-wa').checked,
+      device_tag: D.fromTag ? D.fromTag.tag : ''
     };
 
     function fail(msg) {

@@ -42,6 +42,49 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             exit;
         }
 
+        // Pegatina QR del patín: historial del patín y garantía. El personal del taller va a la app (nueva entrada con los datos)
+        $tag = preg_replace('/[^A-Z0-9]/', '', Tools::strtoupper((string) Tools::getValue('d')));
+        if ($tag !== '') {
+            if (EcoRepairStaff::current()) {
+                $app = Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true);
+                Tools::redirect($app . '#tag/' . rawurlencode($tag));
+            }
+            $vars = array('state' => 'notfound', 'code' => '');
+            if (EcoRepairRateLimit::blocked('track', self::RATE_LIMIT)) {
+                $vars['state'] = 'limit';
+            } else {
+                $list = strlen($tag) >= 6 ? EcoRepair::historyByTag($tag) : array();
+                if (!$list) {
+                    EcoRepairRateLimit::hit('track');
+                } else {
+                    $all = EcoRepairStatus::all();
+                    $rows = array();
+                    $open = '';
+                    foreach ($list as $r) {
+                        if (!in_array($r['status'], array(EcoRepairStatus::DELIVERED, EcoRepairStatus::CANCELLED), true) && $open === '') {
+                            $open = $r['tracking_code'];
+                        }
+                        $rows[] = array('date' => $r['date_add'], 'status_name' => $r['status_name'], 'status_color' => isset($all[$r['status']]['color']) ? $all[$r['status']]['color'] : '#888',
+                            'warranty_until' => EcoRepair::warrantyUntil($r));
+                    }
+                    $phone = preg_replace('/\D+/', '', (string) Configuration::get('PS_SHOP_PHONE'));
+                    if (strlen($phone) === 9) {
+                        $phone = '34' . $phone;
+                    }
+                    $vars = array('state' => 'device', 'code' => '', 'device' => $list[0]['device_name'], 'tag' => $tag, 'rows' => $rows,
+                        'openUrl' => $open !== '' ? $this->context->link->getBaseLink() . 'seguimiento?c=' . rawurlencode($open) : '',
+                        'waUrl' => $phone ? 'https://wa.me/' . $phone . '?text=' . rawurlencode('Hola, quiero pedir una revisión para mi ' . $list[0]['device_name'] . ' (' . $tag . ')') : '');
+                }
+            }
+            $vars['shop'] = array('name' => Configuration::get('PS_SHOP_NAME'), 'phone' => Configuration::get('PS_SHOP_PHONE'),
+                'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ', ' . Configuration::get('PS_SHOP_CITY'), ', '), 'logo' => EcoRepairs::logoUrl(), 'url' => $this->context->link->getBaseLink());
+            $vars['action'] = $this->context->link->getBaseLink() . 'seguimiento';
+            $this->context->smarty->assign($vars);
+            header('Content-Type: text/html; charset=utf-8');
+            echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/tracking.tpl');
+            exit;
+        }
+
         // Un técnico con sesión en su móvil que escanea el QR va directo a la reparación en la app del taller
         if ($code !== '' && EcoRepairStaff::current()) {
             $app = Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true);

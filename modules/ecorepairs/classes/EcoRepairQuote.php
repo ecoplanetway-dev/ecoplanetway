@@ -452,7 +452,7 @@ class EcoRepairQuote
      * Añade piezas al borrador del presupuesto (lo crea si hace falta; si el principal está aceptado, va a un adicional).
      * $new: líneas con id_product, id_product_attribute, name, reference, qty, price (IVA incl.), tax_rate.
      */
-    public static function appendToDraft(array $repair, array $new, $idEmployee, $who)
+    public static function appendToDraft(array $repair, array $new, $idEmployee, $who, $noteAppend = '')
     {
         $idRepair = (int) $repair['id_ecorepair'];
         $draft = null;
@@ -483,14 +483,18 @@ class EcoRepairQuote
             }
             $n['type'] = isset($n['type']) && $n['type'] === 'labour' ? 'labour' : 'part';
             $n['warranty'] = (int) $repair['warranty'];
-            $n['discount'] = 0;
+            $n['discount'] = isset($n['discount']) ? max(0, (float) $n['discount']) : 0;
             $lines[] = $n;
             $names[] = (isset($n['qty']) ? (float) $n['qty'] : 1) . ' × ' . (isset($n['name']) ? $n['name'] : '');
         }
         if (!$names) {
             return array('ok' => false, 'error' => 'Elige alguna pieza.');
         }
-        $res = self::saveDraft($draft, $lines, (string) $draft['notes']);
+        $notes = (string) $draft['notes'];
+        if ($noteAppend !== '' && strpos($notes, $noteAppend) === false) {
+            $notes = trim($notes . "\n" . $noteAppend);
+        }
+        $res = self::saveDraft($draft, $lines, $notes);
         if (!$res['ok']) {
             return $res;
         }

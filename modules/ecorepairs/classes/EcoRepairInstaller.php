@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.7.2';
+    const SCHEMA = '1.8.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -159,6 +159,9 @@ class EcoRepairInstaller
             && self::addColumn('ecorepair', 'repeat_of', 'INT UNSIGNED NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair', 'repeat_same', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair_photo', 'public', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair_model', 'zones', 'TEXT NULL')
+            && self::addColumn('ecorepair', 'checklist', 'TEXT NULL')
+            && self::addColumn('ecorepair', 'device_tag', 'VARCHAR(16) NOT NULL DEFAULT \'\'')
             && self::seedKnowledge()
             && self::installConfig()
             && EcoRepairPhoto::ensureStorage();
@@ -420,6 +423,42 @@ class EcoRepairInstaller
             KEY `id_product` (`id_product`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_unlock` (
+            `id_ecorepair_unlock` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `method` VARCHAR(96) NOT NULL DEFAULT '',
+            `speed_from` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            `speed_to` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            `firmware` VARCHAR(96) NOT NULL DEFAULT '',
+            `steps` TEXT NULL,
+            `minutes` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            `difficulty` TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            `price` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `products` TEXT NULL,
+            `supplier_name` VARCHAR(96) NOT NULL DEFAULT '',
+            `supplier_url` VARCHAR(255) NOT NULL DEFAULT '',
+            `author` VARCHAR(64) NOT NULL DEFAULT '',
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_unlock`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_fixed` (
+            `id_ecorepair_fixed` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `name` VARCHAR(128) NOT NULL,
+            `price` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `products` TEXT NULL,
+            `notes` VARCHAR(500) NOT NULL DEFAULT '',
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_fixed`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_kit` (
             `id_ecorepair_kit` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `id_ecorepair_category` INT UNSIGNED NOT NULL DEFAULT 0,
@@ -544,6 +583,10 @@ class EcoRepairInstaller
             'ECOREPAIRS_WA_TEMPLATES' => '',
             'ECOREPAIRS_REPEAT_DAYS' => '30',
             'ECOREPAIRS_REVIEW_URL' => '',
+            'ECOREPAIRS_RECALL_DAYS' => '15',
+            'ECOREPAIRS_CHECKLIST' => "Frenos\nPresión de neumáticos\nTornillería\nPlegado y dirección\nLuces\nPrueba de carga",
+            'ECOREPAIRS_UNLOCK_NOTICE' => 'Modificación para uso exclusivo en recinto privado. Un vehículo de movilidad personal que supere los 25 km/h no puede circular por la vía pública. El cliente asume la responsabilidad del uso.',
+            'ECOREPAIRS_TECHS_VIEWERS' => '',
             'ECOREPAIRS_QUOTE_CONDITIONS' => "Precios con IVA incluido.\nLas líneas marcadas como garantía no tienen coste para el cliente.\nSi al reparar aparece otra avería, se le enviará un presupuesto adicional antes de hacer nada.",
         );
     }

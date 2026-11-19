@@ -28,6 +28,7 @@ window.ECOR.ready(function () {
         '<button type="button" class="er-btn er-btn-hist" id="er-hist">' + icon('clock') + 'Historial<span class="er-hist-n" id="er-hist-n"></span></button>' +
         '<a class="er-btn" href="' + esc(printUrl) + '" target="_blank" rel="noopener">' + icon('print') + 'Imprimir resguardo</a>' +
         '<a class="er-btn" href="' + esc(labelUrl) + '" target="_blank" rel="noopener">' + icon('tag') + 'Etiqueta</a>' +
+        (D.stickerUrl ? '<a class="er-btn" href="' + esc(D.stickerUrl) + '" target="_blank" rel="noopener" title="Pegatina QR fija para el patín: historial, garantía y entrada rápida">' + icon('qr') + 'Pegatina</a>' : '') +
         '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '&id_customer=' + r.id_customer + '">' + icon('plus') + 'Otra reparación del cliente</a>' +
       '</div>' +
     '</div>' +
@@ -46,6 +47,7 @@ window.ECOR.ready(function () {
         '<div class="er-panel er-p-pay" id="er-p-pay"></div>' +
         '<div class="er-panel" id="er-p-assign"></div>' +
         '<div class="er-panel" id="er-p-move"></div>' +
+        ((D.checklistItems || []).length ? '<div class="er-panel" id="er-p-check"></div>' : '') +
         '<div class="er-panel" id="er-p-sig"></div>' +
         '<div class="er-panel" id="er-p-track"></div>' +
       '</div>' +
@@ -503,13 +505,38 @@ window.ECOR.ready(function () {
   }
 
   /* ---------- Piezas de este modelo ---------- */
+  var partsTab = 'parts';
+  function afterQuote(res, msg) {
+    if (!res.ok) { E.toast(res.error, true); return; }
+    D.quotes = res.quotes; log = res.log; renderQuote(); renderLog(); renderHead();
+    E.toast(msg);
+  }
   function renderParts() {
     var box = $('#er-p-parts');
     if (!box) return;
     box.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(r.device_name) + '<span class="er-r">' +
-      (D.modelUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.modelUrl + '&tab=parts') + '" target="_blank" rel="noopener">' + icon('book', true) + 'Ficha del modelo</a> ' : '') +
-      '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></span></h3><div id="er-dwr"></div>';
-    var dg = E.PartsDiagram(box.querySelector('#er-dwr'), { parts: D.modelParts || [], zones: D.zones, shape: D.shape, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+      (D.modelUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.modelUrl + '&tab=' + partsTab) + '" target="_blank" rel="noopener">' + icon('book', true) + 'Ficha del modelo</a> ' : '') +
+      '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></span></h3>' +
+      '<div class="er-filters" style="margin:0 0 10px">' + [['parts', 'Piezas', (D.modelParts || []).length], ['fixed', 'Precio cerrado', (D.fixed || []).length], ['unlock', 'Deslimitar', (D.unlock || []).length]].map(function (t) {
+        return '<button type="button" class="er-chip" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
+      }).join('') + '</div><div id="er-dwr"></div>';
+    var host = box.querySelector('#er-dwr');
+    if (partsTab !== 'parts') host.classList.add('er-plain');
+    if (partsTab === 'fixed') {
+      E.FixedPanel(host, { list: D.fixed || [], onAdd: canEdit ? function (f, btn) {
+        btn.disabled = true;
+        E.api('fixedAdd', { id_ecorepair: r.id }, { id: f.id }).then(function (res) { btn.disabled = false; afterQuote(res, '«' + f.name + '» añadido al presupuesto por ' + E.fmtMoney(f.price)); });
+      } : null });
+      return;
+    }
+    if (partsTab === 'unlock') {
+      E.UnlockPanel(host, { list: D.unlock || [], admin: !!D.isAdmin, onAdd: canEdit ? function (u, btn) {
+        btn.disabled = true;
+        E.api('unlockAdd', { id_ecorepair: r.id }, { id: u.id }).then(function (res) { btn.disabled = false; afterQuote(res, 'Deslimitación añadida al presupuesto con el aviso legal'); });
+      } : null });
+      return;
+    }
+    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
       incompat: D.incompat || [],
       onIncompat: canEdit ? function () {
         E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {
@@ -538,9 +565,28 @@ window.ECOR.ready(function () {
         });
       } : null,
       onEdit: canEdit ? function (p, zone) {
-        E.partDialog(p, zone, { zones: D.zones, admin: !!D.isAdmin, canDelete: !!D.canDelete, id_brand: r.id_brand, id_model: r.id_model, title: r.device_name,
+        E.partDialog(p, zone, { zones: D.zones, sections: D.sections, admin: !!D.isAdmin, canDelete: !!D.canDelete, id_brand: r.id_brand, id_model: r.id_model, title: r.device_name,
           onSaved: function (list) { D.modelParts = list; renderParts(); } });
       } : null });
+  }
+
+  app.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-ptab]');
+    if (t) { partsTab = t.getAttribute('data-ptab'); renderParts(); }
+  });
+
+  /* ---------- Revisión de salida ---------- */
+  function renderCheck() {
+    var box = $('#er-p-check');
+    if (!box) return;
+    box.innerHTML = '<h3>' + icon('check') + 'Revisión<span class="er-r">Opcional</span></h3><div id="er-chk"></div>';
+    E.Checklist(box.querySelector('#er-chk'), { items: D.checklistItems, done: D.checklist || {}, canEdit: canEdit, onToggle: function (item) {
+      return E.api('checkToggle', { id_ecorepair: r.id }, { item: item }).then(function (res) {
+        if (!res.ok) { E.toast(res.error, true); return res; }
+        D.checklist = res.checklist; if (res.log) { log = res.log; renderLog(); }
+        return res;
+      });
+    } });
   }
 
   /* ---------- Presupuesto ---------- */
@@ -842,6 +888,7 @@ window.ECOR.ready(function () {
   renderPhotos();
   renderLog();
   renderParts();
+  renderCheck();
   renderQuote();
   renderPay();
   renderAssign();

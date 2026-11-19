@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Seguimiento{if $state == 'ok'} {$r.reference|escape:'html':'UTF-8'}{/if} · {$shop.name|escape:'html':'UTF-8'}</title>
+<title>{if $state == 'device'}{$device|escape:'html':'UTF-8'}{else}Seguimiento{/if}{if $state == 'ok'} {$r.reference|escape:'html':'UTF-8'}{/if} · {$shop.name|escape:'html':'UTF-8'}</title>
 <style>
   :root { --bg:#F4F5F7; --card:#FFFFFF; --fg:#14161A; --fg2:#5B6170; --line:#D5D8DE; --line2:#EEF0F2; --pri:#0B6E4B; }
   * { box-sizing: border-box; }
@@ -77,6 +77,18 @@
       {if $r.total > 0}<div class="kv"><span class="muted">Total</span><b>{$r.total|string_format:'%.2f'|replace:'.':','} €</b></div>{/if}
       {if $r.pending > 0 && $r.pending < $r.total}<div class="kv"><span class="muted">Pendiente de pago</span><b>{$r.pending|string_format:'%.2f'|replace:'.':','} €</b></div>{/if}
       {if $r.warranty}<div class="kv"><span class="muted">Garantía</span><b>Sí</b></div>{/if}
+    </div>
+  {elseif $state == 'device'}
+    <div class="card">
+      <div class="muted">Tu patín · {$tag|escape:'html':'UTF-8'}</div>
+      <h1>{$device|escape:'html':'UTF-8'}</h1>
+      {if $openUrl}<p style="margin:8px 0 12px">Ahora mismo está en el taller.</p><a class="btn" href="{$openUrl|escape:'html':'UTF-8'}">Ver cómo va</a>{/if}
+      {if $waUrl}<p style="margin:12px 0 0"><a class="btn" href="{$waUrl|escape:'html':'UTF-8'}" target="_blank" rel="noopener">Pedir revisión por WhatsApp</a></p>{/if}
+    </div>
+    <div class="card"><b>Historial en el taller</b>
+      {foreach from=$rows item=x}
+        <div class="kv"><span>{$x.date|date_format:'%d/%m/%Y'}</span><b><span class="dot" style="background:{$x.status_color|escape:'html':'UTF-8'};display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>{$x.status_name|escape:'html':'UTF-8'}{if $x.warranty_until} · garantía hasta {$x.warranty_until|date_format:'%d/%m/%Y'}{/if}</b></div>
+      {/foreach}
     </div>
   {else}
     <div class="card">

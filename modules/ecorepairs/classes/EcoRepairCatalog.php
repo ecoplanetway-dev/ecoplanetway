@@ -33,6 +33,33 @@ class EcoRepairCatalog
         );
     }
 
+    /** Marcas y modelos activos en una lista plana, para el buscador rápido de modelos. */
+    public static function modelIndex()
+    {
+        $p = _DB_PREFIX_;
+        $rows = Db::getInstance()->executeS("SELECT b.id_ecorepair_brand AS id_brand, b.name AS brand, IFNULL(m.id_ecorepair_model, 0) AS id_model,
+                IFNULL(m.name, '') AS model, IFNULL(m.image, '') AS image, c.name AS category, c.icon
+            FROM `{$p}ecorepair_brand` b
+            INNER JOIN `{$p}ecorepair_category` c ON c.id_ecorepair_category = b.id_ecorepair_category AND c.active = 1
+            LEFT JOIN `{$p}ecorepair_model` m ON m.id_ecorepair_brand = b.id_ecorepair_brand AND m.active = 1
+            WHERE b.active = 1 ORDER BY b.name, m.name") ?: array();
+        $out = array();
+        $seenBrand = array();
+        foreach ($rows as $r) {
+            $idb = (int) $r['id_brand'];
+            if (!isset($seenBrand[$idb])) {
+                $seenBrand[$idb] = true;
+                $out[] = array('id_brand' => $idb, 'id_model' => 0, 'brand' => $r['brand'], 'model' => '', 'image' => '', 'category' => $r['category'], 'icon' => $r['icon']);
+            }
+            if ((int) $r['id_model']) {
+                $out[] = array('id_brand' => $idb, 'id_model' => (int) $r['id_model'], 'brand' => $r['brand'], 'model' => $r['model'], 'image' => $r['image'],
+                    'category' => $r['category'], 'icon' => $r['icon']);
+            }
+        }
+
+        return $out;
+    }
+
     public static function tree($onlyActive = true)
     {
         $p = _DB_PREFIX_;

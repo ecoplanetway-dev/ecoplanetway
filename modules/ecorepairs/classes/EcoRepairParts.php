@@ -12,21 +12,30 @@ if (!defined('_PS_VERSION_')) {
 class EcoRepairParts
 {
     /** Zonas del dibujo. */
+    /** Partes del patín y sus categorías (clave de la categoría => nombre). Una categoría puede estar en dos partes (frenos). */
+    public static function sections()
+    {
+        return array(
+            array('key' => 'top', 'name' => 'Manillar', 'color' => '#2F6FE0', 'cats' => array('handlebar', 'display', 'throttle', 'levers', 'grips', 'bell', 'cables')),
+            array('key' => 'stem', 'name' => 'Mástil y plegado', 'color' => '#8B5CF6', 'cats' => array('stem', 'folding', 'hook', 'lights', 'screws')),
+            array('key' => 'front', 'name' => 'Parte delantera', 'color' => '#EA580C', 'cats' => array('wheel_f', 'brakes', 'fender_f', 'suspension_f', 'fork', 'motor_f')),
+            array('key' => 'base', 'name' => 'Base central', 'color' => '#0B6E4B', 'cats' => array('battery', 'controller', 'charger', 'stand', 'grip_tape', 'frame', 'cover')),
+            array('key' => 'rear', 'name' => 'Parte trasera', 'color' => '#DC2626', 'cats' => array('wheel_r', 'motor', 'brakes', 'fender_r', 'light_r', 'swingarm')),
+            array('key' => 'other', 'name' => 'Otros', 'color' => '#64748B', 'cats' => array('other')),
+        );
+    }
+
     public static function zones()
     {
         return array(
-            'wheel_f' => 'Rueda delantera',
-            'wheel_r' => 'Rueda trasera',
-            'brakes' => 'Frenos',
-            'motor' => 'Motor',
-            'handlebar' => 'Manillar y mandos',
-            'display' => 'Pantalla',
-            'battery' => 'Batería',
-            'controller' => 'Controladora',
-            'charger' => 'Cargador y puerto de carga',
-            'lights' => 'Luces',
-            'folding' => 'Plegado y dirección',
-            'frame' => 'Plataforma y chasis',
+            'handlebar' => 'Manillar', 'display' => 'Pantalla', 'throttle' => 'Acelerador', 'levers' => 'Manetas de freno', 'grips' => 'Puños',
+            'bell' => 'Timbre', 'cables' => 'Cables',
+            'stem' => 'Mástil', 'folding' => 'Plegado y dirección', 'hook' => 'Gancho', 'lights' => 'Luz delantera', 'screws' => 'Tornillería',
+            'wheel_f' => 'Rueda delantera', 'brakes' => 'Frenos', 'fender_f' => 'Guardabarros delantero', 'suspension_f' => 'Suspensión delantera',
+            'fork' => 'Horquilla', 'motor_f' => 'Motor delantero',
+            'battery' => 'Batería', 'controller' => 'Controladora', 'charger' => 'Cargador y puerto de carga', 'stand' => 'Caballete',
+            'grip_tape' => 'Goma antideslizante', 'frame' => 'Plataforma y chasis', 'cover' => 'Tapa inferior',
+            'wheel_r' => 'Rueda trasera', 'motor' => 'Motor', 'fender_r' => 'Guardabarros trasero', 'light_r' => 'Luz trasera', 'swingarm' => 'Basculante y suspensión',
             'other' => 'Otros',
         );
     }
@@ -38,14 +47,17 @@ class EcoRepairParts
     {
         $map = array(
             'pinch|neum|rueda|cámara|camara|llanta' => array('wheel_f', 'wheel_r'),
-            'fren|pastill|disco' => array('brakes'),
+            'fren|pastill|disco|maneta' => array('brakes', 'levers'),
             'no carga|carga|cargador|autonom|se apaga|batería|bateria|bms|hinchad' => array('battery', 'charger'),
             'no enciende|no arranca' => array('battery', 'controller', 'display'),
             'pantalla|error|display' => array('display', 'controller'),
-            'aceler|gatillo' => array('handlebar'),
-            'luz|luces' => array('lights'),
-            'ruido|motor|pierde asistencia|sensor' => array('motor', 'controller'),
-            'plegado|holgura|dirección|direccion' => array('folding'),
+            'aceler|gatillo' => array('throttle'),
+            'luz|luces' => array('lights', 'light_r'),
+            'ruido|motor|pierde asistencia|sensor' => array('motor', 'motor_f', 'controller'),
+            'plegado|holgura|dirección|direccion|cierre' => array('folding', 'hook'),
+            'guardabarros' => array('fender_f', 'fender_r'),
+            'suspensi|amortigu' => array('suspension_f', 'swingarm'),
+            'caballete|pata' => array('stand'),
         );
         $hay = Tools::strtolower(implode(' ', $faults) . ' ' . $text);
         $out = array();
@@ -56,6 +68,63 @@ class EcoRepairParts
         }
 
         return array_values(array_unique($out));
+    }
+
+    /**
+     * Zonas dibujadas sobre la foto del modelo: array('flip' => 0|1, 'pts' => [4 puntos], 'polys' => array(parte => [[x,y],...])) en % de la foto.
+     */
+    public static function modelMap($idModel)
+    {
+        if (!(int) $idModel) {
+            return null;
+        }
+        $raw = Db::getInstance()->getValue('SELECT zones FROM `' . _DB_PREFIX_ . 'ecorepair_model` WHERE id_ecorepair_model = ' . (int) $idModel);
+        $d = $raw ? json_decode($raw, true) : null;
+
+        return is_array($d) && !empty($d['polys']) ? $d : null;
+    }
+
+    public static function saveModelMap($idModel, $raw)
+    {
+        $d = json_decode((string) $raw, true);
+        if (!(int) $idModel) {
+            return array('ok' => false, 'error' => 'Elige un modelo.');
+        }
+        if (!is_array($d)) {
+            Db::getInstance()->update('ecorepair_model', array('zones' => null), 'id_ecorepair_model = ' . (int) $idModel, 0, true);
+
+            return array('ok' => true, 'map' => null);
+        }
+        $keys = array('top', 'stem', 'front', 'base', 'rear');
+        $pt = function ($p) {
+            return is_array($p) && count($p) === 2 ? array(round(max(0, min(100, (float) $p[0])), 2), round(max(0, min(100, (float) $p[1])), 2)) : null;
+        };
+        $out = array('flip' => !empty($d['flip']) ? 1 : 0, 'pts' => array(), 'polys' => array());
+        foreach (isset($d['pts']) && is_array($d['pts']) ? array_slice($d['pts'], 0, 4) : array() as $p) {
+            if ($q = $pt($p)) {
+                $out['pts'][] = $q;
+            }
+        }
+        foreach ($keys as $k) {
+            if (empty($d['polys'][$k]) || !is_array($d['polys'][$k])) {
+                continue;
+            }
+            $poly = array();
+            foreach (array_slice($d['polys'][$k], 0, 24) as $p) {
+                if ($q = $pt($p)) {
+                    $poly[] = $q;
+                }
+            }
+            if (count($poly) >= 3) {
+                $out['polys'][$k] = $poly;
+            }
+        }
+        if (!$out['polys']) {
+            return array('ok' => false, 'error' => 'Marca al menos una parte en la foto.');
+        }
+        Db::getInstance()->update('ecorepair_model', array('zones' => pSQL(json_encode($out))), 'id_ecorepair_model = ' . (int) $idModel);
+
+        return array('ok' => true, 'map' => $out);
     }
 
     protected static function txt($v, $max)

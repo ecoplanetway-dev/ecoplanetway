@@ -31,16 +31,55 @@ window.ECOR.ready(function () {
       })() +
       '<a class="er-btn" href="' + esc(E.boot.links.cash) + '">' + icon('tag') + '<span>Caja</span></a>' +
       '<a class="er-btn" href="' + esc(E.boot.links.parts) + '">' + icon('box') + '<span>Piezas</span></a>' +
-      '<a class="er-btn" href="' + esc(E.boot.links.techs) + '">' + icon('assign') + '<span>Técnicos</span></a>' +
+      (E.boot.links.techs ? '<a class="er-btn" href="' + esc(E.boot.links.techs) + '">' + icon('assign') + '<span>Técnicos</span></a>' : '') +
       '<a class="er-btn" href="' + esc(E.boot.links.stats) + '">' + icon('chart') + '<span>Indicadores</span></a>' +
       '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +
     '</header>' +
+    '<div class="er-board-tools"><div id="er-msearch"></div></div>' +
+    '<div id="er-recall"></div>' +
     '<div class="er-filters" id="er-filters"></div>' +
     '<div class="er-results" id="er-results" hidden></div>' +
     '<div class="er-board" id="er-board"></div>' +
     '<div id="er-archive" hidden></div>';
 
   var $ = function (s) { return app.querySelector(s); };
+
+  /* Buscador rápido de modelos (ficha: piezas, deslimitar, precios, códigos) */
+  E.ModelSearch($('#er-msearch'), { models: D.models || [], placeholder: 'Buscar modelo de patín: «pro 2», «max g2»…',
+    link: function (m) { return E.boot.links.model + '&id_brand=' + m.id_brand + '&id_model=' + m.id_model + '&tab=parts'; } });
+
+  /* Patines listos sin recoger desde hace X días: volver a llamar */
+  var recall = D.recall || [];
+  function renderRecall() {
+    var box = $('#er-recall');
+    if (!recall.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="er-recall"><div class="er-row" style="flex-wrap:nowrap"><span class="er-recall-i">' + icon('alert') + '</span><b>Volver a avisar: ' + recall.length + ' ' + (recall.length > 1 ? 'patines listos' : 'patín listo') +
+      ' sin recoger desde hace más de ' + D.recallDays + ' días</b></div>' +
+      recall.map(function (r) {
+        return '<div class="er-recall-row"><a href="' + esc(E.boot.links.repair + r.id) + '"><b>' + esc(r.reference) + '</b> · ' + esc(r.customer_name) + ' · ' + esc(r.device_name) + '</a>' +
+          '<span class="er-tag er-t-bad">' + r.days_in_status + ' días</span>' +
+          (r.phone ? '<a class="er-btn er-btn-sm er-btn-ghost" href="tel:' + esc(r.phone) + '">' + esc(r.phone) + '</a>' : '') +
+          '<button type="button" class="er-btn er-btn-sm er-btn-wa" data-rwa="' + r.id + '">' + icon('whatsapp', true) + 'WhatsApp</button>' +
+          '<button type="button" class="er-btn er-btn-sm" data-rdone="' + r.id + '">' + icon('check', true) + 'Ya avisado</button></div>';
+      }).join('') + '</div>';
+  }
+  $('#er-recall').addEventListener('click', function (e) {
+    var t;
+    if ((t = e.target.closest('[data-rwa]'))) {
+      var id = +t.getAttribute('data-rwa');
+      E.notify({ id_ecorepair: id }).then(function (res) { if (res) { recall = recall.filter(function (x) { return x.id !== id; }); renderRecall(); } });
+      return;
+    }
+    if ((t = e.target.closest('[data-rdone]'))) {
+      var id2 = +t.getAttribute('data-rdone');
+      t.disabled = true;
+      E.api('recallDone', { id_ecorepair: id2 }, {}).then(function (res) {
+        if (!res.ok) { t.disabled = false; E.toast(res.error, true); return; }
+        recall = recall.filter(function (x) { return x.id !== id2; }); renderRecall(); E.toast('Apuntado: se le ha vuelto a avisar');
+      });
+    }
+  });
+  renderRecall();
   var nf = /[?&]notfound=(\d+)/.exec(location.search);
   if (nf) setTimeout(function () { E.toast('La reparación nº ' + nf[1] + ' no se pudo abrir. Si se repite, mira Parámetros avanzados › Registros.', true); }, 300);
 

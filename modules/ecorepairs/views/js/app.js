@@ -102,6 +102,7 @@ window.ECOR.ready(function () {
     if (h[0] === 'psearch') return partSearchView();
     if (h[0] === 'model') return modelView(+h[1], +h[2], h[3] || '', h[4] || 'parts');
     if (h[0] === 'new' && me.reception) return newView();
+    if (h[0] === 'tag') return tagView(decodeURIComponent(h[1] || ''));
     return homeView();
   }
   window.addEventListener('hashchange', route);
@@ -165,6 +166,8 @@ window.ECOR.ready(function () {
       var er = main.querySelector('#er-scan-err'); er.textContent = 'No hay permiso para usar la cámara. Actívalo en el navegador o escribe el código.'; er.hidden = false;
     });
     function found(text) {
+      var d = /[?&]d=([A-Za-z0-9]+)/.exec(text);
+      if (d) { if (navigator.vibrate) navigator.vibrate(60); stopCamera(); stopCamera = null; go('#tag/' + encodeURIComponent(d[1])); return true; }
       var m = /[?&]c=([A-Za-z0-9-]+)/.exec(text), code = m ? m[1] : text;
       if (!/^[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}$/.test(code)) return false;
       if (navigator.vibrate) navigator.vibrate(60);
@@ -238,15 +241,30 @@ window.ECOR.ready(function () {
     });
     var el = main.querySelector('#er-tab');
     if (tab === 'parts') {
-      el.innerHTML = (R.modelParts.length ? '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div>' : '') + '<div id="er-pt"></div>';
-      var pt = partsTab(el.querySelector('#er-pt'), canWork);
-      if (!R.modelParts.length && (R.incompat || []).length) {
-        var iw = document.createElement('div'); iw.className = 'er-panel';
-        el.insertBefore(iw, el.firstChild);
-        E.PartsDiagram(iw, { parts: [], zones: R.zones, shape: R.shape, admin: false, incompat: R.incompat });
+      var sub = R._sub || 'parts';
+      el.innerHTML = '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')], ['unlock', 'Deslimitar' + ((R.unlock || []).length ? ' ' + R.unlock.length : '')]].map(function (t) {
+        return '<button type="button" data-sub="' + t[0] + '" aria-pressed="' + (sub === t[0]) + '">' + t[1] + '</button>';
+      }).join('') + '</div><div id="er-sub"></div>';
+      el.querySelector('.er-seg').addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b) { R._sub = b.getAttribute('data-sub'); drawRepair('parts'); } });
+      var host = el.querySelector('#er-sub');
+      function quoteAdd(action, id, btn, msg) {
+        btn.disabled = true;
+        api(action, { id: r.id }, { item: id }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok) { E.toast(res.error, true); return; }
+          var keep = R._sub; R = res; R._sub = keep; drawRepair('parts'); E.toast(msg);
+        });
       }
-      if (R.modelParts.length) {
-        E.PartsDiagram(el.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, shape: R.shape, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
+      if (sub === 'fixed') {
+        host.className = 'er-panel';
+        E.FixedPanel(host, { list: R.fixed || [], onAdd: canWork ? function (f, btn) { quoteAdd('fixedAdd', f.id, btn, '«' + f.name + '» añadido al presupuesto'); } : null });
+      } else if (sub === 'unlock') {
+        host.className = 'er-panel';
+        E.UnlockPanel(host, { list: R.unlock || [], admin: false, onAdd: canWork ? function (u, btn) { quoteAdd('unlockAdd', u.id, btn, 'Deslimitación añadida al presupuesto'); } : null });
+      } else {
+        host.innerHTML = '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div><div id="er-pt"></div>';
+        var pt = partsTab(host.querySelector('#er-pt'), canWork);
+        E.PartsDiagram(host.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, sections: R.sections, map: R.modelMap, photo: R.modelPhoto, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
           onAdd: canWork ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
       }
     }
@@ -272,9 +290,15 @@ window.ECOR.ready(function () {
         '<div class="er-photos">' + R.photos.map(function (p, i) { return '<button type="button" class="er-ph" data-ph="' + i + '"><img src="' + esc(p.thumb) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' +
         '<div class="er-row"><button type="button" class="er-btn" data-shot="work">' + icon('camera', true) + 'Foto del trabajo</button><button type="button" class="er-btn er-btn-ghost" data-shot="gallery">' + icon('box', true) + 'Galería</button><button type="button" class="er-btn er-btn-ghost" data-shot="device">' + icon('camera', true) + 'Foto del equipo</button></div>' +
         '<input type="file" id="er-app-file" accept="image/*" hidden></div>' +
+      ((R.checklistItems || []).length ? '<div class="er-panel"><h3>' + icon('check') + 'Revisión<span class="er-r">Opcional</span></h3><div id="er-chk"></div></div>' : '') +
       '<div class="er-panel"><h3>' + icon('clock') + 'Últimos movimientos</h3><ul class="er-timeline">' + R.log.slice(0, 8).map(function (l) {
         return '<li><span class="er-tdot"></span><div>' + esc(l.detail) + '<div class="er-when">' + esc(E.fmtDateTime(l.date) + (l.employee ? ' · ' + l.employee : '')) + '</div></div></li>';
       }).join('') + '</ul></div>';
+    if (el.querySelector('#er-chk')) {
+      E.Checklist(el.querySelector('#er-chk'), { items: R.checklistItems, done: R.checklist || {}, canEdit: canWork, onToggle: function (item) {
+        return api('checkToggle', { id: r.id }, { item: item }).then(function (res) { if (res.ok) R = res; else E.toast(res.error, true); return res; });
+      } });
+    }
     var shotType = 'work';
     el.addEventListener('click', function (e) {
       var t;
@@ -492,8 +516,10 @@ window.ECOR.ready(function () {
       var all = [];
       cat.forEach(function (c) { c.brands.forEach(function (b) { all.push({ brand: b, cat: c, model: null }); b.models.forEach(function (m) { all.push({ brand: b, cat: c, model: m }); }); }); });
       function draw(q) {
-        q = q.trim().toLowerCase();
-        var list = all.filter(function (x) { return !q ? !x.model : (x.brand.name + ' ' + (x.model ? x.model.name : '')).toLowerCase().indexOf(q) > -1; }).slice(0, 80);
+        q = q.trim();
+        var list = !q ? all.filter(function (x) { return !x.model; }).slice(0, 80)
+          : all.map(function (x) { return { x: x, s: E.fuzzyScore(q, x.brand.name + ' ' + (x.model ? x.model.name : '')) }; }).filter(function (o) { return o.s > 0; })
+            .sort(function (a, b) { return b.s - a.s; }).slice(0, 40).map(function (o) { return o.x; });
         main.querySelector('#er-m-list').innerHTML = list.map(function (x) {
           var label = x.brand.name + (x.model ? ' ' + x.model.name : '');
           return '<a href="#model/' + x.brand.id + '/' + (x.model ? x.model.id : 0) + '/' + encodeURIComponent(label) + '">' +
@@ -509,15 +535,17 @@ window.ECOR.ready(function () {
     tabbar('models');
     name = decodeURIComponent(name || '');
     var base = '#model/' + idBrand + '/' + idModel + '/' + encodeURIComponent(name);
-    main.innerHTML = header(esc(name), '#models') + '<div class="er-seg">' + [['parts', 'Piezas'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
+    main.innerHTML = header(esc(name), '#models') + '<div class="er-seg er-seg-4">' + [['parts', 'Piezas'], ['unlock', 'Deslimitar'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
       return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
     }).join('') + '</div><div id="er-tab"></div>';
-    if (tab === 'parts') {
+    if (tab === 'parts' || tab === 'unlock') {
       var box = main.querySelector('#er-tab');
       box.innerHTML = '<div class="er-empty">Cargando…</div>';
       api('modelParts', { id_brand: idBrand, id_model: idModel }).then(function (res) {
-        box.innerHTML = '<div class="er-panel" id="er-mp"></div>';
-        E.PartsDiagram(box.querySelector('#er-mp'), { parts: res.parts || [], zones: res.zones || {}, shape: 'scooter', admin: false });
+        box.innerHTML = '<div class="er-panel" id="er-mp"></div>' + (tab === 'parts' && (res.fixed || []).length ? '<div class="er-panel"><h3>' + icon('tag') + 'Precios cerrados</h3><div id="er-mfx"></div></div>' : '');
+        if (tab === 'unlock') { E.UnlockPanel(box.querySelector('#er-mp'), { list: res.unlock || [], admin: false }); return; }
+        E.PartsDiagram(box.querySelector('#er-mp'), { parts: res.parts || [], zones: res.zones || {}, sections: res.sections, map: res.modelMap, photo: res.modelPhoto, incompat: res.incompat || [], admin: false });
+        if (box.querySelector('#er-mfx')) E.FixedPanel(box.querySelector('#er-mfx'), { list: res.fixed });
       });
       return;
     }
@@ -529,13 +557,36 @@ window.ECOR.ready(function () {
     E.PartsSearch(main.querySelector('#er-ps'), { admin: false, post: true, modelLink: function (m) { return '#model/' + m.id_brand + '/' + m.id_model + '/' + encodeURIComponent(m.label) + '/parts'; } });
   }
 
+  /* ---------- Pegatina QR del patín ---------- */
+  function tagView(tag) {
+    tabbar('home');
+    main.innerHTML = header('Pegatina ' + esc(tag), '#home') + '<div class="er-empty">Buscando el patín…</div>';
+    if (!me.reception) {
+      main.innerHTML = header('Pegatina ' + esc(tag), '#home') + '<div class="er-banner">' + icon('alert') + '<div>Esta es la pegatina del patín. Para la reparación escanea el QR del resguardo o de la etiqueta.</div></div>';
+      return;
+    }
+    api('tag', { tag: tag }, null).then(function (res) {
+      if (!res.ok) { main.innerHTML = header('Pegatina', '#home') + '<div class="er-banner er-bad">' + icon('alert') + '<div>' + esc(res.error) + '</div></div>'; return; }
+      main.innerHTML = header(esc(res.device_name), '#home') +
+        '<div class="er-panel"><b>' + esc(res.customer ? res.customer.name : '') + '</b><div class="er-muted er-small">' + esc((res.customer && res.customer.phone) || '') + ' · Última: ' + esc(res.reference) + '</div></div>' +
+        (res.open ? '<a class="er-btn er-btn-lg er-btn-block" href="#id/' + res.open + '">' + icon('wrench') + 'Ya está en el taller: abrirla</a>' : '') +
+        '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-tnew>' + icon('plus') + 'Nueva entrada de este patín</button>';
+      main.querySelector('[data-tnew]').addEventListener('click', function () { newView(res); });
+    });
+  }
+
   /* ---------- Nueva reparación (recepción) ---------- */
-  function newView() {
+  function newView(pre) {
     tabbar('new');
     var nv = document.createElement('div');
     main.innerHTML = '';
     main.appendChild(nv);
     var st = { step: 1, customer: null, device: null, photos: [] };
+    if (pre && pre.tag) {
+      st.tag = pre.tag; st.customer = pre.customer; st.serial = pre.serial; st.color = pre.color;
+      st.device = { id_category: pre.id_category, id_brand: pre.id_brand, id_model: pre.id_model, faults: [], label: pre.device_name };
+      st.step = 3;
+    }
     var picker = null, acc = null, dmg = null, pad = null;
     function stepper() {
       return '<div class="er-steps-m">' + ['Cliente', 'Equipo', 'Avería', 'Firma'].map(function (s, i) {
@@ -543,7 +594,10 @@ window.ECOR.ready(function () {
       }).join('') + '</div>';
     }
     function draw() {
-      nv.innerHTML = header('Nueva reparación', '#home') + stepper() + '<div id="er-step" class="er-stack"></div>' +
+      nv.innerHTML = header('Nueva reparación', '#home') + stepper() +
+        (st.step === 1 ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-voice style="margin-bottom:12px">' + icon('mic') + 'Rellenar todo por voz</button>' : '') +
+        (st.tag ? '<div class="er-banner">' + icon('qr') + '<div>Pegatina ' + esc(st.tag) + ': cliente y patín ya rellenos.</div></div>' : '') +
+        '<div id="er-step" class="er-stack"></div>' +
         '<div class="er-app-next">' + (st.step > 1 ? '<button type="button" class="er-btn er-btn-lg" data-prev>' + icon('back') + 'Atrás</button>' : '') +
         '<button type="button" class="er-btn er-btn-pri er-btn-lg" data-next>' + (st.step === 4 ? icon('check') + 'Crear reparación' : 'Siguiente') + '</button></div>';
       var el = nv.querySelector('#er-step');
@@ -641,8 +695,59 @@ window.ECOR.ready(function () {
         }
       });
     }
+    function voice() {
+      E.voiceEntry([
+        { key: 'name', q: '¿Cómo se llama el cliente?' }, { key: 'phone', q: '¿Cuál es su teléfono?' },
+        { key: 'device', q: '¿Qué marca y modelo es?' }, { key: 'serial', q: '¿Número de serie?' }, { key: 'km', q: '¿Cuántos kilómetros tiene?' },
+        { key: 'fault', q: '¿Qué le pasa?' }, { key: 'acc', q: '¿Qué trae con el patín?', hint: 'Por ejemplo: cargador y llave. Di «no» si no trae nada.' },
+        { key: 'dmg', q: '¿Tiene algún daño previo?' }, { key: 'urgent', q: '¿Es urgente?', hint: 'Di sí o no.' }
+      ], 'Nueva reparación por voz').then(function (a) {
+        if (!a) return;
+        function cap(t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
+        if (a.serial) st.serial = a.serial.replace(/\s+/g, '').toUpperCase();
+        if (a.km) st.km = E.phoneFromText(a.km).slice(0, 9);
+        if (a.fault) st.fault = cap(a.fault);
+        if (a.acc) { var al = E.pickFromText(a.acc, D.accessories || []); st.accessories = al.length ? al : [cap(a.acc)]; }
+        if (a.dmg) { var dl = E.pickFromText(a.dmg, D.damages || []); st.damages = dl.length ? dl : [cap(a.dmg)]; }
+        st.urgent = !!(a.urgent && /^s[ií]/.test(E.fold(a.urgent)));
+        loadCatalog().then(function (cat) {
+          if (a.device) {
+            var idx = [];
+            cat.forEach(function (c) { c.brands.forEach(function (b) {
+              idx.push({ c: c, b: b, m: null, brand: b.name, model: '' });
+              b.models.forEach(function (m) { idx.push({ c: c, b: b, m: m, brand: b.name, model: m.name, id_model: m.id }); });
+            }); });
+            var best = E.findModels(idx, a.device, 1)[0];
+            if (best) {
+              var fl = st.fault ? E.pickFromText(st.fault, best.c.faults.map(function (f) { return f.name; })) : [];
+              st.device = { id_category: best.c.id, id_brand: best.b.id, id_model: best.m ? best.m.id : 0, faults: fl, label: best.brand + (best.m ? ' ' + best.model : '') };
+            } else E.toast('No encontré «' + a.device + '»: elígelo en el paso 2.', true);
+          }
+          var phone = E.phoneFromText(a.phone || ''), name = cap(a.name);
+          var q = phone.length >= 6 ? phone : name;
+          if (!q) { draw(); return; }
+          api('customers', { q: q }, null).then(function (res) {
+            var list = (res.customers || []).filter(function (c) {
+              return phone.length >= 6 ? String(c.phone || '').replace(/\D/g, '').indexOf(phone.slice(-9)) > -1 : E.fuzzyScore(name, c.name) >= 80;
+            });
+            if (list.length === 1) { st.customer = list[0]; st.step = st.device ? 3 : 2; E.toast('Cliente: ' + list[0].name + '. Revisa y sigue.'); draw(); return; }
+            st.step = 1; draw();
+            var form = nv.querySelector('#er-cform');
+            if (form) {
+              form.hidden = false;
+              var parts = name.split(/\s+/);
+              form.querySelector('[data-c="firstname"]').value = parts.shift() || '';
+              form.querySelector('[data-c="lastname"]').value = parts.join(' ');
+              form.querySelector('[data-c="phone"]').value = phone;
+            }
+            E.toast(list.length > 1 ? 'Hay varios clientes parecidos: elígelo o crea uno nuevo.' : 'Cliente nuevo: revisa y pulsa «Guardar cliente».');
+          });
+        });
+      });
+    }
     nv.addEventListener('click', function (e) {
       var t;
+      if (e.target.closest('[data-voice]')) { voice(); return; }
       if (e.target.closest('[data-prev]')) { keep(); st.step--; draw(); return; }
       if ((t = e.target.closest('[data-rmph]'))) { st.photos.splice(+t.getAttribute('data-rmph'), 1); keep(); draw(); return; }
       if (e.target.closest('#er-ph-add')) { E.pickPhoto(nv.querySelector('#er-ph-file'), false); return; }
@@ -665,7 +770,7 @@ window.ECOR.ready(function () {
       btn.disabled = true;
       var p = { id_customer: st.customer.id_customer, id_category: st.device.id_category, id_brand: st.device.id_brand, id_model: st.device.id_model, faults: st.device.faults,
         serial: st.serial || '', km: st.km || '', color: st.color || '', fault_customer: st.fault || '', accessories: st.accessories || [], damages: st.damages || [],
-        urgent: !!st.urgent, consent_rgpd: true, consent_whatsapp: nv.querySelector('#er-wa').checked };
+        urgent: !!st.urgent, consent_rgpd: true, consent_whatsapp: nv.querySelector('#er-wa').checked, device_tag: st.tag || '' };
       var sig = pad && !pad.isEmpty() ? pad.toDataURL() : '';
       api('create', {}, { payload: JSON.stringify(p) }).then(function (res) {
         if (!res.ok) { btn.disabled = false; E.toast(res.error, true); return; }

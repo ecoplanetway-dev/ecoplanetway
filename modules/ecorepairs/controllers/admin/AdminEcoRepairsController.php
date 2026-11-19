@@ -41,6 +41,7 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->addJS($base . 'views/js/common.js' . $v, false);
         $view = $this->currentView();
         if ($view === 'board') {
+            $this->addJS($base . 'views/js/notify.js' . $v, false);
             $this->addJS($base . 'views/js/board.js' . $v, false);
         } elseif ($view === 'new') {
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
@@ -136,6 +137,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             ));
             $this->setTemplate('app.tpl');
         } elseif ($view === 'techs') {
+            if (!$this->canSeeTechs()) {
+                Tools::redirectAdmin($this->baseUrl());
+            }
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array(
                     'stats' => EcoRepairStats::technicians((int) $this->context->shop->id, date('Y-m-01'), date('Y-m-d')),
@@ -172,6 +176,8 @@ class AdminEcoRepairsController extends ModuleAdminController
                     'canEdit' => (bool) $this->access('edit'),
                     'canDelete' => (bool) $this->access('delete'),
                     'code' => (string) Tools::getValue('code'),
+                    'bundle' => $this->modelBundle($idBrand, $names && $names['model'] ? $idModel : 0, $names ? (string) $names['image'] : ''),
+                    'modelIndex' => $this->modelIndex(),
                 )),
                 'ecor_view' => 'model',
             ));
@@ -238,6 +244,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             'pickupDays' => (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS'),
             'canEdit' => (bool) $this->access('edit'),
             'requestCounts' => EcoRepairRequest::counts($idShop),
+            'recall' => $this->publicRepairs(EcoRepair::toRecall($idShop)),
+            'recallDays' => (int) Configuration::get('ECOREPAIRS_RECALL_DAYS'),
+            'models' => $this->modelIndex(),
         );
         $this->context->smarty->assign('ecor_data', $this->json($data));
         $this->context->smarty->assign('ecor_view', 'board');
@@ -263,7 +272,14 @@ class AdminEcoRepairsController extends ModuleAdminController
             'me' => (int) $this->context->employee->id,
             'canEdit' => (bool) $this->access('edit'),
             'preselectCustomer' => (int) Tools::getValue('id_customer') ? EcoRepairCustomer::info((int) Tools::getValue('id_customer')) : null,
+            'fromTag' => null,
         );
+        $prev = Tools::getValue('tag') ? EcoRepair::byTag((string) Tools::getValue('tag')) : false;
+        if ($prev && (int) $prev['id_shop'] === (int) $this->context->shop->id) {
+            $data['preselectCustomer'] = EcoRepairCustomer::info((int) $prev['id_customer']);
+            $data['fromTag'] = array('tag' => $prev['device_tag'], 'reference' => $prev['reference'], 'id_category' => (int) $prev['id_category'], 'id_brand' => (int) $prev['id_brand'],
+                'id_model' => (int) $prev['id_model'], 'serial' => $prev['serial'], 'color' => $prev['color'], 'device_name' => $prev['device_name']);
+        }
         $this->context->smarty->assign('ecor_data', $this->json($data));
         $this->context->smarty->assign('ecor_view', 'new');
         $this->setTemplate('app.tpl');
@@ -355,7 +371,11 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'ready' => EcoRepair::canMoveTo($repair, EcoRepairStatus::READY),
                 'delivered' => EcoRepair::canMoveTo($repair, EcoRepairStatus::DELIVERED),
             ),
+            'checklistItems' => EcoRepair::checklistItems(),
+            'checklist' => $repair['checklist'],
+            'stickerUrl' => $this->ajaxUrl('printSticker', array('id_ecorepair' => $id)),
         );
+        $data = array_merge($data, $this->modelBundle((int) $repair['id_brand'], (int) $repair['id_model'], (string) $repair['model_image']));
         $this->context->smarty->assign(array(
             'ecor_data' => $this->json($data),
             'ecor_repair' => $repair,
@@ -472,6 +492,16 @@ class AdminEcoRepairsController extends ModuleAdminController
             'requests' => array('ajaxRequests', 'view', false),
             'requestSave' => array('ajaxRequestSave', 'edit', true),
             'requestStatus' => array('ajaxRequestStatus', 'edit', true),
+            'zonesSave' => array('ajaxZonesSave', 'edit', true),
+            'unlockSave' => array('ajaxUnlockSave', 'edit', true),
+            'unlockDelete' => array('ajaxUnlockDelete', 'delete', true),
+            'unlockAdd' => array('ajaxUnlockAdd', 'edit', true),
+            'fixedSave' => array('ajaxFixedSave', 'edit', true),
+            'fixedDelete' => array('ajaxFixedDelete', 'delete', true),
+            'fixedAdd' => array('ajaxFixedAdd', 'edit', true),
+            'checkToggle' => array('ajaxCheckToggle', 'edit', true),
+            'recallDone' => array('ajaxRecallDone', 'edit', true),
+            'printSticker' => array('ajaxPrintSticker', 'view', false),
         );
         if (!isset($map[$action])) {
             $this->jsonOut(array('ok' => false, 'error' => 'Acción desconocida.'), 400);
@@ -603,6 +633,47 @@ class AdminEcoRepairsController extends ModuleAdminController
         return (int) $this->context->employee->id_profile === (int) _PS_ADMIN_PROFILE_;
     }
 
+    /** El informe de técnicos solo lo ve el administrador (y los empleados que él marque en Ajustes). */
+    public function canSeeTechs()
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+        $ids = array_map('intval', explode(',', (string) Configuration::get('ECOREPAIRS_TECHS_VIEWERS')));
+
+        return in_array((int) $this->context->employee->id, $ids, true);
+    }
+
+    protected function denyTechs()
+    {
+        if (!$this->canSeeTechs()) {
+            $this->jsonOut(array('ok' => false, 'error' => 'Solo el administrador puede ver el informe de técnicos.'), 403);
+        }
+    }
+
+    /** Dirección pública de la pegatina QR del patín. */
+    public function deviceUrl($tag)
+    {
+        if (!Configuration::get('PS_REWRITING_SETTINGS')) {
+            return $this->context->link->getModuleLink('ecorepairs', 'tracking', array('d' => $tag), true);
+        }
+
+        return $this->context->link->getBaseLink() . 'seguimiento?d=' . rawurlencode($tag);
+    }
+
+    /** Datos del modelo para el dibujo de piezas: foto, zonas, piezas, deslimitación y precios cerrados. */
+    protected function modelBundle($idBrand, $idModel, $image)
+    {
+        return array(
+            'modelMap' => EcoRepairParts::modelMap($idModel),
+            'modelPhoto' => $image ? $this->modelImageUrl($image) : '',
+            'sections' => EcoRepairParts::sections(),
+            'unlock' => $idBrand ? EcoRepairUnlock::forModel($idBrand, $idModel, $this->isAdmin()) : array(),
+            'fixed' => $idBrand ? EcoRepairFixed::forModel($idBrand, $idModel) : array(),
+            'unlockMethods' => EcoRepairUnlock::methods(),
+        );
+    }
+
     /**
      * Las reparaciones entregadas no se pueden cambiar, salvo el administrador. Las notas sí se pueden añadir.
      */
@@ -610,7 +681,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $locked = array('updateField', 'updateDevice', 'setStatus', 'uploadPhoto', 'saveSignature', 'deletePhoto', 'addInvoiceAddress',
             'quoteCreate', 'quoteAddParts', 'quoteSave', 'quoteSend', 'quoteNewVersion', 'quoteDiscard', 'quoteAccept', 'quoteReject',
-            'deposit', 'checkout', 'devicePhoto', 'deviceReset', 'deviceToModel');
+            'deposit', 'checkout', 'devicePhoto', 'deviceReset', 'deviceToModel', 'unlockAdd', 'fixedAdd', 'checkToggle');
         if (!in_array($action, $locked, true) || $this->isAdmin()) {
             return;
         }
@@ -1033,6 +1104,118 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
     }
 
+    protected function modelIndex()
+    {
+        $out = EcoRepairCatalog::modelIndex();
+        foreach ($out as &$m) {
+            $m['image'] = $m['image'] ? $this->modelImageUrl($m['image']) : '';
+        }
+        unset($m);
+
+        return $out;
+    }
+
+    protected function ajaxZonesSave()
+    {
+        $this->jsonOut(EcoRepairParts::saveModelMap((int) Tools::getValue('id_model'), (string) Tools::getValue('map')));
+    }
+
+    protected function ajaxUnlockSave()
+    {
+        $idBrand = (int) Tools::getValue('id_brand');
+        $res = EcoRepairUnlock::save((int) Tools::getValue('id'), $idBrand, (int) Tools::getValue('id_model'), json_decode((string) Tools::getValue('data'), true) ?: array(),
+            trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname));
+        $res['unlock'] = EcoRepairUnlock::forModel($idBrand, (int) Tools::getValue('view_model'), $this->isAdmin());
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxUnlockDelete()
+    {
+        $res = EcoRepairUnlock::delete((int) Tools::getValue('id'));
+        $res['unlock'] = EcoRepairUnlock::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('view_model'), $this->isAdmin());
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxUnlockAdd()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepairUnlock::addToQuote($repair, (int) Tools::getValue('id'), (int) $this->context->employee->id, '');
+        if ($res['ok']) {
+            $res['quotes'] = EcoRepairQuote::summary((int) $repair['id_ecorepair']);
+        }
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxFixedSave()
+    {
+        $idBrand = (int) Tools::getValue('id_brand');
+        $res = EcoRepairFixed::save((int) Tools::getValue('id'), $idBrand, (int) Tools::getValue('id_model'), json_decode((string) Tools::getValue('data'), true) ?: array());
+        $res['fixed'] = EcoRepairFixed::forModel($idBrand, (int) Tools::getValue('view_model'));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxFixedDelete()
+    {
+        $res = EcoRepairFixed::delete((int) Tools::getValue('id'));
+        $res['fixed'] = EcoRepairFixed::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('view_model'));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxFixedAdd()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepairFixed::addToQuote($repair, (int) Tools::getValue('id'), (int) $this->context->employee->id, '');
+        if ($res['ok']) {
+            $res['quotes'] = EcoRepairQuote::summary((int) $repair['id_ecorepair']);
+        }
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxRecallDone()
+    {
+        $repair = $this->loadRepairOr404();
+        Db::getInstance()->update('ecorepair', array('date_reminder' => date('Y-m-d H:i:s')), 'id_ecorepair = ' . (int) $repair['id_ecorepair']);
+        EcoRepairLog::add((int) $repair['id_ecorepair'], (int) $this->context->employee->id, 'note', 'Se ha vuelto a avisar al cliente para que recoja el equipo');
+        $this->jsonOut(array('ok' => true));
+    }
+
+    protected function ajaxCheckToggle()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepair::checklistToggle($repair, (string) Tools::getValue('item'), trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname),
+            (int) $this->context->employee->id);
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    /** Pegatina QR fija del patín (historial y garantía). En rollo de etiquetas o en hoja A4 de 24. */
+    protected function ajaxPrintSticker()
+    {
+        $repair = EcoRepair::get((int) Tools::getValue('id_ecorepair'));
+        if (!$repair || (int) $repair['id_shop'] !== (int) $this->context->shop->id) {
+            header('HTTP/1.1 404 Not Found');
+            echo 'La reparación no existe.';
+            exit;
+        }
+        $tag = EcoRepair::deviceTag($repair);
+        $label = Configuration::get('ECOREPAIRS_LABEL_SIZE');
+        $this->context->smarty->assign(array(
+            'r' => $repair,
+            'tag' => $tag,
+            'url' => $this->deviceUrl($tag),
+            'format' => Tools::getValue('format') === 'a4' ? 'a4' : 'roll',
+            'pos' => max(1, min(24, (int) Tools::getValue('pos', 1))),
+            'label' => in_array($label, array('62x29', '50x25', '62x100'), true) ? $label : '62x29',
+            'logo' => EcoRepairs::logoUrl(),
+            'shopName' => Configuration::get('PS_SHOP_NAME'),
+            'qrJs' => $this->module->getPathUri() . 'views/js/vendor/qrcode.js',
+            'selfUrl' => $this->ajaxUrl('printSticker', array('id_ecorepair' => (int) $repair['id_ecorepair'])),
+        ));
+        header('Content-Type: text/html; charset=utf-8');
+        header('X-Robots-Tag: noindex');
+        echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/admin/print_sticker.tpl');
+        exit;
+    }
+
     protected function ajaxKbSave()
     {
         $res = EcoRepairKnowledge::save((string) Tools::getValue('type'), (int) Tools::getValue('id'), (int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'),
@@ -1070,12 +1253,14 @@ class AdminEcoRepairsController extends ModuleAdminController
 
     protected function ajaxTechList()
     {
+        $this->denyTechs();
         list($from, $to) = EcoRepairStats::cleanRange((string) Tools::getValue('from'), (string) Tools::getValue('to'));
         $this->jsonOut(array('ok' => true, 'stats' => EcoRepairStats::technicians((int) $this->context->shop->id, $from, $to), 'from' => $from, 'to' => $to));
     }
 
     protected function ajaxTechDetail()
     {
+        $this->denyTechs();
         $this->jsonOut(array('ok' => true, 'detail' => EcoRepairStats::techDetail((int) $this->context->shop->id, (int) Tools::getValue('id_employee'),
             (string) Tools::getValue('from'), (string) Tools::getValue('to'))));
     }
@@ -1188,6 +1373,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'eta_date' => $clean['eta_date'],
             'consent_rgpd' => !empty($p['consent_rgpd']),
             'consent_whatsapp' => !empty($p['consent_whatsapp']),
+            'device_tag' => !empty($p['device_tag']) && EcoRepair::byTag((string) $p['device_tag']) ? (string) $p['device_tag'] : '',
         ), (int) $this->context->employee->id, (int) $this->context->shop->id);
 
         if (!$id) {
@@ -1660,7 +1846,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'stats' => $this->baseUrl() . '&view=stats',
             'cash' => $this->baseUrl() . '&view=cash',
             'requests' => $this->baseUrl() . '&view=requests',
-            'techs' => $this->baseUrl() . '&view=techs',
+            'techs' => $this->canSeeTechs() ? $this->baseUrl() . '&view=techs' : '',
             'parts' => $this->baseUrl() . '&view=parts',
             'model' => $this->baseUrl() . '&view=model',
             'customer' => $this->baseUrl() . '&view=customer&id_customer=',
@@ -1820,6 +2006,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             'whatsapp' => $s . '<path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.3-1.3-2-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-2z"/></svg>',
             'mail' => $s . '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
             'refresh' => $s . '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>',
+            'bolt' => $s . '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+            'mic' => $s . '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
             'package' => $s . '<path d="M16.5 9.4 7.5 4.2M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>',
             'book' => $s . '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/></svg>',
             'code' => $s . '<path d="m8 9-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>',

@@ -17,8 +17,12 @@
     });
   }
 
+  var ICONS_EXTRA = {
+    mic: '<svg class="er-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    bolt: '<svg class="er-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>'
+  };
   function icon(name, small) {
-    var svg = (boot.icons && boot.icons[name]) || '';
+    var svg = (boot.icons && boot.icons[name]) || ICONS_EXTRA[name] || '';
     return small ? svg.replace('class="er-i"', 'class="er-i er-s"') : svg;
   }
 
@@ -398,6 +402,281 @@
     input.click();
   }
 
+
+  /* ---------- Buscar parecido: sin tildes, sin espacios y con alguna falta ---------- */
+  function fold(s) {
+    s = String(s == null ? '' : s).toLowerCase();
+    if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return s;
+  }
+  function compact(s) { return fold(s).replace(/[^a-z0-9]+/g, ''); }
+  function lev(a, b) {
+    if (Math.abs(a.length - b.length) > 2) return 9;
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  /** Puntuación de «q» contra un texto (0 = nada). Acepta «mi pro2», «xiaomi pro 2», «kukirn g2». */
+  function fuzzyScore(q, text) {
+    var cq = compact(q), ct = compact(text);
+    if (!cq) return 0;
+    if (ct === cq) return 100;
+    if (ct.indexOf(cq) === 0) return 90;
+    if (ct.indexOf(cq) > -1) return 80;
+    var words = fold(text).split(/[^a-z0-9]+/).filter(Boolean), score = 0, ok = true;
+    fold(q).split(/[^a-z0-9]+/).filter(Boolean).forEach(function (t) {
+      if (ct.indexOf(t) > -1) { score += 10; return; }
+      var best = 9;
+      words.forEach(function (w) { best = Math.min(best, lev(t, w), t.length >= 4 && w.length > t.length ? lev(t, w.slice(0, t.length)) : 9); });
+      if (t.length >= 4 && best <= 1) score += 6; else if (t.length >= 6 && best <= 2) score += 4; else ok = false;
+    });
+    return ok ? Math.min(70, score) : 0;
+  }
+  /** models: [{brand, model, ...}] → los mejores para q */
+  function findModels(models, q, limit) {
+    return models.map(function (m) { var sc = fuzzyScore(q, m.brand + ' ' + m.model); return { m: m, s: sc ? sc + (m.id_model ? 1 : 0) : 0 }; })
+      .filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; }).slice(0, limit || 8).map(function (x) { return x.m; });
+  }
+
+  /** Buscador rápido de modelos. opts: models, link(m) o onPick(m), placeholder */
+  function ModelSearch(el, opts) {
+    el.innerHTML = '<label class="er-search er-ms">' + icon('search') + '<input class="er-input" type="search" autocomplete="off" placeholder="' + esc(opts.placeholder || 'Buscar modelo: «pro 2», «max g2»…') + '" aria-label="Buscar modelo"></label><div class="er-ms-res" hidden></div>';
+    var inp = el.querySelector('input'), res = el.querySelector('.er-ms-res'), found = [];
+    function draw() {
+      var q = inp.value.trim();
+      found = q.length < 2 ? [] : findModels(opts.models || [], q, 8);
+      res.hidden = q.length < 2;
+      res.innerHTML = found.length ? found.map(function (m, i) {
+        var src = m.image || '';
+        return '<a href="' + esc(opts.link ? opts.link(m) : '#') + '" data-msi="' + i + '">' + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '<span class="er-ms-ph">' + icon(m.icon || 'other', true) + '</span>') +
+          '<span><b>' + esc(m.brand + (m.model ? ' ' + m.model : '')) + '</b><small>' + esc(m.model ? m.category : m.category + ' · toda la marca') + '</small></span></a>';
+      }).join('') : '<div class="er-muted er-small" style="padding:10px">Ningún modelo con «' + esc(q) + '».</div>';
+    }
+    inp.addEventListener('input', draw);
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && found.length) { e.preventDefault(); var a = res.querySelector('a'); if (opts.onPick) opts.onPick(found[0]); else window.location.href = a.href; }
+      if (e.key === 'Escape') { inp.value = ''; draw(); }
+    });
+    res.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-msi]');
+      if (a && opts.onPick) { e.preventDefault(); opts.onPick(found[+a.getAttribute('data-msi')]); inp.value = ''; draw(); }
+    });
+    document.addEventListener('click', function (e) { if (!el.contains(e.target)) res.hidden = true; });
+    inp.addEventListener('focus', function () { if (inp.value.trim().length >= 2) draw(); });
+  }
+
+  /* ---------- Voz ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  /** Escucha una frase. Devuelve promesa con el texto ('' si no entiende). onPartial(texto) mientras habla. */
+  function listen(onPartial) {
+    return new Promise(function (resolve) {
+      if (!SR) { resolve(''); return; }
+      var r = new SR(), final = '', done = false;
+      r.lang = 'es-ES'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      r.onresult = function (e) {
+        var interim = '';
+        for (var i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+        }
+        if (onPartial) onPartial((final + ' ' + interim).trim());
+      };
+      function end() { if (!done) { done = true; resolve(final.trim()); } }
+      r.onerror = function (e) { if (e.error === 'not-allowed') toast('Permite el micrófono en el navegador para dictar.', true); end(); };
+      r.onend = end;
+      try { r.start(); } catch (e) { end(); }
+      listen.stop = function () { try { r.stop(); } catch (e) {} };
+    });
+  }
+  function speak(text) {
+    return new Promise(function (resolve) {
+      if (!window.speechSynthesis) { resolve(); return; }
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'es-ES'; u.rate = 1.05;
+        u.onend = function () { resolve(); }; u.onerror = function () { resolve(); };
+        window.speechSynthesis.speak(u);
+        setTimeout(resolve, 6000);
+      } catch (e) { resolve(); }
+    });
+  }
+
+  /* Botón 🎤 flotante: aparece al lado del campo de texto que tiene el foco y dicta dentro */
+  var micBtn = null, micField = null, micOn = false;
+  function micTarget(el) {
+    if (!el || !el.closest || !el.closest('.ecor') || el.hasAttribute('data-novoice') || el.readOnly || el.disabled) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    var t = (el.getAttribute('type') || 'text').toLowerCase(), im = el.getAttribute('inputmode') || '';
+    return (t === 'text' || t === 'search') && im !== 'numeric' && im !== 'decimal' && im !== 'tel' && !el.classList.contains('er-num');
+  }
+  function placeMic() {
+    if (!micBtn || !micField) return;
+    var r = micField.getBoundingClientRect();
+    if (!r.width) { micBtn.hidden = true; return; }
+    micBtn.style.top = (r.top + (micField.tagName === 'TEXTAREA' ? r.height - 40 : (r.height - 34) / 2)) + 'px';
+    micBtn.style.left = (r.right - 40) + 'px';
+  }
+  function insertText(field, text) {
+    if (!text) return;
+    var v = field.value, a = field.selectionStart == null ? v.length : field.selectionStart, b = field.selectionEnd == null ? v.length : field.selectionEnd;
+    var pre = v.slice(0, a), add = (pre && !/\s$/.test(pre) ? ' ' : '') + text;
+    if (!pre) add = add.charAt(0).toUpperCase() + add.slice(1);
+    field.value = pre + add + v.slice(b);
+    var pos = (pre + add).length;
+    try { field.setSelectionRange(pos, pos); } catch (e) {}
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  if (SR) {
+    document.addEventListener('focusin', function (e) {
+      if (!micTarget(e.target)) return;
+      micField = e.target;
+      if (!micBtn) {
+        micBtn = document.createElement('button');
+        micBtn.type = 'button';
+        micBtn.className = 'er-mic';
+        micBtn.setAttribute('aria-label', 'Dictar por voz');
+        micBtn.innerHTML = ICONS_EXTRA.mic;
+        micBtn.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+        micBtn.addEventListener('click', function () {
+          if (micOn) { if (listen.stop) listen.stop(); return; }
+          var f = micField;
+          micOn = true; micBtn.classList.add('on');
+          listen().then(function (t) { micOn = false; micBtn.classList.remove('on'); if (f) { f.focus(); insertText(f, t); } });
+        });
+        document.body.appendChild(micBtn);
+      }
+      micBtn.hidden = false;
+      placeMic();
+    });
+    document.addEventListener('focusout', function () {
+      setTimeout(function () { if (micBtn && !micOn && !micTarget(document.activeElement)) micBtn.hidden = true; }, 150);
+    });
+    window.addEventListener('scroll', placeMic, true);
+    window.addEventListener('resize', placeMic);
+  }
+
+  /**
+   * Entrada guiada por voz: pregunta en voz alta, escucha la respuesta y pasa a la siguiente.
+   * «No» o «nada» deja la respuesta vacía. steps: [{key, q, hint}] → promesa {key: texto} o null si se cancela.
+   */
+  function voiceEntry(steps, title) {
+    return new Promise(function (resolve) {
+      var i = 0, answers = {}, busy = false, closed = false;
+      var wrap = document.createElement('div');
+      wrap.className = 'er-modal';
+      wrap.innerHTML = '<div class="er-dlg er-voice"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + icon('mic') + esc(title || 'Entrada por voz') + '</h2>' +
+        '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+        '<div class="er-voice-prog" id="er-v-prog"></div><div class="er-voice-q" id="er-v-q"></div><div class="er-muted er-small" id="er-v-hint"></div>' +
+        '<button type="button" class="er-voice-mic" id="er-v-mic" aria-label="Hablar">' + ICONS_EXTRA.mic + '</button>' +
+        '<div class="er-voice-a" id="er-v-a"></div>' +
+        '<input class="er-input" id="er-v-txt" placeholder="O escríbelo aquí" data-novoice>' +
+        '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-back>Atrás</button><button type="button" class="er-btn er-btn-ghost" data-skip>No / saltar</button>' +
+          '<button type="button" class="er-btn er-btn-pri" data-next>Siguiente</button></div></div>';
+      (root() || document.body).appendChild(wrap);
+      var $q = function (s) { return wrap.querySelector(s); };
+      function isNo(t) { return /^(no|nada|ninguno|ninguna|no tiene|no trae|sin|no hay|siguiente|paso)\.?$/i.test(fold(t).trim()); }
+      function show() {
+        var st = steps[i];
+        $q('#er-v-prog').innerHTML = steps.map(function (x, j) { return '<span class="' + (j < i ? 'done' : j === i ? 'cur' : '') + '"></span>'; }).join('');
+        $q('#er-v-q').textContent = st.q;
+        $q('#er-v-hint').textContent = st.hint || 'Di «no» si no hay nada que apuntar.';
+        $q('#er-v-a').textContent = answers[st.key] || '';
+        $q('#er-v-txt').value = answers[st.key] || '';
+        $q('[data-next]').textContent = i === steps.length - 1 ? 'Terminar' : 'Siguiente';
+        ask();
+      }
+      function ask() {
+        if (busy || closed || !SR) return;
+        busy = true;
+        speak(steps[i].q).then(function () {
+          if (closed) return;
+          $q('#er-v-mic').classList.add('on');
+          return listen(function (t) { $q('#er-v-a').textContent = t; });
+        }).then(function (t) {
+          busy = false;
+          if (closed) return;
+          $q('#er-v-mic').classList.remove('on');
+          if (t === undefined) return;
+          if (t && isNo(t)) { answers[steps[i].key] = ''; next(); return; }
+          if (t) { answers[steps[i].key] = t; $q('#er-v-txt').value = t; setTimeout(function () { if (!busy && !closed && $q('#er-v-txt').value === t) next(); }, 1200); }
+        });
+      }
+      function next() {
+        answers[steps[i].key] = isNo($q('#er-v-txt').value) ? '' : $q('#er-v-txt').value.trim();
+        if (i === steps.length - 1) { finish(answers); return; }
+        i++; show();
+      }
+      function finish(v) { closed = true; if (listen.stop) listen.stop(); if (window.speechSynthesis) window.speechSynthesis.cancel(); wrap.remove(); resolve(v); }
+      wrap.addEventListener('click', function (e) {
+        if (e.target.closest('[data-x]')) { finish(null); return; }
+        if (e.target.closest('[data-next]')) { if (listen.stop) listen.stop(); busy = false; next(); return; }
+        if (e.target.closest('[data-skip]')) { if (listen.stop) listen.stop(); busy = false; $q('#er-v-txt').value = ''; next(); return; }
+        if (e.target.closest('[data-back]') && i > 0) { if (listen.stop) listen.stop(); busy = false; i--; show(); return; }
+        if (e.target.closest('#er-v-mic')) { if (busy) { if (listen.stop) listen.stop(); } else ask(); }
+      });
+      $q('#er-v-txt').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); next(); } });
+      if (!SR) $q('#er-v-hint').textContent = 'Este navegador no reconoce la voz (usa Chrome, Edge o Safari). Puedes escribir las respuestas.';
+      show();
+    });
+  }
+
+  /** Busca en una lista de opciones las que se nombran en el texto («trae cargador y llave» → [Cargador, Llave]). */
+  function pickFromText(text, options) {
+    var t = ' ' + fold(text).replace(/[^a-z0-9]+/g, ' ') + ' ';
+    return options.filter(function (o) {
+      var w = fold(o).replace(/[^a-z0-9]+/g, ' ').trim();
+      if (!w) return false;
+      if (t.indexOf(' ' + w + ' ') > -1) return true;
+      var first = w.split(' ')[0];
+      return first.length >= 4 && t.indexOf(' ' + first.slice(0, Math.max(4, first.length - 2))) > -1;
+    });
+  }
+  /** Teléfono dicho en voz: «seis uno dos…» o «612 34 56 78» → 612345678 */
+  function phoneFromText(text) {
+    var map = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
+    return fold(text).split(/\s+/).map(function (w) { return map[w] !== undefined ? String(map[w]) : w.replace(/\D/g, ''); }).join('');
+  }
+
+  /** Quita el fondo blanco sobrante alrededor de la foto del modelo (para que todas queden parecidas). */
+  function trimImage(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try {
+          var max = 1600, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+          var w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+          var c = document.createElement('canvas'); c.width = w; c.height = h;
+          var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h);
+          var d = x.getImageData(0, 0, w, h).data, minX = w, minY = h, maxX = -1, maxY = -1;
+          for (var yy = 0; yy < h; yy += 2) {
+            for (var xx = 0; xx < w; xx += 2) {
+              var k = (yy * w + xx) * 4;
+              if (d[k] < 235 || d[k + 1] < 235 || d[k + 2] < 235) { if (xx < minX) minX = xx; if (xx > maxX) maxX = xx; if (yy < minY) minY = yy; if (yy > maxY) maxY = yy; }
+            }
+          }
+          URL.revokeObjectURL(url);
+          if (maxX < 0 || (maxX - minX) < w * 0.2) { resolve(file); return; }
+          var pad = Math.round(Math.max(maxX - minX, maxY - minY) * 0.03);
+          minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad); maxX = Math.min(w, maxX + pad); maxY = Math.min(h, maxY + pad);
+          var o = document.createElement('canvas'); o.width = maxX - minX; o.height = maxY - minY;
+          o.getContext('2d').drawImage(c, minX, minY, o.width, o.height, 0, 0, o.width, o.height);
+          o.toBlob(function (blob) {
+            if (!blob) { resolve(file); return; }
+            try { resolve(new File([blob], 'modelo.jpg', { type: 'image/jpeg' })); } catch (e) { blob.name = 'modelo.jpg'; resolve(blob); }
+          }, 'image/jpeg', 0.88);
+        } catch (e) { URL.revokeObjectURL(url); resolve(file); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
   /* Efecto al pulsar: el brillo sale desde donde se toca */
   document.addEventListener('pointerdown', function (e) {
     var b = e.target.closest && e.target.closest('.ecor .er-btn, .ecor .er-chip, .ecor .er-opt, .ecor .er-tile');
@@ -433,6 +712,16 @@
     root: root,
     modelImg: modelImg,
     viewer: viewer,
-    pickPhoto: pickPhoto
+    pickPhoto: pickPhoto,
+    fold: fold,
+    fuzzyScore: fuzzyScore,
+    findModels: findModels,
+    ModelSearch: ModelSearch,
+    voiceEntry: voiceEntry,
+    hasVoice: !!SR,
+    listen: listen,
+    pickFromText: pickFromText,
+    phoneFromText: phoneFromText,
+    trimImage: trimImage
   };
 })();

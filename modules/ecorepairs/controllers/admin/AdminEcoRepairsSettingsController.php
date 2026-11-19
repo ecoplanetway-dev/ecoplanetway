@@ -66,6 +66,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'variables' => EcoRepairMessage::variables(),
             'statuses' => EcoRepairStatus::all(),
             'canEdit' => (bool) $this->access('edit'),
+            'isAdmin' => (int) $this->context->employee->id_profile === (int) _PS_ADMIN_PROFILE_,
         );
         $this->context->smarty->assign(array(
             'ecor_view' => 'settings',
@@ -225,8 +226,22 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                     }
                     $v = (string) (int) $v;
                     break;
+                case 'ECOREPAIRS_RECALL_DAYS':
+                    $v = (string) max(1, min(365, (int) $v));
+                    break;
+                case 'ECOREPAIRS_UNLOCK_NOTICE':
+                    $v = Tools::substr(strip_tags($v), 0, 1000);
+                    break;
+                case 'ECOREPAIRS_TECHS_VIEWERS':
+                    // Quién ve el informe de técnicos: solo lo cambia el administrador
+                    if ((int) $this->context->employee->id_profile !== (int) _PS_ADMIN_PROFILE_) {
+                        continue 2;
+                    }
+                    $v = implode(',', array_values(array_unique(array_filter(array_map('intval', explode(',', $v))))));
+                    break;
                 case 'ECOREPAIRS_ACCESSORIES':
                 case 'ECOREPAIRS_DAMAGES':
+                case 'ECOREPAIRS_CHECKLIST':
                     $lines = array();
                     foreach (preg_split('/\r\n|\r|\n/', strip_tags($v)) as $line) {
                         $line = trim($line);

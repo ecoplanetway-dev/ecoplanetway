@@ -6,8 +6,9 @@ window.ECOR.ready(function () {
   var app = E.root();
   if (!app || app.getAttribute('data-view') !== 'model') return;
 
-  var kb = D.kb, tab = D.tab === 'parts' ? 'parts' : 'codes', q = D.code || '', canEdit = !!D.canEdit, canDelete = !!D.canDelete;
-  var parts = D.parts || [], incompat = D.incompat || [];
+  var TABS = ['parts', 'unlock', 'fixed', 'codes', 'params', 'faults'];
+  var kb = D.kb, tab = TABS.indexOf(D.tab) > -1 ? D.tab : 'codes', q = D.code || '', canEdit = !!D.canEdit, canDelete = !!D.canDelete;
+  var parts = D.parts || [], incompat = D.incompat || [], B = D.bundle || {};
   var title = D.brand + (D.model ? ' ' + D.model : '');
 
   function base() { return E.boot.links.model + '&id_brand=' + D.id_brand; }
@@ -18,17 +19,55 @@ window.ECOR.ready(function () {
         '<a class="er-btn er-btn-ghost er-icon-btn" href="javascript:history.back()" aria-label="Volver">' + icon('back') + '</a>' +
         (D.image ? '<span class="er-f-cover"><img src="' + esc(D.image) + '" alt=""></span>' : '') +
         '<div class="er-f-title"><h1>' + esc(title) + '</h1><span class="er-st-chip">' + (D.model ? 'Ficha del modelo' : 'Ficha de la marca · vale para todos sus modelos') + '</span></div>' +
+        '<div class="er-msearch" id="er-ms"></div>' +
         '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
       '</div>' +
-      '<div class="er-filters">' + [['parts', 'Piezas', parts.length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
+      '<div class="er-filters">' + [['parts', 'Piezas', parts.length], ['unlock', 'Deslimitar', (B.unlock || []).length], ['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
         return '<button type="button" class="er-chip" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
       }).join('') + '</div>' +
       '<div class="er-panel" id="er-kb"></div>';
+    E.ModelSearch(app.querySelector('#er-ms'), { models: D.modelIndex || [], link: function (m) { return E.boot.links.model + '&id_brand=' + m.id_brand + '&id_model=' + m.id_model + '&tab=' + tab; } });
     var el = app.querySelector('#er-kb');
+    if (tab === 'unlock') {
+      el.innerHTML = '<h3>' + icon('bolt') + 'Deslimitar ' + esc(title) + '<span class="er-r">Pasos, piezas y dónde comprarlo</span></h3><div id="er-unl"></div>';
+      E.UnlockPanel(el.querySelector('#er-unl'), { list: B.unlock || [], admin: !!D.isAdmin,
+        onEdit: canEdit ? function (u) {
+          E.unlockDialog(u, { title: title, methods: B.unlockMethods || {}, admin: !!D.isAdmin, canBrand: !!D.id_model, onSave: function (d, allBrand) {
+            return E.api('unlockSave', {}, { id: u ? u.id : 0, id_brand: D.id_brand, id_model: u ? (u.scope === 'brand' ? 0 : D.id_model) : (allBrand ? 0 : D.id_model), view_model: D.id_model, data: JSON.stringify(d) }).then(function (res) {
+              if (res.ok) { B.unlock = res.unlock; render(); }
+              return res;
+            });
+          } });
+        } : null,
+        onDelete: canDelete ? function (id) { E.api('unlockDelete', {}, { id: id, id_brand: D.id_brand, view_model: D.id_model }).then(function (res) { B.unlock = res.unlock || []; render(); }); } : null });
+      return;
+    }
+    if (tab === 'fixed') {
+      el.innerHTML = '<h3>' + icon('tag') + 'Precios cerrados de ' + esc(title) + '<span class="er-r">Se aplican desde la reparación con un toque</span></h3><div id="er-fx"></div>';
+      E.FixedPanel(el.querySelector('#er-fx'), { list: B.fixed || [],
+        onEdit: canEdit ? function (f) {
+          E.fixedDialog(f, { title: title, canBrand: !!D.id_model, onSave: function (d, allBrand) {
+            return E.api('fixedSave', {}, { id: f ? f.id : 0, id_brand: D.id_brand, id_model: f ? (f.scope === 'brand' ? 0 : D.id_model) : (allBrand ? 0 : D.id_model), view_model: D.id_model, data: JSON.stringify(d) }).then(function (res) {
+              if (res.ok) { B.fixed = res.fixed; render(); }
+              return res;
+            });
+          } });
+        } : null,
+        onDelete: canDelete ? function (id) { E.api('fixedDelete', {}, { id: id, id_brand: D.id_brand, view_model: D.id_model }).then(function (res) { B.fixed = res.fixed || []; render(); }); } : null });
+      return;
+    }
     if (tab === 'parts') {
-      el.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(title) + '<span class="er-r">Pulsa una zona del dibujo</span></h3><div id="er-dwp"></div>';
-      E.PartsDiagram(el.querySelector('#er-dwp'), { parts: parts, zones: D.zones, shape: D.shape, admin: !!D.isAdmin, incompat: incompat,
+      el.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(title) + '<span class="er-r">' +
+        (canEdit && D.id_model && B.modelPhoto ? '<button type="button" class="er-btn er-btn-sm" id="er-zedit">' + icon('pen', true) + (B.modelMap ? 'Ajustar partes en la foto' : 'Marcar partes en la foto') + '</button>'
+          : D.id_model && !B.modelPhoto ? 'Sube una foto del modelo en Ajustes para marcar las partes encima' : 'Toca una parte del patín') + '</span></h3><div id="er-dwp"></div>';
+      var zb = el.querySelector('#er-zedit');
+      if (zb) zb.addEventListener('click', function () {
+        E.zoneEditor({ photo: B.modelPhoto, map: B.modelMap, title: title, sections: B.sections, onSave: function (m) {
+          return E.api('zonesSave', {}, { id_model: D.id_model, map: m ? JSON.stringify(m) : '' }).then(function (res) { if (res.ok) { B.modelMap = res.map; render(); } return res; });
+        } });
+      });
+      E.PartsDiagram(el.querySelector('#er-dwp'), { parts: parts, zones: D.zones, sections: B.sections, map: B.modelMap, photo: B.modelPhoto, admin: !!D.isAdmin, incompat: incompat,
         onIncompat: canEdit ? function () {
           E.incompatDialog({ title: title, canBrand: !!D.id_model, onSave: function (d) {
             return E.api('incompatSave', {}, { id_brand: D.id_brand, id_model: d.all_brand ? 0 : D.id_model, view_model: D.id_model, data: JSON.stringify(d) }).then(function (res) {
@@ -41,7 +80,7 @@ window.ECOR.ready(function () {
           E.api('incompatDelete', {}, { id: id, id_brand: D.id_brand, id_model: D.id_model }).then(function (res) { incompat = res.incompat || []; render(); });
         } : null,
         onEdit: canEdit ? function (p, zone) {
-          E.partDialog(p, zone, { zones: D.zones, admin: !!D.isAdmin, canDelete: canDelete, id_brand: D.id_brand, id_model: D.id_model, title: title,
+          E.partDialog(p, zone, { zones: D.zones, sections: B.sections, admin: !!D.isAdmin, canDelete: canDelete, id_brand: D.id_brand, id_model: D.id_model, title: title,
             onSaved: function (list) { parts = list; render(); } });
         } : null });
       return;

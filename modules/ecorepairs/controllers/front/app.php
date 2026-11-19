@@ -146,7 +146,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         }
 
         $tech = array('home', 'claim', 'status', 'search', 'addParts', 'request');
-        $reception = array('customers', 'customerCreate', 'create', 'addCatalog');
+        $reception = array('customers', 'customerCreate', 'create', 'addCatalog', 'tag');
         if (in_array($action, $tech, true) && !(int) $this->staff['role_tech'] && $action !== 'home') {
             $this->out(array('ok' => false, 'error' => 'Solo para técnicos.'), 403);
         }
@@ -235,8 +235,35 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                     $this->out($res);
                     // no break
                 case 'modelParts':
-                    $this->out(array('ok' => true, 'parts' => EcoRepairParts::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'), false),
-                        'zones' => EcoRepairParts::zones()));
+                    $idb = (int) Tools::getValue('id_brand');
+                    $idm = (int) Tools::getValue('id_model');
+                    $img = $idm ? (string) Db::getInstance()->getValue('SELECT image FROM `' . _DB_PREFIX_ . 'ecorepair_model` WHERE id_ecorepair_model = ' . $idm) : '';
+                    $this->out(array('ok' => true, 'parts' => EcoRepairParts::forModel($idb, $idm, false), 'zones' => EcoRepairParts::zones(),
+                        'incompat' => EcoRepairIncompat::forModel($idb, $idm)) + $this->modelBundle($idb, $idm, $img));
+                    // no break
+                case 'checkToggle':
+                    $r = $this->findRepair();
+                    $res = EcoRepair::checklistToggle($r, (string) Tools::getValue('item'), $this->staff['name'] . ' (móvil)', $this->emp());
+                    $this->out($res['ok'] ? $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
+                case 'unlockAdd':
+                case 'fixedAdd':
+                    $r = $this->findRepair();
+                    $this->mustOwn($r);
+                    $res = $action === 'unlockAdd' ? EcoRepairUnlock::addToQuote($r, (int) Tools::getValue('item'), $this->emp(), $this->staff['name'] . ' (móvil)')
+                        : EcoRepairFixed::addToQuote($r, (int) Tools::getValue('item'), $this->emp(), $this->staff['name'] . ' (móvil)');
+                    $this->out($res['ok'] ? $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) + array('added' => $res['added']) : $res);
+                    // no break
+                case 'tag':
+                    $prev = EcoRepair::byTag((string) Tools::getValue('tag'));
+                    if (!$prev) {
+                        $this->out(array('ok' => false, 'error' => 'Esta pegatina no está registrada.'));
+                    }
+                    $c = EcoRepairCustomer::info((int) $prev['id_customer']);
+                    $this->out(array('ok' => true, 'tag' => $prev['device_tag'], 'id_category' => (int) $prev['id_category'], 'id_brand' => (int) $prev['id_brand'],
+                        'id_model' => (int) $prev['id_model'], 'device_name' => $prev['device_name'], 'serial' => $prev['serial'], 'color' => $prev['color'],
+                        'reference' => $prev['reference'], 'open' => !in_array($prev['status'], array(EcoRepairStatus::DELIVERED, EcoRepairStatus::CANCELLED), true) ? (int) $prev['id_ecorepair'] : 0,
+                        'customer' => $c ?: null));
                     // no break
                 case 'partSearch':
                     $this->out(array('ok' => true, 'results' => EcoRepairParts::search((string) Tools::getValue('q'), false)));
@@ -321,6 +348,29 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'days_in_shop' => (int) $r['days_in_shop'], 'tech_name' => $r['tech_name'], 'id_employee_tech' => (int) $r['id_employee_tech'],
             'fault' => trim(implode(', ', $r['faults']) . ($r['fault_customer'] ? ' · ' . $r['fault_customer'] : ''), ' ·'),
             'cover' => $this->coverUrl($r),
+        );
+    }
+
+    protected function modelImg($img)
+    {
+        $img = (string) $img;
+        if ($img === '') {
+            return '';
+        }
+        $base = $this->appUrl() . (strpos($this->appUrl(), '?') === false ? '?' : '&');
+
+        return preg_match('#^https://#i', $img) ? $img : $base . 'action=modelimg&f=' . rawurlencode($img);
+    }
+
+    /** Foto con zonas, partes, deslimitación (sin proveedor) y precios cerrados del modelo. */
+    protected function modelBundle($idBrand, $idModel, $img)
+    {
+        return array(
+            'modelMap' => EcoRepairParts::modelMap($idModel),
+            'modelPhoto' => $this->modelImg($img),
+            'sections' => EcoRepairParts::sections(),
+            'unlock' => $idBrand ? EcoRepairUnlock::forModel($idBrand, $idModel, false) : array(),
+            'fixed' => $idBrand ? EcoRepairFixed::forModel($idBrand, $idModel) : array(),
         );
     }
 
@@ -413,7 +463,9 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'suggestedZones' => EcoRepairParts::zonesForFaults($r['faults'], $r['fault_customer'] . ' ' . $r['diagnosis']),
             'shape' => $r['category_icon'] === 'bike' ? 'bike' : 'scooter',
             'statuses' => EcoRepairStatus::all(),
-        );
+            'checklistItems' => EcoRepair::checklistItems(),
+            'checklist' => $r['checklist'],
+        ) + $this->modelBundle((int) $r['id_brand'], (int) $r['id_model'], isset($r['model_image']) ? $r['model_image'] : '');
     }
 
     /** Solo si está libre. Cambiar o quitar el técnico lo hace el administrador desde el PC. */
@@ -559,6 +611,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'fault_customer' => $clean['fault_customer'], 'faults' => $list('faults'), 'accessories' => $list('accessories'), 'damages' => $list('damages'),
             'urgent' => !empty($p['urgent']), 'warranty' => false, 'eta_date' => '',
             'consent_rgpd' => true, 'consent_whatsapp' => !empty($p['consent_whatsapp']),
+            'device_tag' => !empty($p['device_tag']) && EcoRepair::byTag((string) $p['device_tag']) ? (string) $p['device_tag'] : '',
         ), $this->emp(), (int) $this->context->shop->id);
         if (!$id) {
             return array('ok' => false, 'error' => 'No se pudo crear la reparación.');
@@ -604,6 +657,8 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'other' => $s . '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>',
             'device' => $s . '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M5.5 17.5 10 7h4l4.5 10.5M14 7l1-3h3"/></svg>',
             'refresh' => $s . '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>',
+            'bolt' => $s . '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+            'mic' => $s . '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
             'pin' => $s . '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
             'trash' => $s . '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
         );

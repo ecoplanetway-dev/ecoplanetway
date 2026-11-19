@@ -198,6 +198,7 @@ class EcoRepair
             'tracking_code' => pSQL(self::generateTrackingCode()),
             'consent_rgpd' => $d['consent_rgpd'] ? 1 : 0,
             'consent_whatsapp' => $d['consent_whatsapp'] ? 1 : 0,
+            'device_tag' => isset($d['device_tag']) ? pSQL(preg_replace('/[^A-Z0-9]/', '', Tools::strtoupper((string) $d['device_tag']))) : '',
             'id_order' => 0,
             'cancel_reason' => '',
             'date_status' => $now,
@@ -331,6 +332,9 @@ class EcoRepair
             $v = json_decode((string) $r[$k], true);
             $r[$k] = is_array($v) ? $v : array();
         }
+        $v = isset($r['checklist']) ? json_decode((string) $r['checklist'], true) : null;
+        $r['checklist'] = is_array($v) ? $v : array();
+        $r['device_tag'] = isset($r['device_tag']) ? (string) $r['device_tag'] : '';
         $r['id_ecorepair'] = (int) $r['id_ecorepair'];
         $r['customer_name'] = trim($r['firstname'] . ' ' . $r['lastname']);
         $r['tech_name'] = trim($r['tech_firstname'] . ' ' . $r['tech_lastname']);
@@ -435,6 +439,82 @@ class EcoRepair
         EcoRepairLog::add((int) $id, $idEmployee, 'field', 'Repetida: vuelve ' . $d . ' días después de ' . $prev['reference'] . ($sameFault ? ' por la misma avería' : ' (otra avería)'));
 
         return array('id' => (int) $prev['id_ecorepair'], 'reference' => $prev['reference'], 'days' => $d, 'same' => $sameFault);
+    }
+
+    /** Puntos de la revisión de salida (Ajustes). */
+    public static function checklistItems()
+    {
+        return array_values(array_filter(array_map('trim', preg_split('/\R/', (string) Configuration::get('ECOREPAIRS_CHECKLIST')))));
+    }
+
+    /** Marca o desmarca un punto de la revisión. No es obligatorio. */
+    public static function checklistToggle(array $r, $item, $who, $idEmployee)
+    {
+        $item = Tools::substr(trim(strip_tags((string) $item)), 0, 64);
+        if ($item === '' || !in_array($item, self::checklistItems(), true)) {
+            return array('ok' => false, 'error' => 'Ese punto de revisión no existe.');
+        }
+        $list = $r['checklist'];
+        if (isset($list[$item])) {
+            unset($list[$item]);
+            $msg = 'Revisión desmarcada: ' . $item;
+        } else {
+            $list[$item] = array('by' => Tools::substr((string) $who, 0, 64), 'date' => date('Y-m-d H:i:s'));
+            $msg = 'Revisado: ' . $item;
+        }
+        Db::getInstance()->update('ecorepair', array('checklist' => pSQL(json_encode($list)), 'date_upd' => date('Y-m-d H:i:s')), 'id_ecorepair = ' . (int) $r['id_ecorepair']);
+        EcoRepairLog::add((int) $r['id_ecorepair'], $idEmployee, 'field', $msg . ($who ? ' (' . $who . ')' : ''));
+
+        return array('ok' => true, 'checklist' => $list);
+    }
+
+    /** Código fijo de la pegatina QR del patín. Se crea la primera vez y pasa a las siguientes reparaciones del mismo patín. */
+    public static function deviceTag(array $r)
+    {
+        if ($r['device_tag'] !== '') {
+            return $r['device_tag'];
+        }
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        do {
+            $tag = '';
+            for ($i = 0; $i < 8; ++$i) {
+                $tag .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+        } while (Db::getInstance()->getValue('SELECT id_ecorepair FROM `' . _DB_PREFIX_ . "ecorepair` WHERE device_tag = '" . pSQL($tag) . "'"));
+        Db::getInstance()->update('ecorepair', array('device_tag' => pSQL($tag)), 'id_ecorepair = ' . (int) $r['id_ecorepair']);
+
+        return $tag;
+    }
+
+    /** Última reparación del patín con esa pegatina. */
+    public static function byTag($tag)
+    {
+        $tag = preg_replace('/[^A-Z0-9]/', '', Tools::strtoupper((string) $tag));
+        if (strlen($tag) < 6) {
+            return false;
+        }
+        $row = Db::getInstance()->getRow(self::baseSelect() . "WHERE r.device_tag = '" . pSQL($tag) . "' ORDER BY r.id_ecorepair DESC");
+
+        return $row ? self::decorate($row) : false;
+    }
+
+    /** Todas las reparaciones del patín con esa pegatina (para la página pública). */
+    public static function historyByTag($tag)
+    {
+        $rows = Db::getInstance()->executeS(self::baseSelect() . "WHERE r.device_tag = '" . pSQL($tag) . "' ORDER BY r.id_ecorepair DESC LIMIT 30");
+
+        return array_map(array('EcoRepair', 'decorate'), $rows ?: array());
+    }
+
+    /** Listas desde hace X días y sin aviso en la última semana: hay que volver a llamar al cliente. */
+    public static function toRecall($idShop)
+    {
+        $days = max(1, (int) Configuration::get('ECOREPAIRS_RECALL_DAYS'));
+        $rows = Db::getInstance()->executeS(self::baseSelect() . 'WHERE r.id_shop = ' . (int) $idShop . " AND r.status = 'ready'
+            AND r.date_status <= DATE_SUB(NOW(), INTERVAL {$days} DAY)
+            AND (r.date_reminder IS NULL OR r.date_reminder <= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY r.date_status ASC LIMIT 50");
+
+        return array_map(array('EcoRepair', 'decorate'), $rows ?: array());
     }
 
     /** Fin de la garantía de la reparación (desde la entrega). '' si no está entregada. */

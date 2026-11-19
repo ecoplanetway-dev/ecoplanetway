@@ -78,6 +78,16 @@ window.ECOR.ready(function () {
           return '<label class="er-field">' + esc(D.templates[k].name) + '<textarea class="er-input" data-tpl="' + k + '" rows="5"' + dis + '>' + esc(D.templates[k].text) + '</textarea></label>';
         }).join('') + '</div>' +
       '</div>' +
+      '<div class="er-panel"><h3>' + icon('check') + 'Revisión, avisos y deslimitación</h3>' +
+        '<div class="er-fg">' +
+          '<label class="er-field">Puntos de la revisión de salida (uno por línea, no obligatorios)<textarea class="er-input" data-c="ECOREPAIRS_CHECKLIST" rows="6"' + dis + '></textarea></label>' +
+          '<label class="er-field">Aviso legal al deslimitar (sale en las observaciones del presupuesto)<textarea class="er-input" data-c="ECOREPAIRS_UNLOCK_NOTICE" rows="6"' + dis + '></textarea></label>' +
+          '<label class="er-field">Avisarnos de volver a llamar si lleva lista sin recoger (días)<input class="er-input" data-c="ECOREPAIRS_RECALL_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
+        '</div>' +
+        (D.isAdmin ? '<div><div class="er-sub">Pueden ver el informe de Técnicos (además de ti)</div><div class="er-opts" id="er-tv">' + (D.employees || []).map(function (e) {
+          return '<button type="button" class="er-opt" data-tv="' + e.id + '" aria-pressed="' + (String(cfg.ECOREPAIRS_TECHS_VIEWERS || '').split(',').indexOf(String(e.id)) > -1) + '">' + esc(e.name) + '</button>';
+        }).join('') + '</div></div>' : '') +
+      '</div>' +
       (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri er-btn-lg" id="er-save-cfg">' + icon('check') + 'Guardar ajustes</button><span class="er-err" id="er-cfg-err" hidden></span></div>' : '') +
     '</div>';
 
@@ -188,7 +198,7 @@ window.ECOR.ready(function () {
     if (e.target.id !== 'er-img-file' || !e.target.files.length) return;
     var f = e.target.files[0];
     e.target.value = '';
-    E.shrinkImage(f, 800).then(function (small) {
+    E.trimImage(f).then(function (t) { return E.shrinkImage(t, 800); }).then(function (small) {
       var fd = new FormData();
       fd.append('id', imgTarget);
       fd.append('image', small, small.name || 'foto.jpg');
@@ -371,7 +381,7 @@ window.ECOR.ready(function () {
 
   /* ---------- Guardar ajustes ---------- */
   app.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-mst]');
+    var b = e.target.closest('[data-mst],[data-tv]');
     if (b && canEdit) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
   });
   var saveBtn = $('#er-save-cfg');
@@ -380,6 +390,7 @@ window.ECOR.ready(function () {
       var out = {};
       app.querySelectorAll('[data-c]').forEach(function (el) { out[el.getAttribute('data-c')] = el.value; });
       app.querySelectorAll('[data-cb]').forEach(function (el) { out[el.getAttribute('data-cb')] = el.checked ? '1' : '0'; });
+      if (D.isAdmin) out.ECOREPAIRS_TECHS_VIEWERS = Array.prototype.slice.call(app.querySelectorAll('[data-tv][aria-pressed="true"]')).map(function (b) { return b.getAttribute('data-tv'); }).join(',');
       out.ECOREPAIRS_EMAIL_STATUSES = Array.prototype.slice.call(app.querySelectorAll('[data-mst][aria-pressed="true"]')).map(function (b) { return b.getAttribute('data-mst'); }).join(',');
       var tpls = {};
       app.querySelectorAll('[data-tpl]').forEach(function (el) { tpls[el.getAttribute('data-tpl')] = el.value; });
