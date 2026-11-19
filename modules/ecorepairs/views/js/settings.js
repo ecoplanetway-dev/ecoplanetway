@@ -19,7 +19,7 @@ window.ECOR.ready(function () {
     (canEdit ? '' : '<div class="er-banner er-bad">Tu perfil solo puede ver los ajustes.</div>') +
     '<div class="er-stack">' +
       '<div class="er-panel"><h3>Categorías, marcas, modelos y averías<span class="er-r">Lo que se oculta deja de salir al crear reparaciones, pero no se borra</span></h3>' +
-        '<div id="er-cat-grid" class="er-wide-2" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))"></div>' +
+        '<div id="er-cat-grid" class="er-wide-2 er-catgrid"></div>' +
         '<input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
         (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button>' +
           '<span class="er-muted er-small" id="er-nophoto"></span></div>' : '') +
@@ -102,9 +102,9 @@ window.ECOR.ready(function () {
   function brand() { var c = cat(); return c ? c.brands.filter(function (b) { return b.id === sel.brand; })[0] || null : null; }
 
   function row(type, item, selectable, selected, extra) {
-    return '<div class="er-pick-row" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid var(--er-line2);' + (selected ? 'background:var(--er-pri-soft);' : '') + (item.active ? '' : 'opacity:.55;') + '">' +
+    return '<div class="er-pick-row er-pr-' + type + '" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid var(--er-line2);' + (selected ? 'background:var(--er-pri-soft);' : '') + (item.active ? '' : 'opacity:.55;') + '">' +
       (selectable ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm" style="flex:1;justify-content:flex-start;min-width:0" data-sel="' + type + '" data-id="' + item.id + '">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></button>'
-                  : '<span style="flex:1;min-width:0;padding-left:12px;display:flex;align-items:center;gap:8px">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></span>') +
+                  : '<span class="er-pr-name" style="flex:1;min-width:0;padding-left:12px;display:flex;align-items:center;gap:8px">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></span>') +
       (type === 'model' || type === 'brand' ? '<a class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Ficha: códigos de error, menú y soluciones" aria-label="Ficha técnica" href="' +
         esc(E.boot.links.model + '&id_brand=' + (type === 'brand' ? item.id : ((brand() || {}).id || 0)) + '&id_model=' + (type === 'model' ? item.id : 0)) + '">' + icon('book', true) + '</a>' : '') +
       (canEdit && type === 'model' ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Subir foto" aria-label="Subir foto de ' + esc(item.name) + '" data-imgup="' + item.id + '">' + icon('camera', true) + '</button>' +

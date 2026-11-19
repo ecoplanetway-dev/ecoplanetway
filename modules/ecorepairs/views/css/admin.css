@@ -696,3 +696,10 @@
 @media (max-width: 1000px) { .ecor .er-p-parts > #er-dwr { display: block; } .ecor .er-p-parts > #er-dwr > * + * { margin-top: 10px; } }
 .ecor .er-p-parts { margin-bottom: 16px; }
 .ecor .er-part-main > .er-spec, .ecor .er-part-main > .er-tag { align-self: flex-start; }
+/* Ajustes: catálogo. La columna de modelos es más ancha y el nombre del modelo va en su propia línea */
+.ecor .er-catgrid { display: grid; gap: 16px; grid-template-columns: minmax(200px, .8fr) minmax(240px, 1fr) minmax(320px, 1.5fr) minmax(220px, .9fr); }
+@media (max-width: 1300px) { .ecor .er-catgrid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); } }
+.ecor .er-pr-model { flex-wrap: wrap; }
+.ecor .er-pr-model .er-pr-name { flex: 1 1 100% !important; padding: 4px 0 2px 4px !important; font-weight: 600; }
+.ecor .er-pr-model .er-pr-name > span:last-child { white-space: normal; }
+.ecor .er-pr-model > :not(.er-pr-name):first-of-type { margin-left: auto; }
