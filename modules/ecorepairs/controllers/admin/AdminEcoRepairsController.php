@@ -48,11 +48,18 @@ class AdminEcoRepairsController extends ModuleAdminController
         } elseif ($view === 'repair') {
             $this->addJS($base . 'views/js/vendor/qrcode.js' . $v, false);
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
+            $this->addJS($base . 'views/js/notify.js' . $v, false);
             $this->addJS($base . 'views/js/repair.js' . $v, false);
         } elseif ($view === 'stats') {
             $this->addJS($base . 'views/js/stats.js' . $v, false);
         } elseif ($view === 'cash') {
             $this->addJS($base . 'views/js/cash.js' . $v, false);
+        } elseif ($view === 'requests') {
+            $this->addJS($base . 'views/js/notify.js' . $v, false);
+            $this->addJS($base . 'views/js/requests.js' . $v, false);
+        } elseif ($view === 'customer') {
+            $this->addJS($base . 'views/js/repair-form.js' . $v, false);
+            $this->addJS($base . 'views/js/customer.js' . $v, false);
         } elseif ($view === 'quote') {
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
             $this->addJS($base . 'views/js/quote.js' . $v, false);
@@ -69,6 +76,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         if (Tools::getValue('view') === 'cash') {
             return 'cash';
+        }
+        if (Tools::getValue('view') === 'requests') {
+            return 'requests';
+        }
+        if (Tools::getValue('view') === 'customer' && (int) Tools::getValue('id_customer')) {
+            return 'customer';
         }
         if ((int) Tools::getValue('id_ecorepair')) {
             return Tools::getValue('view') === 'quote' ? 'quote' : 'repair';
@@ -99,7 +112,21 @@ class AdminEcoRepairsController extends ModuleAdminController
             'ecor_data' => '{}',
         ));
 
-        if ($view === 'cash') {
+        if ($view === 'requests') {
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array(
+                    'requests' => EcoRepairRequest::listFor((int) $this->context->shop->id, 'open'),
+                    'statuses' => EcoRepairRequest::statuses(),
+                    'counts' => EcoRepairRequest::counts((int) $this->context->shop->id),
+                    'canEdit' => (bool) $this->access('edit'),
+                    'preset' => (int) Tools::getValue('id_customer') ? EcoRepairCustomer::info((int) Tools::getValue('id_customer')) : null,
+                )),
+                'ecor_view' => 'requests',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'customer') {
+            $this->renderCustomer((int) Tools::getValue('id_customer'));
+        } elseif ($view === 'cash') {
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array(
                     'close' => EcoRepairPayment::dayClose((int) $this->context->shop->id, date('Y-m-d')),
@@ -136,6 +163,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     protected function renderBoard()
     {
         $idShop = (int) $this->context->shop->id;
+        EcoRepairMessage::autoReminders($idShop, array($this, 'trackingUrl'));
         $data = array(
             'repairs' => $this->publicRepairs(EcoRepair::boardList($idShop)),
             'statuses' => EcoRepairStatus::all(),
@@ -145,6 +173,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'lateDays' => (int) Configuration::get('ECOREPAIRS_LATE_DAYS'),
             'pickupDays' => (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS'),
             'canEdit' => (bool) $this->access('edit'),
+            'requestCounts' => EcoRepairRequest::counts($idShop),
         );
         $this->context->smarty->assign('ecor_data', $this->json($data));
         $this->context->smarty->assign('ecor_view', 'board');
@@ -239,6 +268,12 @@ class AdminEcoRepairsController extends ModuleAdminController
             'payment' => $this->paymentData($repair),
             'methods' => EcoRepairPayment::methods(),
             'isAdmin' => $this->isAdmin(),
+            'warrantyUntil' => EcoRepair::warrantyUntil($repair),
+            'parent' => (int) $repair['id_parent_repair'] ? EcoRepair::get((int) $repair['id_parent_repair']) : null,
+            'children' => EcoRepair::children($id),
+            'pickupDays' => (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS'),
+            'customerUrl' => $this->baseUrl() . '&view=customer&id_customer=' . (int) $repair['id_customer'],
+            'requests' => EcoRepairRequest::query('rq.id_ecorepair = ' . (int) $id),
             'canMove' => array(
                 'ready' => EcoRepair::canMoveTo($repair, EcoRepairStatus::READY),
                 'delivered' => EcoRepair::canMoveTo($repair, EcoRepairStatus::DELIVERED),
@@ -336,6 +371,13 @@ class AdminEcoRepairsController extends ModuleAdminController
             'dayClose' => array('ajaxDayClose', 'view', false),
             'printCash' => array('ajaxPrintCash', 'view', false),
             'exportQuarter' => array('ajaxExportQuarter', 'view', false),
+            'notifyPreview' => array('ajaxNotifyPreview', 'view', false),
+            'logMessage' => array('ajaxLogMessage', 'edit', true),
+            'newTrackingCode' => array('ajaxNewTrackingCode', 'edit', true),
+            'reopen' => array('ajaxReopen', 'add', true),
+            'requests' => array('ajaxRequests', 'view', false),
+            'requestSave' => array('ajaxRequestSave', 'edit', true),
+            'requestStatus' => array('ajaxRequestStatus', 'edit', true),
         );
         if (!isset($map[$action])) {
             $this->jsonOut(array('ok' => false, 'error' => 'Acción desconocida.'), 400);
@@ -550,6 +592,9 @@ class AdminEcoRepairsController extends ModuleAdminController
         if ($res['ok'] && Tools::getValue('deliver')) {
             $st = EcoRepair::setStatus($idRepair, EcoRepairStatus::DELIVERED, (int) $this->context->employee->id);
             $res['delivered'] = $st['ok'];
+            if ($st['ok']) {
+                EcoRepairMessage::statusEmail($idRepair, EcoRepairStatus::DELIVERED, (int) $this->context->employee->id, $this->trackingUrl($repair['tracking_code']));
+            }
             if (!$st['ok']) {
                 $res['warning'] = $st['error'];
             }
@@ -657,6 +702,176 @@ class AdminEcoRepairsController extends ModuleAdminController
         header('Cache-Control: no-store');
         echo $res['csv'];
         exit;
+    }
+
+    /** Textos de WhatsApp ya rellenados para una reparación o un encargo. */
+    protected function ajaxNotifyPreview()
+    {
+        $tpl = EcoRepairMessage::templates();
+        $idRequest = (int) Tools::getValue('id_request');
+        if ($idRequest) {
+            $rq = EcoRepairRequest::get($idRequest);
+            if (!$rq) {
+                $this->jsonOut(array('ok' => false, 'error' => 'El encargo no existe.'), 404);
+            }
+            $c = EcoRepairCustomer::info($rq['id_customer']);
+            $vals = array('{nombre}' => $c ? $c['firstname'] : '', '{encargo}' => $rq['request'] . ($rq['for_device'] ? ' (' . $rq['for_device'] . ')' : ''),
+                '{tienda}' => Configuration::get('PS_SHOP_NAME'), '{total}' => $rq['price'] > 0 ? EcoRepairQuote::money($rq['price'] - $rq['deposit']) : '');
+            $this->jsonOut(array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
+                'templates' => array('request' => array('name' => $tpl['request']['name'], 'text' => EcoRepairMessage::render($tpl['request']['text'], $vals))), 'default' => 'request'));
+        }
+        $repair = $this->loadRepairOr404();
+        $vals = EcoRepairMessage::values($repair, $this->trackingUrl($repair['tracking_code']));
+        $out = array();
+        foreach ($tpl as $k => $t) {
+            if ($k !== 'request') {
+                $out[$k] = array('name' => $t['name'], 'text' => EcoRepairMessage::render($t['text'], $vals));
+            }
+        }
+        $default = array('received' => 'received', 'quote' => 'quote', 'ready' => (int) $repair['days_in_status'] >= (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS') ? 'reminder' : 'ready');
+        $c = EcoRepairCustomer::info((int) $repair['id_customer']);
+        $this->jsonOut(array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
+            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received'));
+    }
+
+    protected function ajaxLogMessage()
+    {
+        $idRepair = (int) Tools::getValue('id_ecorepair');
+        $idRequest = (int) Tools::getValue('id_request');
+        $idCustomer = 0;
+        if ($idRepair) {
+            $repair = $this->loadRepairOr404();
+            $idCustomer = (int) $repair['id_customer'];
+            if ((string) Tools::getValue('template') === 'reminder') {
+                Db::getInstance()->update('ecorepair', array('date_reminder' => date('Y-m-d H:i:s')), 'id_ecorepair = ' . $idRepair);
+            }
+        } elseif ($idRequest) {
+            $rq = EcoRepairRequest::get($idRequest);
+            if (!$rq) {
+                $this->jsonOut(array('ok' => false, 'error' => 'El encargo no existe.'), 404);
+            }
+            $idCustomer = $rq['id_customer'];
+            if ($rq['status'] === 'arrived') {
+                EcoRepairRequest::setStatus($idRequest, 'notified', (int) $this->context->shop->id, (int) $this->context->employee->id);
+            }
+        }
+        EcoRepairMessage::log($idRepair, $idRequest, $idCustomer, 'whatsapp', (string) Tools::getValue('template'),
+            EcoRepairMessage::waPhone(Tools::getValue('phone')), (string) Tools::getValue('body'), (int) $this->context->employee->id);
+        $this->jsonOut($idRepair ? $this->withLog(array('ok' => true), $idRepair) : array('ok' => true));
+    }
+
+    protected function ajaxNewTrackingCode()
+    {
+        $repair = $this->loadRepairOr404();
+        $code = EcoRepair::newTrackingCode((int) $repair['id_ecorepair'], (int) $this->context->employee->id);
+        $this->jsonOut($this->withLog(array('ok' => true, 'code' => $code, 'url' => $this->trackingUrl($code)), (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxReopen()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepair::reopen($repair, (string) Tools::getValue('reason'), (int) $this->context->employee->id);
+        if ($res['ok']) {
+            $res['url'] = $this->repairUrl($res['id']);
+        }
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxRequests()
+    {
+        $this->jsonOut(array('ok' => true,
+            'requests' => EcoRepairRequest::listFor((int) $this->context->shop->id, (string) Tools::getValue('status'), (string) Tools::getValue('q')),
+            'counts' => EcoRepairRequest::counts((int) $this->context->shop->id)));
+    }
+
+    protected function ajaxRequestSave()
+    {
+        $id = (int) Tools::getValue('id_request');
+        $res = EcoRepairRequest::save($id, array(
+            'id_customer' => (int) Tools::getValue('id_customer'),
+            'request' => (string) Tools::getValue('request'),
+            'for_device' => (string) Tools::getValue('for_device'),
+            'qty' => (int) Tools::getValue('qty', 1),
+            'supplier' => (string) Tools::getValue('supplier'),
+            'price' => Tools::getValue('price'),
+            'deposit' => Tools::getValue('deposit'),
+            'notes' => (string) Tools::getValue('notes'),
+            'id_ecorepair' => (int) Tools::getValue('id_ecorepair'),
+            'id_product' => (int) Tools::getValue('id_product'),
+            'id_product_attribute' => (int) Tools::getValue('id_product_attribute'),
+        ), (int) $this->context->shop->id, (int) $this->context->employee->id);
+        if ($res['ok']) {
+            $res['request'] = EcoRepairRequest::get($res['id']);
+        }
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxRequestStatus()
+    {
+        $res = EcoRepairRequest::setStatus((int) Tools::getValue('id_request'), (string) Tools::getValue('status'), (int) $this->context->shop->id, (int) $this->context->employee->id);
+        if ($res['ok']) {
+            $res['request'] = EcoRepairRequest::get((int) Tools::getValue('id_request'));
+        }
+        $this->jsonOut($res);
+    }
+
+    /** Ficha completa del cliente. */
+    protected function renderCustomer($idCustomer)
+    {
+        $c = EcoRepairCustomer::info($idCustomer);
+        if (!$c) {
+            Tools::redirectAdmin($this->baseUrl());
+        }
+        $repairs = array();
+        $devices = array();
+        foreach (EcoRepair::customerHistory($idCustomer, 0) as $r) {
+            $pr = $this->publicRepair($r);
+            $pay = EcoRepairPayment::summary((int) $r['id_ecorepair']);
+            $pr['total'] = $pay['due'];
+            $pr['warranty_until'] = EcoRepair::warrantyUntil($r);
+            $repairs[] = $pr;
+            $key = Tools::strtolower($r['device_name'] . '|' . $r['serial']);
+            if (!isset($devices[$key])) {
+                $devices[$key] = array('device' => $r['device_name'], 'serial' => $r['serial'], 'category' => (string) $r['category_name'], 'count' => 0, 'last' => $r['date_add'],
+                    'warranty_until' => '', 'cover' => $pr['cover']);
+            }
+            ++$devices[$key]['count'];
+            if ($pr['warranty_until'] > $devices[$key]['warranty_until']) {
+                $devices[$key]['warranty_until'] = $pr['warranty_until'];
+            }
+        }
+        $p = _DB_PREFIX_;
+        $idLang = (int) $this->context->language->id;
+        $orders = array();
+        foreach (Db::getInstance()->executeS("SELECT o.id_order, o.reference, o.date_add, o.total_paid_tax_incl, o.payment, osl.name AS state, os.color
+                FROM `{$p}orders` o
+                LEFT JOIN `{$p}order_state` os ON os.id_order_state = o.current_state
+                LEFT JOIN `{$p}order_state_lang` osl ON osl.id_order_state = o.current_state AND osl.id_lang = {$idLang}
+                WHERE o.id_customer = " . (int) $idCustomer . ' ORDER BY o.date_add DESC LIMIT 50') ?: array() as $o) {
+            $items = Db::getInstance()->executeS("SELECT product_name, product_quantity FROM `{$p}order_detail` WHERE id_order = " . (int) $o['id_order']) ?: array();
+            $orders[] = array('id' => (int) $o['id_order'], 'reference' => $o['reference'], 'date' => $o['date_add'], 'total' => round((float) $o['total_paid_tax_incl'], 2),
+                'payment' => $o['payment'], 'state' => (string) $o['state'], 'color' => (string) $o['color'],
+                'items' => array_map(function ($i) {
+                    return (int) $i['product_quantity'] . ' × ' . $i['product_name'];
+                }, $items),
+                // Garantía legal de 3 años para lo comprado
+                'warranty_until' => date('Y-m-d', strtotime($o['date_add'] . ' +3 years')),
+                'url' => $this->context->link->getAdminLink('AdminOrders', true, array(), array('id_order' => (int) $o['id_order'], 'vieworder' => 1)));
+        }
+        $data = array(
+            'customer' => $c,
+            'repairs' => $repairs,
+            'devices' => array_values($devices),
+            'orders' => $orders,
+            'messages' => EcoRepairMessage::forCustomer($idCustomer),
+            'requests' => EcoRepairRequest::query('rq.id_customer = ' . (int) $idCustomer),
+            'statuses' => EcoRepairStatus::all(),
+            'requestStatuses' => EcoRepairRequest::statuses(),
+            'canEdit' => (bool) $this->access('edit'),
+            'customerAdminUrl' => $this->context->link->getAdminLink('AdminCustomers', true, array(), array('id_customer' => (int) $idCustomer, 'viewcustomer' => 1)),
+        );
+        $this->context->smarty->assign(array('ecor_data' => $this->json($data), 'ecor_view' => 'customer'));
+        $this->setTemplate('app.tpl');
     }
 
     protected function ajaxStats()
@@ -774,6 +989,7 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         EcoRepairCustomer::touch($idCustomer, isset($p['phone']) ? (string) $p['phone'] : '', !empty($p['consent_rgpd']), !empty($p['consent_whatsapp']));
         EcoRepairLog::add($id, (int) $this->context->employee->id, 'create', 'Reparación registrada · ' . $names['category'] . ' · ' . $names['device_name']);
+        EcoRepairMessage::statusEmail($id, EcoRepairStatus::RECEIVED, (int) $this->context->employee->id, $this->trackingUrl(EcoRepair::get($id)['tracking_code']));
 
         $repair = EcoRepair::get($id);
         $this->jsonOut(array(
@@ -841,6 +1057,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             (int) $this->context->employee->id,
             (string) Tools::getValue('reason')
         );
+        if ($res['ok'] && empty($res['unchanged'])) {
+            $res['emailed'] = EcoRepairMessage::statusEmail((int) $repair['id_ecorepair'], (string) Tools::getValue('status'), (int) $this->context->employee->id, $this->trackingUrl($repair['tracking_code']));
+        }
         if ($res['ok']) {
             $res['repair'] = $this->publicRepair(EcoRepair::get((int) $repair['id_ecorepair']));
         }
@@ -1060,6 +1279,11 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $q = $this->loadQuoteOr404();
         $res = EcoRepairQuote::send($q, (int) $this->context->employee->id);
+        if ($res['ok']) {
+            $repair = EcoRepair::get((int) $q['id_ecorepair']);
+            $fresh = EcoRepairQuote::get((int) $q['id_ecorepair_quote']);
+            $res['emailed'] = EcoRepairMessage::quoteEmail($repair, $res['link'], EcoRepairQuote::money($fresh['total_tax_incl']), (int) $this->context->employee->id, $this->trackingUrl($repair['tracking_code']));
+        }
         $this->quoteOut($res, (int) $q['id_ecorepair']);
     }
 
@@ -1198,8 +1422,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         return $this->ajaxUrl('photo', array('id_photo' => (int) $idPhoto, 'thumb' => $thumb ? 1 : 0));
     }
 
-    protected function trackingUrl($code)
+    public function trackingUrl($code)
     {
+        if (!Configuration::get('PS_REWRITING_SETTINGS')) {
+            return $this->context->link->getModuleLink('ecorepairs', 'tracking', array('c' => $code), true);
+        }
+
         return $this->context->link->getBaseLink() . 'seguimiento?c=' . rawurlencode($code);
     }
 
@@ -1210,6 +1438,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             'new' => $this->baseUrl() . '&view=new',
             'stats' => $this->baseUrl() . '&view=stats',
             'cash' => $this->baseUrl() . '&view=cash',
+            'requests' => $this->baseUrl() . '&view=requests',
+            'customer' => $this->baseUrl() . '&view=customer&id_customer=',
             'repair' => $this->baseUrl() . '&id_ecorepair=',
             'ajax' => $this->baseUrl() . '&ajax=1',
             'settings' => $this->context->link->getAdminLink('AdminEcoRepairsSettings'),
@@ -1284,6 +1514,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'quotes_accepted' => isset($r['quotes_accepted']) ? (int) $r['quotes_accepted'] : 0,
             'id_order' => (int) $r['id_order'],
             'date_upd' => $r['date_upd'],
+            'id_parent_repair' => isset($r['id_parent_repair']) ? (int) $r['id_parent_repair'] : 0,
         );
     }
 
@@ -1348,6 +1579,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             'trash' => $s . '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
             'link' => $s . '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
             'chart' => $s . '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/></svg>',
+            'whatsapp' => $s . '<path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.3-1.3-2-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-2z"/></svg>',
+            'mail' => $s . '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+            'refresh' => $s . '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>',
+            'package' => $s . '<path d="M16.5 9.4 7.5 4.2M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>',
             'trend' => $s . '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
             'logo' => $s . '<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/><path d="M12.8 8.6 10.6 12.3h2.8l-2.2 3.7" stroke-width="2.2"/></svg>',
             'doc' => $s . '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',

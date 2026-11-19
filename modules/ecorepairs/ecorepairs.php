@@ -21,6 +21,9 @@ require_once __DIR__ . '/classes/EcoRepairKit.php';
 require_once __DIR__ . '/classes/EcoRepairCatalogSeed.php';
 require_once __DIR__ . '/classes/EcoRepairStats.php';
 require_once __DIR__ . '/classes/EcoRepairPayment.php';
+require_once __DIR__ . '/classes/EcoRepairMessage.php';
+require_once __DIR__ . '/classes/EcoRepairRequest.php';
+require_once __DIR__ . '/classes/EcoRepairRateLimit.php';
 
 /**
  * También es un módulo de pago (Taller · Efectivo / Tarjeta / Transferencia) para crear los pedidos del taller.
@@ -32,7 +35,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.4.1';
+        $this->version = '1.5.0';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
@@ -57,6 +60,7 @@ class EcoRepairs extends PaymentModule
             && EcoRepairInstaller::installConfig()
             && EcoRepairInstaller::installTabs($this->name)
             && EcoRepairInstaller::ensureSchema()
+            && $this->registerHook('moduleRoutes')
             && EcoRepairPhoto::ensureStorage();
     }
 
@@ -68,6 +72,21 @@ class EcoRepairs extends PaymentModule
     {
         return EcoRepairInstaller::uninstallTabs()
             && parent::uninstall();
+    }
+
+    /**
+     * Dirección pública /seguimiento (el QR del resguardo y de la etiqueta apunta aquí).
+     */
+    public function hookModuleRoutes()
+    {
+        return array(
+            'module-ecorepairs-tracking' => array(
+                'controller' => 'tracking',
+                'rule' => 'seguimiento',
+                'keywords' => array(),
+                'params' => array('fc' => 'module', 'module' => 'ecorepairs', 'controller' => 'tracking'),
+            ),
+        );
     }
 
     public function getContent()

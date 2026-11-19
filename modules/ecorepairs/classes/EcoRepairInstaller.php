@@ -42,6 +42,8 @@ class EcoRepairInstaller
             `consent_whatsapp` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             `id_order` INT UNSIGNED NOT NULL DEFAULT 0,
             `cancel_reason` VARCHAR(255) NOT NULL DEFAULT '',
+            `id_parent_repair` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_reminder` DATETIME NULL DEFAULT NULL,
             `date_status` DATETIME NOT NULL,
             `date_add` DATETIME NOT NULL,
             `date_upd` DATETIME NOT NULL,
@@ -134,7 +136,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.4.1';
+    const SCHEMA = '1.5.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -149,10 +151,16 @@ class EcoRepairInstaller
         $ok = self::installDb()
             && self::addModelImageColumn()
             && self::addColumn('ecorepair_quote_line', 'discount', 'DECIMAL(20,6) NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair', 'id_parent_repair', 'INT UNSIGNED NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair', 'date_reminder', 'DATETIME NULL DEFAULT NULL')
             && self::installConfig()
             && EcoRepairPhoto::ensureStorage();
         if ($ok) {
             EcoRepairCatalogSeed::importMissing();
+            $module = Module::getInstanceByName('ecorepairs');
+            if ($module && !$module->isRegisteredInHook('moduleRoutes')) {
+                $module->registerHook('moduleRoutes');
+            }
             Configuration::updateValue('ECOREPAIRS_SCHEMA', self::SCHEMA);
         }
 
@@ -251,6 +259,45 @@ class EcoRepairInstaller
             PRIMARY KEY (`id_ecorepair_payment`),
             KEY `id_ecorepair` (`id_ecorepair`),
             KEY `date_add` (`date_add`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_message` (
+            `id_ecorepair_message` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_request` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_customer` INT UNSIGNED NOT NULL DEFAULT 0,
+            `channel` VARCHAR(12) NOT NULL DEFAULT 'whatsapp',
+            `template` VARCHAR(32) NOT NULL DEFAULT '',
+            `recipient` VARCHAR(128) NOT NULL DEFAULT '',
+            `body` TEXT NULL,
+            `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_add` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_message`),
+            KEY `id_ecorepair` (`id_ecorepair`),
+            KEY `id_customer` (`id_customer`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_request` (
+            `id_ecorepair_request` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_shop` INT UNSIGNED NOT NULL DEFAULT 1,
+            `id_customer` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_product` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_product_attribute` INT UNSIGNED NOT NULL DEFAULT 0,
+            `request` VARCHAR(255) NOT NULL,
+            `for_device` VARCHAR(160) NOT NULL DEFAULT '',
+            `qty` INT UNSIGNED NOT NULL DEFAULT 1,
+            `supplier` VARCHAR(96) NOT NULL DEFAULT '',
+            `price` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `deposit` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `notes` TEXT NULL,
+            `status` VARCHAR(12) NOT NULL DEFAULT 'pending',
+            `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_request`),
+            KEY `status` (`status`),
+            KEY `id_customer` (`id_customer`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_kit` (
@@ -369,6 +416,12 @@ class EcoRepairInstaller
             'ECOREPAIRS_LABOUR_RATE' => '35',
             'ECOREPAIRS_QUOTE_DAYS' => '15',
             'ECOREPAIRS_CARRIER' => '0',
+            'ECOREPAIRS_WARRANTY_MONTHS' => '3',
+            'ECOREPAIRS_TRACKING_DAYS' => '90',
+            'ECOREPAIRS_EMAIL_STATUSES' => 'received,quote,ready',
+            'ECOREPAIRS_EMAIL_QUOTE' => '1',
+            'ECOREPAIRS_REMINDER_AUTO' => '0',
+            'ECOREPAIRS_WA_TEMPLATES' => '',
             'ECOREPAIRS_QUOTE_CONDITIONS' => "Precios con IVA incluido.\nLas líneas marcadas como garantía no tienen coste para el cliente.\nSi al reparar aparece otra avería, se le enviará un presupuesto adicional antes de hacer nada.",
         );
     }

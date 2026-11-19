@@ -535,3 +535,51 @@
   .ecor .er-qs-side { width: 100%; justify-content: flex-end; }
   .ecor .er-qs-add { opacity: 1; }
 }
+
+/* ===== 1.5.0 ===== */
+/* WhatsApp */
+.ecor .er-btn-wa, .er-modal .er-btn-wa { background: linear-gradient(135deg, #2FD06F 0%, #12A150 100%); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -6px rgba(18,161,80,.55); }
+.ecor .er-btn-wa:hover:not([disabled]) { background: linear-gradient(135deg, #27C163 0%, #0E8B44 100%); color: #fff; border-color: transparent; }
+.ecor .er-btn-wa::after { background: radial-gradient(circle at var(--er-x, 50%) var(--er-y, 50%), rgba(255,255,255,.5) 0, rgba(255,255,255,0) 55%) !important; }
+.ecor .er-wa-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #2FD06F 0%, #12A150 100%); flex: none; }
+.ecor .er-wa-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ecor .er-wa-act [data-copy] { grid-column: 1 / -1; justify-self: center; }
+@media (max-width: 640px) { .ecor .er-wa-act { grid-template-columns: 1fr; } }
+.ecor .er-banner.er-info { background: #E8EEFC; color: #1D3F8F; }
+.ecor .er-banner a { color: inherit; }
+.ecor .er-banner .er-btn { flex: none; }
+
+/* Encargos */
+.ecor .er-badge { font-size: 11px; font-weight: 700; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--er-fg2); color: #fff; text-align: center; }
+.ecor .er-badge-hot { background: #1F6FD1; animation: er-pulse-blue 1.8s infinite; }
+@keyframes er-pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(31,111,209,.5); } 70% { box-shadow: 0 0 0 7px rgba(31,111,209,0); } 100% { box-shadow: 0 0 0 0 rgba(31,111,209,0); } }
+.ecor .er-chip-hot .er-n { background: #1F6FD1; color: #fff; border-radius: 999px; padding: 0 6px; }
+.ecor .er-rq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.ecor .er-rq { cursor: default; }
+.ecor .er-rq .er-kv { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ecor .er-rq-act { padding-top: 8px; border-top: 1px solid var(--er-line2); }
+
+/* Ficha del cliente */
+.ecor .er-av-xl { width: 56px !important; height: 56px !important; font-size: 18px !important; background: var(--er-grad) !important; }
+.ecor .er-c360 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .ecor .er-c360 { grid-template-columns: 1fr; } }
+.ecor .er-c360 .er-mini > a, .ecor .er-c360 .er-mini > div { align-items: flex-start; }
+.ecor .er-c360 .er-tag { margin-top: 4px; }
+
+/* Informe de técnicos */
+.ecor .er-tech { display: flex; flex-direction: column; }
+.ecor .er-tech-row { display: grid; grid-template-columns: minmax(160px, 1.4fr) .8fr .6fr .9fr .9fr 1.3fr .7fr; gap: 10px; align-items: center; padding: 10px 8px; border: 0; border-top: 1px solid var(--er-line2); background: none; text-align: left; font: inherit; color: inherit; width: 100%; cursor: pointer; border-radius: 10px; transition: background .15s; animation: er-in .4s var(--er-ease) both; animation-delay: var(--d); }
+.ecor .er-tech-row:hover, .ecor .er-tech-row[aria-expanded="true"] { background: var(--er-grad-soft); }
+.ecor .er-tech-h { font-size: 12px; font-weight: 600; color: var(--er-fg2); cursor: default; border-top: 0; animation: none; }
+.ecor .er-tech-h:hover { background: none; }
+.ecor .er-tech-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.ecor .er-tech-total { display: flex; flex-direction: column; gap: 4px; }
+.ecor .er-tech-list { margin: 4px 0 10px 40px; }
+@media (max-width: 900px) {
+  .ecor .er-tech-row { grid-template-columns: 1fr 1fr 1fr; }
+  .ecor .er-tech-h { display: none; }
+  .ecor .er-tech-name { grid-column: 1 / -1; }
+}
+
+/* Ajustes: plantillas */
+.ecor .er-tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }

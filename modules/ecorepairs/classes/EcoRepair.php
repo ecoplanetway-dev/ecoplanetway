@@ -400,6 +400,75 @@ class EcoRepair
         return array('ok' => true);
     }
 
+    /** Fin de la garantía de la reparación (desde la entrega). '' si no está entregada. */
+    public static function warrantyUntil(array $r)
+    {
+        if ($r['status'] !== EcoRepairStatus::DELIVERED) {
+            return '';
+        }
+        $months = max(0, (int) Configuration::get('ECOREPAIRS_WARRANTY_MONTHS'));
+
+        return $months ? date('Y-m-d', strtotime($r['date_status'] . ' +' . $months . ' months')) : '';
+    }
+
+    /**
+     * Reabre en garantía: crea una reparación nueva enlazada a la original, mismo cliente y equipo.
+     */
+    public static function reopen(array $r, $reason, $idEmployee)
+    {
+        $reason = trim(strip_tags((string) $reason));
+        if ($reason === '') {
+            return array('ok' => false, 'error' => 'Indica qué le pasa ahora al equipo.');
+        }
+        $until = self::warrantyUntil($r);
+        $inWarranty = $until !== '' && $until >= date('Y-m-d');
+        $id = self::create(array(
+            'id_customer' => (int) $r['id_customer'],
+            'id_address_invoice' => (int) $r['id_address_invoice'],
+            'id_employee_tech' => (int) $r['id_employee_tech'],
+            'id_category' => (int) $r['id_category'],
+            'id_brand' => (int) $r['id_brand'],
+            'id_model' => (int) $r['id_model'],
+            'device_name' => $r['device_name'],
+            'serial' => $r['serial'],
+            'km' => null,
+            'color' => $r['color'],
+            'fault_customer' => Tools::substr('Reapertura de ' . $r['reference'] . ': ' . $reason, 0, 5000),
+            'faults' => array(),
+            'accessories' => array(),
+            'damages' => array(),
+            'urgent' => false,
+            'warranty' => $inWarranty,
+            'eta_date' => '',
+            'consent_rgpd' => (int) $r['consent_rgpd'],
+            'consent_whatsapp' => (int) $r['consent_whatsapp'],
+        ), $idEmployee, (int) $r['id_shop']);
+        if (!$id) {
+            return array('ok' => false, 'error' => 'No se pudo crear la reparación.');
+        }
+        Db::getInstance()->update('ecorepair', array('id_parent_repair' => (int) $r['id_ecorepair']), 'id_ecorepair = ' . (int) $id);
+        $new = self::get($id);
+        EcoRepairLog::add($id, $idEmployee, 'create', 'Reapertura de ' . $r['reference'] . ($inWarranty ? ' en garantía (hasta ' . date('d/m/Y', strtotime($until)) . ')' : ' fuera de garantía') . ' · ' . $reason);
+        EcoRepairLog::add((int) $r['id_ecorepair'], $idEmployee, 'create', 'Reabierta como ' . $new['reference'] . ' · ' . $reason);
+
+        return array('ok' => true, 'id' => $id, 'reference' => $new['reference'], 'in_warranty' => $inWarranty);
+    }
+
+    public static function children($id)
+    {
+        return Db::getInstance()->executeS('SELECT id_ecorepair, reference, status, date_add FROM `' . _DB_PREFIX_ . 'ecorepair`
+            WHERE id_parent_repair = ' . (int) $id . ' ORDER BY id_ecorepair ASC') ?: array();
+    }
+
+    public static function newTrackingCode($id, $idEmployee)
+    {
+        $code = self::generateTrackingCode();
+        Db::getInstance()->update('ecorepair', array('tracking_code' => pSQL($code), 'date_upd' => date('Y-m-d H:i:s')), 'id_ecorepair = ' . (int) $id);
+        EcoRepairLog::add($id, $idEmployee, 'field', 'Código de seguimiento cambiado: el anterior deja de funcionar');
+
+        return $code;
+    }
+
     /**
      * Reglas para cerrar una reparación:
      * - «Listo» y «Entregado» necesitan un presupuesto aceptado, salvo si está en garantía.

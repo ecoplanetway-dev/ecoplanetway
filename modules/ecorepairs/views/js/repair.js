@@ -24,6 +24,7 @@ window.ECOR.ready(function () {
       '<button type="button" class="er-f-cover" id="er-cover" aria-label="Ver la foto del equipo en grande"></button>' +
       '<div class="er-f-title"><h1>' + esc(r.reference) + '</h1><span id="er-st"></span><span id="er-tags" class="er-row"></span></div>' +
       '<div class="er-f-actions">' +
+        (D.canEdit ? '<button type="button" class="er-btn er-btn-wa" id="er-wa">' + icon('whatsapp') + 'WhatsApp</button>' : '') +
         '<button type="button" class="er-btn er-btn-hist" id="er-hist">' + icon('clock') + 'Historial<span class="er-hist-n" id="er-hist-n"></span></button>' +
         '<a class="er-btn" href="' + esc(printUrl) + '" target="_blank" rel="noopener">' + icon('print') + 'Imprimir resguardo</a>' +
         '<a class="er-btn" href="' + esc(labelUrl) + '" target="_blank" rel="noopener">' + icon('tag') + 'Etiqueta</a>' +
@@ -84,6 +85,24 @@ window.ECOR.ready(function () {
       return '<div class="er-step' + cls + '"><div class="er-bar"' + (i === idx ? ' style="background:' + esc(curColor) + '"' : '') + '></div><span>' + esc(D.statuses[s].name) + '</span></div>';
     }).join('');
     var b = '';
+    if (r.status === 'ready' && r.days_in_status >= (D.pickupDays || 10)) {
+      b += '<div class="er-banner er-warn">' + icon('clock') + '<div style="flex:1"><b>Lleva ' + r.days_in_status + ' días sin recoger.</b> Envía un recordatorio al cliente.</div>' +
+        (D.canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-wa" data-wa>' + icon('whatsapp', true) + 'Recordatorio</button>' : '') + '</div>';
+    }
+    if (D.parent) {
+      b += '<div class="er-banner er-info">' + icon('refresh') + '<div>Reapertura de <a href="' + esc(E.boot.links.repair + D.parent.id_ecorepair) + '"><b>' + esc(D.parent.reference) + '</b></a>' +
+        (r.warranty ? ' · en garantía' : '') + '</div></div>';
+    }
+    if ((D.children || []).length) {
+      b += '<div class="er-banner er-info">' + icon('refresh') + '<div>Se reabrió como ' + D.children.map(function (c) {
+        return '<a href="' + esc(E.boot.links.repair + c.id_ecorepair) + '"><b>' + esc(c.reference) + '</b></a>';
+      }).join(', ') + '</div></div>';
+    }
+    if (r.status === 'delivered' && D.warrantyUntil) {
+      var inW = D.warrantyUntil >= new Date().toISOString().slice(0, 10);
+      b += '<div class="er-banner ' + (inW ? 'er-ok' : 'er-lock') + '">' + icon('shield') + '<div style="flex:1"><b>Garantía de la reparación ' + (inW ? 'hasta el ' : 'terminada el ') + esc(E.fmtDate(D.warrantyUntil)) + '.</b></div>' +
+        (D.canEdit ? '<button type="button" class="er-btn er-btn-sm" id="er-reopen">' + icon('refresh', true) + 'Reabrir' + (inW ? ' en garantía' : '') + '</button>' : '') + '</div>';
+    }
     if (r.status === 'delivered') {
       b += '<div class="er-banner ' + (D.isAdmin ? 'er-warn' : 'er-lock') + '">' + icon('lock') + '<div><b>Reparación entregada' + (D.isAdmin ? ': estás editando como administrador.' : ' y bloqueada.') + '</b> ' +
         (D.isAdmin ? 'Todo lo que cambies queda en el historial con tu nombre.' : 'Solo el administrador puede cambiarla. Puedes añadir notas.') + '</div></div>';
@@ -133,7 +152,7 @@ window.ECOR.ready(function () {
     }).join('');
     $('#er-p-cust').innerHTML = '<h3>' + icon('user') + 'Cliente<span class="er-r">' +
         (D.canEdit ? '<button type="button" class="er-btn er-btn-sm" id="er-cust-edit">' + icon('pen', true) + 'Editar</button> ' : '') +
-        '<a href="' + esc(D.customerAdminUrl) + '" target="_blank" rel="noopener" class="er-small">PrestaShop</a></span></h3>' +
+        '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.customerUrl) + '">' + icon('user', true) + 'Ficha del cliente</a></span></h3>' +
       '<div class="er-person"><span class="er-av">' + esc(E.initials(c.name)) + '</span><div><b>' + esc(c.name || r.customer_name) + '</b>' +
       '<div class="er-muted er-num">' + esc([c.phone, c.email].filter(Boolean).join(' · ') || 'Sin teléfono ni email') + '</div></div></div>' +
       '<div class="er-kv">' +
@@ -406,6 +425,25 @@ window.ECOR.ready(function () {
     });
   }
   $('#er-hist').addEventListener('click', historyDialog);
+  function openWa() {
+    E.notify({ id_ecorepair: r.id }).then(function (res) { if (res && res.log) { log = res.log; renderLog(); renderHead(); } });
+  }
+  if ($('#er-wa')) $('#er-wa').addEventListener('click', openWa);
+  app.addEventListener('click', function (e) {
+    if (e.target.closest('[data-wa]')) openWa();
+    var ro = e.target.closest('#er-reopen');
+    if (ro) {
+      E.dialog({ title: 'Reabrir la reparación', text: D.warrantyUntil && D.warrantyUntil >= new Date().toISOString().slice(0, 10)
+        ? 'Está en garantía hasta el ' + E.fmtDate(D.warrantyUntil) + '. Se crea una reparación nueva en garantía enlazada a esta.'
+        : 'La garantía ya terminó. Se crea una reparación nueva (sin garantía) enlazada a esta.', input: true, multiline: true, inputLabel: '¿Qué le pasa ahora?', required: true, ok: 'Reabrir' }).then(function (reason) {
+        if (!reason) return;
+        E.api('reopen', { id_ecorepair: r.id }, { reason: reason }).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          window.location.href = res.url + '&created=1';
+        });
+      });
+    }
+  });
   $('#er-p-log').addEventListener('click', function (e) {
     if (!e.target.closest('#er-note-add')) return;
     addNote();
@@ -687,10 +725,24 @@ window.ECOR.ready(function () {
     } catch (e) { qr = ''; }
     $('#er-p-track').innerHTML = '<h3>' + icon('qr') + 'Seguimiento online</h3>' +
       '<div class="er-track"><div class="er-qr">' + qr + '</div><div><div class="er-muted er-small">Código del cliente</div><div class="er-code">' + esc(r.tracking_code) + '</div>' +
-      '<div class="er-muted er-small" style="margin-top:4px">La página pública de seguimiento se activa en la fase 4.</div></div></div>' +
-      '<button type="button" class="er-btn er-btn-block" id="er-copy">' + icon('copy') + 'Copiar enlace</button>';
+      '<div class="er-muted er-small" style="margin-top:4px">El cliente ve el estado, las fechas y el total. Nunca sus datos ni las notas.</div></div></div>' +
+      '<div class="er-row"><button type="button" class="er-btn" id="er-copy" style="flex:1">' + icon('copy') + 'Copiar enlace</button>' +
+      '<a class="er-btn er-icon-btn" href="' + esc(D.trackingUrl) + '" target="_blank" rel="noopener" title="Abrir la página" aria-label="Abrir la página de seguimiento">' + icon('link') + '</a>' +
+      (canEdit ? '<button type="button" class="er-btn er-btn-ghost er-icon-btn" id="er-newcode" title="Cambiar el código (el anterior deja de funcionar)" aria-label="Cambiar el código">' + icon('refresh') + '</button>' : '') + '</div>';
   }
   $('#er-p-track').addEventListener('click', function (e) {
+    if (e.target.closest('#er-newcode')) {
+      E.dialog({ title: 'Cambiar el código de seguimiento', text: 'El código y el QR impresos dejarán de funcionar. Tendrás que imprimir la etiqueta y el resguardo otra vez.', ok: 'Cambiar código', danger: true }).then(function (yes) {
+        if (!yes) return;
+        E.api('newTrackingCode', { id_ecorepair: r.id }, {}).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          r.tracking_code = res.code; D.trackingUrl = res.url; log = res.log;
+          renderTrack(); renderLog(); renderHead();
+          E.toast('Código cambiado');
+        });
+      });
+      return;
+    }
     if (!e.target.closest('#er-copy')) return;
     var url = D.trackingUrl;
     var done = function () { E.toast('Enlace copiado'); };

@@ -208,7 +208,8 @@ window.ECOR.ready(function () {
           '<div class="er-ql-name"><span class="er-row" style="flex-wrap:nowrap">' + (l.type === 'part' ? pimg(l.image) : '') + '<span class="er-tag er-t-neu">' + esc(TYPES[l.type] || 'Otro') + '</span></span>' +
             '<input class="er-input" data-k="name" maxlength="128" value="' + esc(l.name) + '" placeholder="Descripción" aria-label="Descripción">' +
             '<div class="er-row er-small">' + (l.reference ? '<span class="er-muted">Ref. ' + esc(l.reference) + '</span>' : '') + stockTag(l.stock, num(l.qty)) +
-            (l.type === 'part' && l.id_product && canEdit ? '<button type="button" class="er-link er-small" data-pedit-line="' + i + '">Stock / precio web</button>' : '') + '</div></div>' +
+            (l.type === 'part' && l.id_product && canEdit ? '<button type="button" class="er-link er-small" data-pedit-line="' + i + '">Stock / precio web</button>' : '') +
+            (l.type === 'part' && canEdit && (l.stock === null || l.stock === undefined || num(l.stock) < num(l.qty)) && l.name ? '<button type="button" class="er-link er-small" data-order-line="' + i + '">' + (l.requested ? 'Encargo creado' : 'Encargar') + '</button>' : '') + '</div></div>' +
           '<label class="er-ql-f"><span>Cant.' + (l.type === 'labour' ? ' (h)' : '') + '</span><input class="er-input er-num" data-k="qty" inputmode="decimal" value="' + esc(fmtNum(num(l.qty))) + '" aria-label="Cantidad"></label>' +
           '<label class="er-ql-f"><span>Precio IVA incl.</span><input class="er-input er-num" data-k="price" inputmode="decimal" value="' + esc(num(l.price).toFixed(2).replace('.', ',')) + '" aria-label="Precio con IVA"></label>' +
           '<label class="er-ql-f"><span>Dto. €</span><input class="er-input er-num er-disc" data-k="discount" inputmode="decimal" value="' + (num(l.discount) ? esc(num(l.discount).toFixed(2).replace('.', ',')) : '') + '" placeholder="0" aria-label="Descuento en euros"' + (l.warranty ? ' disabled' : '') + '></label>' +
@@ -299,6 +300,17 @@ window.ECOR.ready(function () {
         searchResults[pi].stock = upd.stock; searchResults[pi].price = upd.price;
         var btn = app.querySelector('[data-pick="' + pi + '"]');
         if (btn) btn.outerHTML = resultRow(searchResults[pi], pi);
+      });
+      return;
+    }
+    if ((t = e.target.closest('[data-order-line]'))) {
+      var ol = work.lines[+t.getAttribute('data-order-line')];
+      if (ol.requested) { window.open(E.boot.links.requests, '_blank'); return; }
+      E.api('requestSave', {}, { id_customer: r.id_customer, request: ol.name, for_device: r.device_name, qty: Math.max(1, Math.round(num(ol.qty))),
+        price: r2(num(ol.qty) * num(ol.price)), id_ecorepair: r.id, id_product: ol.id_product || 0, id_product_attribute: ol.id_product_attribute || 0 }).then(function (res) {
+        if (!res.ok) { E.toast(res.error, true); return; }
+        ol.requested = true; renderRows();
+        E.toast('Encargo creado: «' + ol.name + '». Lo verás en Encargos.');
       });
       return;
     }

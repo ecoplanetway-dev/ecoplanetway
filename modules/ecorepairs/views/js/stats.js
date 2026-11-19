@@ -100,6 +100,39 @@ window.ECOR.ready(function () {
       }).join('') + '</ol>' : '<div class="er-empty">' + esc(empty) + '</div>') + '</div>';
   }
 
+  /* ---------- Informe de técnicos ---------- */
+  var openTech = null;
+  function techPanel() {
+    var T = S.techs || [];
+    var max = Math.max.apply(null, T.map(function (t) { return t.total; }).concat([0.01]));
+    return '<div class="er-panel" style="margin-top:16px"><h3>' + icon('assign') + 'Técnicos<span class="er-r">Reparaciones entregadas en el periodo · sin líneas de garantía</span></h3>' +
+      (T.length ? '<div class="er-tech">' +
+        '<div class="er-tech-row er-tech-h"><span>Técnico</span><span>Reparaciones</span><span>Horas</span><span>Mano de obra</span><span>Piezas y otros</span><span>Total</span><span>Días medios</span></div>' +
+        T.map(function (t, i) {
+          return '<button type="button" class="er-tech-row" data-tech="' + i + '" aria-expanded="' + (openTech === i) + '" style="--d:' + (i * 60) + 'ms">' +
+            '<span class="er-tech-name"><span class="er-av" style="background:' + E.avatarColor(t.id) + '">' + esc(E.initials(t.name)) + '</span>' + esc(t.name) + '</span>' +
+            '<span class="er-num"><b>' + t.repairs + '</b>' + (t.warranty ? ' <span class="er-muted er-small">(' + t.warranty + ' garantía)</span>' : '') + '</span>' +
+            '<span class="er-num">' + String(t.hours).replace('.', ',') + ' h</span>' +
+            '<span class="er-num">' + esc(E.fmtMoney(t.labour)) + '</span>' +
+            '<span class="er-num">' + esc(E.fmtMoney(t.parts + t.other)) + '</span>' +
+            '<span class="er-tech-total"><b class="er-num">' + esc(E.fmtMoney(t.total)) + '</b><span class="er-rank-bar"><span style="width:' + Math.max(2, t.total / max * 100) + '%;--d:' + (i * 60) + 'ms"></span></span></span>' +
+            '<span class="er-num">' + String(t.avg_days).replace('.', ',') + ' d</span></button>' +
+            (openTech === i ? '<div class="er-mini er-tech-list">' + t.list.map(function (r) {
+              return '<a href="' + esc(E.boot.links.repair + r.id) + '"><b class="er-num">' + esc(r.reference) + '</b><span class="er-grow">' + esc(r.device + ' · ' + E.fmtDate(r.date)) + '</span>' +
+                '<span class="er-muted er-small er-num">' + String(r.hours).replace('.', ',') + ' h · M.O. ' + esc(E.fmtMoney(r.labour)) + ' · piezas ' + esc(E.fmtMoney(r.parts)) + '</span><b class="er-num">' + esc(E.fmtMoney(r.total)) + '</b></a>';
+            }).join('') + '</div>' : '');
+        }).join('') + '</div>' : '<div class="er-empty">Ningún técnico ha entregado reparaciones en este periodo.</div>') + '</div>';
+  }
+  app.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tech]');
+    if (!t) return;
+    var i = +t.getAttribute('data-tech');
+    openTech = openTech === i ? null : i;
+    var panel = t.closest('.er-panel');
+    var tmp = document.createElement('div'); tmp.innerHTML = techPanel();
+    panel.replaceWith(tmp.firstChild);
+  });
+
   function render() {
     var t = S.totals;
     $('#er-st-sub').textContent = E.fmtDate(S.from) + ' – ' + E.fmtDate(S.to) + ' · ' + S.days + ' días';
@@ -118,7 +151,7 @@ window.ECOR.ready(function () {
         ranking('Marcas que más entran', 'tag', S.brands, 'No hay marcas indicadas en este periodo.') +
         ranking('Modelos que más entran', 'device', S.models, 'No hay modelos indicados en este periodo.') +
         ranking('Por categoría', 'layers', S.categories, 'Sin reparaciones en este periodo.') +
-      '</div>';
+      '</div>' + techPanel();
     columns($('#er-cols'), S.series);
   }
 

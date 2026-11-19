@@ -30,12 +30,12 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
         header('X-Frame-Options: DENY');
 
         $token = (string) Tools::getValue('t');
-        if ($this->rateLimited()) {
+        if (EcoRepairRateLimit::blocked('quote', self::RATE_LIMIT)) {
             $this->render(array('state' => 'limit'), 429);
         }
         $q = EcoRepairQuote::getByToken($token);
         if (!$q) {
-            $this->countFailure();
+            EcoRepairRateLimit::hit('quote');
             $this->render(array('state' => 'notfound'), 404);
         }
 
@@ -91,42 +91,5 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
         header('Content-Type: text/html; charset=utf-8');
         echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/quote.tpl');
         exit;
-    }
-
-    /* Límite sencillo de intentos con enlaces no válidos, por IP, en la caché de PrestaShop. */
-
-    protected function rateFile()
-    {
-        $dir = _PS_CACHE_DIR_ . 'ecorepairs/';
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-
-        return $dir . 'rl_' . md5(Tools::getRemoteAddr() . _COOKIE_KEY_) . '.json';
-    }
-
-    protected function rateData()
-    {
-        $file = $this->rateFile();
-        $data = is_file($file) ? json_decode((string) @file_get_contents($file), true) : null;
-        if (!is_array($data) || !isset($data['t'], $data['n']) || $data['t'] < time() - 600) {
-            $data = array('t' => time(), 'n' => 0);
-        }
-
-        return $data;
-    }
-
-    protected function rateLimited()
-    {
-        $data = $this->rateData();
-
-        return $data['n'] >= self::RATE_LIMIT;
-    }
-
-    protected function countFailure()
-    {
-        $data = $this->rateData();
-        ++$data['n'];
-        @file_put_contents($this->rateFile(), json_encode($data), LOCK_EX);
     }
 }

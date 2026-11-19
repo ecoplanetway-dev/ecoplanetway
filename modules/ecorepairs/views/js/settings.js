@@ -53,6 +53,21 @@ window.ECOR.ready(function () {
             '<p class="er-muted er-small" style="margin:0">Revisa este texto con tu gestor o asesor antes de usarlo.</p></div>' +
         '</div>' +
       '</div>' +
+      '<div class="er-panel"><h3>' + icon('whatsapp') + 'Avisos al cliente<span class="er-r">Variables: ' + esc((D.variables || []).join(' ')) + '</span></h3>' +
+        '<div class="er-fg">' +
+          '<label class="er-field">Garantía de la reparación (meses)<input class="er-input" data-c="ECOREPAIRS_WARRANTY_MONTHS" inputmode="numeric" maxlength="2"' + dis + '></label>' +
+          '<label class="er-field">Seguimiento online visible tras cerrar (días)<input class="er-input" data-c="ECOREPAIRS_TRACKING_DAYS" inputmode="numeric" maxlength="4"' + dis + '></label>' +
+        '</div>' +
+        '<div><div class="er-sub">Email automático al pasar a…</div><div class="er-opts" id="er-mail-st">' + Object.keys(D.statuses || {}).map(function (k) {
+          return '<button type="button" class="er-opt" data-mst="' + k + '" aria-pressed="false"' + dis + '>' + esc(D.statuses[k].name) + '</button>';
+        }).join('') + '</div><p class="er-muted er-small" style="margin:6px 0 0">Solo a clientes con email. Se envía con el diseño de la tienda y queda en los mensajes del cliente.</p></div>' +
+        '<label class="er-toggle">Enviar por email el enlace del presupuesto al pulsar «Enviar al cliente»<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_EMAIL_QUOTE"' + dis + '></label>' +
+        '<label class="er-toggle">Recordatorio automático por email de «sin recoger» (una vez al día)<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_REMINDER_AUTO"' + dis + '></label>' +
+        '<div class="er-sub" style="margin:8px 0 0">Plantillas de WhatsApp</div>' +
+        '<div class="er-tpls">' + Object.keys(D.templates || {}).map(function (k) {
+          return '<label class="er-field">' + esc(D.templates[k].name) + '<textarea class="er-input" data-tpl="' + k + '" rows="5"' + dis + '>' + esc(D.templates[k].text) + '</textarea></label>';
+        }).join('') + '</div>' +
+      '</div>' +
       (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri er-btn-lg" id="er-save-cfg">' + icon('check') + 'Guardar ajustes</button><span class="er-err" id="er-cfg-err" hidden></span></div>' : '') +
     '</div>';
 
@@ -67,6 +82,9 @@ window.ECOR.ready(function () {
       var k = el.getAttribute('data-c');
       if (cfg[k] !== undefined) el.value = cfg[k];
     });
+    var mst = String(cfg.ECOREPAIRS_EMAIL_STATUSES || '').split(',');
+    app.querySelectorAll('[data-mst]').forEach(function (b) { b.setAttribute('aria-pressed', String(mst.indexOf(b.getAttribute('data-mst')) > -1)); });
+    app.querySelectorAll('[data-cb]').forEach(function (el) { el.checked = cfg[el.getAttribute('data-cb')] === '1'; });
   }
 
   /* ---------- Catálogo ---------- */
@@ -242,13 +260,21 @@ window.ECOR.ready(function () {
   }
 
   /* ---------- Guardar ajustes ---------- */
+  app.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mst]');
+    if (b && canEdit) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+  });
   var saveBtn = $('#er-save-cfg');
   if (saveBtn) {
     saveBtn.addEventListener('click', function () {
       var out = {};
       app.querySelectorAll('[data-c]').forEach(function (el) { out[el.getAttribute('data-c')] = el.value; });
+      app.querySelectorAll('[data-cb]').forEach(function (el) { out[el.getAttribute('data-cb')] = el.checked ? '1' : '0'; });
+      out.ECOREPAIRS_EMAIL_STATUSES = Array.prototype.slice.call(app.querySelectorAll('[data-mst][aria-pressed="true"]')).map(function (b) { return b.getAttribute('data-mst'); }).join(',');
+      var tpls = {};
+      app.querySelectorAll('[data-tpl]').forEach(function (el) { tpls[el.getAttribute('data-tpl')] = el.value; });
       saveBtn.disabled = true;
-      E.api('saveConfig', {}, { config: JSON.stringify(out) }).then(function (res) {
+      E.api('saveConfig', {}, { config: JSON.stringify(out), templates: JSON.stringify(tpls) }).then(function (res) {
         saveBtn.disabled = false;
         var err = $('#er-cfg-err');
         app.querySelectorAll('[data-c]').forEach(function (el) { el.classList.toggle('er-invalid', !!(res.errors && res.errors[el.getAttribute('data-c')])); });

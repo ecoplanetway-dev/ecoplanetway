@@ -1,0 +1,11 @@
+Reparación {reference} · {device}
+
+{status}
+
+Hola {firstname},
+
+{message}
+
+{button_text}: {button_url}
+
+{shop_name} · {shop_phone}

@@ -91,6 +91,7 @@ class EcoRepairStats
               AND q.date_answer BETWEEN '" . pSQL($from) . " 00:00:00' AND '" . pSQL($to) . " 23:59:59'" . $catSql);
 
         return array(
+            'techs' => self::technicians($idShop, $from, $to, $catSql),
             'from' => $from,
             'to' => $to,
             'days' => $days,
@@ -109,6 +110,72 @@ class EcoRepairStats
             'models' => self::top($models, 10),
             'categories' => self::top($cats, 8),
         );
+    }
+
+    /**
+     * Informe de técnicos: reparaciones terminadas (entregadas) en el periodo, con mano de obra, horas y piezas
+     * de sus presupuestos aceptados (sin las líneas de garantía).
+     */
+    public static function technicians($idShop, $from, $to, $catSql = '')
+    {
+        $p = _DB_PREFIX_;
+        $rows = Db::getInstance()->executeS("SELECT r.id_ecorepair, r.reference, r.device_name, r.id_employee_tech, r.date_add, r.date_status, r.warranty,
+                e.firstname, e.lastname
+            FROM `{$p}ecorepair` r
+            LEFT JOIN `{$p}employee` e ON e.id_employee = r.id_employee_tech
+            WHERE r.id_shop = " . (int) $idShop . " AND r.status = 'delivered'
+              AND r.date_status BETWEEN '" . pSQL($from) . " 00:00:00' AND '" . pSQL($to) . " 23:59:59'" . $catSql . '
+            ORDER BY r.date_status DESC LIMIT 5000') ?: array();
+        $byTech = array();
+        foreach ($rows as $r) {
+            $tid = (int) $r['id_employee_tech'];
+            if (!isset($byTech[$tid])) {
+                $byTech[$tid] = array('id' => $tid, 'name' => $tid ? trim($r['firstname'] . ' ' . $r['lastname']) : 'Sin asignar',
+                    'repairs' => 0, 'labour' => 0.0, 'hours' => 0.0, 'parts' => 0.0, 'other' => 0.0, 'total' => 0.0, 'days' => 0, 'warranty' => 0, 'list' => array());
+            }
+            $t = &$byTech[$tid];
+            $lab = 0.0;
+            $hours = 0.0;
+            $parts = 0.0;
+            $other = 0.0;
+            foreach (EcoRepairPayment::acceptedLines((int) $r['id_ecorepair']) as $l) {
+                if ($l['warranty']) {
+                    continue;
+                }
+                if ($l['type'] === 'labour') {
+                    $lab += $l['total'];
+                    $hours += $l['qty'];
+                } elseif ($l['type'] === 'part') {
+                    $parts += $l['total'];
+                } else {
+                    $other += $l['total'];
+                }
+            }
+            ++$t['repairs'];
+            $t['labour'] += $lab;
+            $t['hours'] += $hours;
+            $t['parts'] += $parts;
+            $t['other'] += $other;
+            $t['total'] += $lab + $parts + $other;
+            $t['days'] += max(0, (int) floor((strtotime($r['date_status']) - strtotime($r['date_add'])) / 86400));
+            $t['warranty'] += (int) $r['warranty'];
+            $t['list'][] = array('id' => (int) $r['id_ecorepair'], 'reference' => $r['reference'], 'device' => $r['device_name'],
+                'date' => $r['date_status'], 'labour' => round($lab, 2), 'hours' => round($hours, 2), 'parts' => round($parts + $other, 2), 'total' => round($lab + $parts + $other, 2));
+            unset($t);
+        }
+        foreach ($byTech as &$t) {
+            foreach (array('labour', 'hours', 'parts', 'other', 'total') as $k) {
+                $t[$k] = round($t[$k], 2);
+            }
+            $t['avg_days'] = $t['repairs'] ? round($t['days'] / $t['repairs'], 1) : 0;
+            unset($t['days']);
+        }
+        unset($t);
+        usort($byTech, function ($a, $b) {
+            return $a['total'] == $b['total'] ? $b['repairs'] - $a['repairs'] : ($a['total'] > $b['total'] ? -1 : 1);
+        });
+
+        return array_values($byTech);
     }
 
     protected static function top(array $counts, $n)

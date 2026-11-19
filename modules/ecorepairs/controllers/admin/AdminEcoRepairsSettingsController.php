@@ -56,6 +56,9 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'icons' => EcoRepairCatalog::icons(),
             'config' => $this->currentConfig(),
             'carriers' => $this->carriers(),
+            'templates' => EcoRepairMessage::templates(),
+            'variables' => EcoRepairMessage::variables(),
+            'statuses' => EcoRepairStatus::all(),
             'canEdit' => (bool) $this->access('edit'),
         );
         $this->context->smarty->assign(array(
@@ -211,6 +214,21 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 case 'ECOREPAIRS_CARRIER':
                     $v = (string) (int) $v;
                     break;
+                case 'ECOREPAIRS_WARRANTY_MONTHS':
+                    $v = (string) max(0, min(60, (int) $v));
+                    break;
+                case 'ECOREPAIRS_TRACKING_DAYS':
+                    $v = (string) max(1, min(3650, (int) $v));
+                    break;
+                case 'ECOREPAIRS_EMAIL_QUOTE':
+                case 'ECOREPAIRS_REMINDER_AUTO':
+                    $v = $v === '1' ? '1' : '0';
+                    break;
+                case 'ECOREPAIRS_EMAIL_STATUSES':
+                    $v = implode(',', array_values(array_filter(explode(',', $v), array('EcoRepairStatus', 'isValid'))));
+                    break;
+                case 'ECOREPAIRS_WA_TEMPLATES':
+                    continue 2;
                 case 'ECOREPAIRS_QUOTE_DAYS':
                     if (!ctype_digit($v) || (int) $v < 1 || (int) $v > 365) {
                         $errors[$key] = 'Escribe un número de días entre 1 y 365.';
@@ -232,6 +250,10 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
         }
         foreach ($clean as $key => $v) {
             Configuration::updateValue($key, $v);
+        }
+        $tpl = json_decode((string) Tools::getValue('templates'), true);
+        if (is_array($tpl)) {
+            EcoRepairMessage::saveTemplates($tpl);
         }
 
         return array('ok' => true, 'config' => $this->currentConfig());
@@ -267,6 +289,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'camera' => $s . '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
             'link' => $s . '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
             'x' => $s . '<path d="M18 6 6 18M6 6l12 12"/></svg>',
+            'whatsapp' => $s . '<path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.3-1.3-2-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-2z"/></svg>',
             'search' => $s . '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
             'download' => $s . '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
             'pen' => $s . '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
