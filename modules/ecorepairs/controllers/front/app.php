@@ -131,7 +131,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->out(array('ok' => false, 'error' => 'Método no permitido.'), 405);
         }
-        if (empty($_POST) && empty($_FILES) && (int) $_SERVER['CONTENT_LENGTH'] > 0) {
+        if (EcoRepairPhoto::overPostLimit()) {
             $this->out(array('ok' => false, 'error' => 'La foto es demasiado grande para el servidor (máximo ' . ini_get('post_max_size') . ').'), 413);
         }
         if ($action === 'login') {

@@ -14,6 +14,36 @@ class EcoRepairPhoto
     const MAX_SIDE = 1600;
     const THUMB_SIDE = 480;
 
+    /**
+     * true si la petición supera post_max_size (PHP entonces descarta el formulario entero).
+     * Una petición vacía (formulario sin campos) no cuenta.
+     */
+    public static function overPostLimit()
+    {
+        $len = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+        $max = self::iniBytes(ini_get('post_max_size'));
+
+        return $max > 0 && $len > $max;
+    }
+
+    public static function iniBytes($v)
+    {
+        $v = trim((string) $v);
+        $n = (int) $v;
+        switch (Tools::strtolower(substr($v, -1))) {
+            case 'g':
+                $n *= 1024;
+                // no break
+            case 'm':
+                $n *= 1024;
+                // no break
+            case 'k':
+                $n *= 1024;
+        }
+
+        return $n;
+    }
+
     public static function dir()
     {
         return _PS_UPLOAD_DIR_ . 'ecorepairs/';
