@@ -62,6 +62,10 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'employees' => array_map(function ($e) {
                 return array('id' => (int) $e['id_employee'], 'name' => trim($e['firstname'] . ' ' . $e['lastname']));
             }, Employee::getEmployees(false)),
+            // Para Permisos: solo los que entran en PrestaShop (activos)
+            'activeEmployees' => array_map(function ($e) {
+                return array('id' => (int) $e['id_employee'], 'name' => trim($e['firstname'] . ' ' . $e['lastname']));
+            }, Employee::getEmployees(true)),
             'appUrl' => Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true),
             'variables' => EcoRepairMessage::variables(),
             'statuses' => EcoRepairStatus::all(),

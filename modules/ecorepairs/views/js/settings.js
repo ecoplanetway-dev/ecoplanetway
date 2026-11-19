@@ -64,7 +64,7 @@ window.ECOR.ready(function () {
       h: sg('Aviso legal', 'Sale en las observaciones del presupuesto al añadir una deslimitación.', ta('ECOREPAIRS_UNLOCK_NOTICE', 6)) }
   ];
   if (D.isAdmin) SECS.push({ k: 'perm', i: 'pin', t: 'Permisos', s: 'Quién ve el informe de técnicos', w: 'permisos tecnicos informe ver',
-    h: sg('Informe de técnicos', 'Tú siempre lo ves. Marca a quién más le sale el botón «Técnicos».', '<div class="er-opts" id="er-tv">' + (D.employees || []).map(function (e) {
+    h: sg('Informe de técnicos', 'Tú siempre lo ves. Marca a quién más le sale el botón «Técnicos».', '<div class="er-opts" id="er-tv">' + (D.activeEmployees || D.employees || []).map(function (e) {
       return '<button type="button" class="er-opt" data-tv="' + e.id + '" aria-pressed="' + (String(cfg.ECOREPAIRS_TECHS_VIEWERS || '').split(',').indexOf(String(e.id)) > -1) + '">' + esc(e.name) + '</button>';
     }).join('') + '</div>') });
   var curSec = 'catalog';
