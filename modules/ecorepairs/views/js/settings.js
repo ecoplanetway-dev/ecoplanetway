@@ -58,7 +58,8 @@ window.ECOR.ready(function () {
           '<b>Página del taller: <a href="' + esc(D.appUrl) + '" target="_blank" rel="noopener">' + esc(D.appUrl) + '</a></b>' +
           '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio. ' +
           'Después, al escanear el QR de un patinete con la cámara normal del móvil, se abre directamente en la app.</span>' +
-          (canEdit ? '<div><button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button></div>' : '') + '</div></div>' +
+          '<div class="er-row">' + (canEdit ? '<button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button>' : '') +
+          '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div>' +
         '<div class="er-mini" id="er-staff-list"></div></div>' +
       '<div class="er-panel"><h3>' + icon('whatsapp') + 'Avisos al cliente<span class="er-r">Variables: ' + esc((D.variables || []).join(' ')) + '</span></h3>' +
         '<div class="er-fg">' +
@@ -285,6 +286,27 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-srevoke]'))) {
       E.api('staffRevoke', {}, { id: t.getAttribute('data-srevoke') }).then(function () { E.toast('Sesiones cerradas: tendrá que volver a poner su PIN'); });
     }
+  });
+  /* Hoja para imprimir y pegar en el taller */
+  app.addEventListener('click', function (e) {
+    if (!e.target.closest('#er-qr-print')) return;
+    var svg = '';
+    try { var q = window.qrcode(0, 'H'); q.addData(D.appUrl); q.make(); svg = q.createSvgTag({ cellSize: 8, margin: 0, scalable: true }); } catch (er) { }
+    var w = window.open('', '_blank');
+    if (!w) { E.toast('El navegador ha bloqueado la ventana. Permite las ventanas emergentes.', true); return; }
+    w.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>QR del taller</title><style>' +
+      '@page{size:A4;margin:16mm}body{font-family:Arial,Helvetica,sans-serif;color:#14161A;text-align:center;margin:0}' +
+      '.box{border:3px solid #0B6E4B;border-radius:24px;padding:14mm 12mm;max-width:150mm;margin:0 auto}' +
+      'h1{font-size:30px;margin:0 0 4mm}h2{font-size:18px;font-weight:normal;color:#5B6170;margin:0 0 8mm}' +
+      '.qr{width:110mm;height:110mm;margin:0 auto 8mm}.qr svg{width:100%;height:100%}' +
+      'ol{text-align:left;font-size:16px;line-height:1.6;margin:0 auto;max-width:120mm}.url{font-size:13px;color:#5B6170;margin-top:6mm;word-break:break-all}' +
+      '.np{margin:12px}.np button{font:600 16px Arial;padding:10px 20px;border-radius:10px;border:0;background:#0B6E4B;color:#fff;cursor:pointer}@media print{.np{display:none}}' +
+      '</style></head><body><div class="np"><button onclick="window.print()">Imprimir</button></div><div class="box">' +
+      '<h1>Taller · Acceso del personal</h1><h2>Escanéalo con tu móvil</h2><div class="qr">' + svg + '</div>' +
+      '<ol><li>Escanea el código con la cámara del móvil.</li><li>Elige tu nombre y pon tu PIN.</li><li>Añade la página a la pantalla de inicio.</li>' +
+      '<li>Después, escanea el QR de cada patinete para abrir su reparación.</li></ol>' +
+      '<div class="url">' + esc(D.appUrl) + '</div></div><script>setTimeout(function(){window.print()},400)<\/script></body></html>');
+    w.document.close();
   });
   (function () {
     var box = $('#er-app-qr');
