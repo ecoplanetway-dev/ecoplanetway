@@ -1060,7 +1060,7 @@ class AdminEcoRepairsController extends ModuleAdminController
         $idTech = isset($p['id_employee_tech']) ? (int) $p['id_employee_tech'] : 0;
         if ($idTech) {
             $emp = new Employee($idTech);
-            if (!Validate::isLoadedObject($emp) || !$emp->active) {
+            if (!Validate::isLoadedObject($emp) || (!$emp->active && !in_array($idTech, EcoRepairStaff::techEmployeeIds(), true))) {
                 $errors['tech'] = 'Ese técnico no existe.';
             }
         }
@@ -1566,11 +1566,22 @@ class AdminEcoRepairsController extends ModuleAdminController
     protected function technicians()
     {
         $out = array();
+        $seen = array();
         foreach (Employee::getEmployees(true) as $e) {
+            $seen[(int) $e['id_employee']] = true;
             $out[] = array(
                 'id' => (int) $e['id_employee'],
                 'name' => trim($e['firstname'] . ' ' . $e['lastname']),
             );
+        }
+        // Técnicos de la app con empleado desactivado (no entran en PrestaShop)
+        foreach (EcoRepairStaff::techEmployeeIds() as $id) {
+            if (!isset($seen[$id])) {
+                $e = new Employee($id);
+                if (Validate::isLoadedObject($e)) {
+                    $out[] = array('id' => $id, 'name' => trim($e->firstname . ' ' . $e->lastname) . ' (taller)');
+                }
+            }
         }
 
         return $out;

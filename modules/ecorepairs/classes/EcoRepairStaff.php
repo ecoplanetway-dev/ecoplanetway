@@ -50,6 +50,12 @@ class EcoRepairStaff
             return array('ok' => false, 'error' => 'Escribe el nombre.');
         }
         $idEmployee = (int) $d['id_employee'];
+        if ($idEmployee === -1) {
+            $idEmployee = self::createEmployee($name);
+            if (!$idEmployee) {
+                return array('ok' => false, 'error' => 'No se pudo crear el empleado. Créalo en Parámetros avanzados › Equipo.');
+            }
+        }
         $emp = new Employee($idEmployee);
         if (!Validate::isLoadedObject($emp)) {
             return array('ok' => false, 'error' => 'Elige su empleado de PrestaShop (sirve para las asignaciones y los informes).');
@@ -86,6 +92,42 @@ class EcoRepairStaff
         }
 
         return array('ok' => true, 'id' => (int) $id);
+    }
+
+    /**
+     * Empleado de PrestaShop DESACTIVADO para alguien que solo usa la app del taller:
+     * no puede entrar en PrestaShop, pero sirve para asignaciones, historial e informes.
+     */
+    public static function createEmployee($name)
+    {
+        $parts = preg_split('/\s+/', trim($name), 2);
+        $e = new Employee();
+        $e->firstname = Tools::substr($parts[0], 0, 32);
+        $e->lastname = isset($parts[1]) && $parts[1] !== '' ? Tools::substr($parts[1], 0, 32) : 'Taller';
+        $e->email = 'taller.' . Tools::strtolower(Tools::passwdGen(10, 'ALPHANUMERIC')) . '@' . EcoRepairCustomer::NO_EMAIL_DOMAIN;
+        $e->passwd = Tools::hash(Tools::passwdGen(24, 'RANDOM'));
+        $profile = (int) Db::getInstance()->getValue('SELECT id_profile FROM `' . _DB_PREFIX_ . 'profile` WHERE id_profile != ' . (int) _PS_ADMIN_PROFILE_ . ' ORDER BY id_profile DESC');
+        $e->id_profile = $profile ?: (int) _PS_ADMIN_PROFILE_;
+        $e->id_lang = (int) Configuration::get('PS_LANG_DEFAULT');
+        $e->active = 0;
+        $e->default_tab = 0;
+        $e->bo_theme = 'default';
+        $e->bo_css = 'theme.css';
+        try {
+            return $e->add() ? (int) $e->id : 0;
+        } catch (Exception $ex) {
+            PrestaShopLogger::addLog('ecorepairs: no se pudo crear el empleado: ' . $ex->getMessage(), 3);
+
+            return 0;
+        }
+    }
+
+    /** Empleados que son técnicos de la app (aunque estén desactivados en PrestaShop). */
+    public static function techEmployeeIds()
+    {
+        $rows = Db::getInstance()->executeS('SELECT id_employee FROM `' . _DB_PREFIX_ . 'ecorepair_staff` WHERE active = 1 AND role_tech = 1 AND id_employee > 0') ?: array();
+
+        return array_map('intval', array_column($rows, 'id_employee'));
     }
 
     /** Cierra la sesión en todos sus móviles. */

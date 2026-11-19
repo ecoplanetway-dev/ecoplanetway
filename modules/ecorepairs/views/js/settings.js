@@ -237,6 +237,7 @@ window.ECOR.ready(function () {
     wrap.innerHTML = '<div class="er-dlg"><h2>' + (p.id ? 'Editar persona' : 'Añadir persona') + '</h2>' +
       '<label class="er-field">Nombre<input class="er-input" id="er-s-name" maxlength="64" value="' + esc(p.name || '') + '"></label>' +
       '<label class="er-field">Su empleado de PrestaShop (para asignaciones e informes)<select class="er-input" id="er-s-emp"><option value="0">Elige…</option>' +
+        (p.id ? '' : '<option value="-1">+ Crear empleado nuevo para esta persona (no podrá entrar en PrestaShop)</option>') +
         (D.employees || []).map(function (e) { return '<option value="' + e.id + '"' + (e.id === p.id_employee ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></label>' +
       '<label class="er-field">' + (p.id ? 'PIN nuevo (déjalo vacío para no cambiarlo)' : 'PIN (4 a 6 números)') + '<input class="er-input er-num" id="er-s-pin" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>' +
       '<label class="er-toggle">Técnico<input type="checkbox" class="er-sw" id="er-s-tech"' + (p.role_tech ? ' checked' : '') + '></label>' +

@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.6.0';
+    const SCHEMA = '1.6.1';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -177,11 +177,15 @@ class EcoRepairInstaller
     /** Códigos de error de las marcas principales (solo la primera vez). */
     public static function seedKnowledge()
     {
-        if (Configuration::get('ECOREPAIRS_KB_SEEDED')) {
-            return true;
+        if (!Configuration::get('ECOREPAIRS_KB_SEEDED')) {
+            EcoRepairKnowledge::seed();
+            Configuration::updateValue('ECOREPAIRS_KB_SEEDED', 1);
         }
-        EcoRepairKnowledge::seed();
-        Configuration::updateValue('ECOREPAIRS_KB_SEEDED', 1);
+        // Códigos recopilados de manuales y webs de servicio (solo añade los que falten)
+        if ((int) Configuration::get('ECOREPAIRS_KB_DATA') < EcoRepairKnowledgeData::VERSION) {
+            EcoRepairKnowledgeData::import();
+            Configuration::updateValue('ECOREPAIRS_KB_DATA', EcoRepairKnowledgeData::VERSION);
+        }
 
         return true;
     }

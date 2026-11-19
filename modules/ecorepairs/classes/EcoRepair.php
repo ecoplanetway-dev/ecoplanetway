@@ -360,7 +360,7 @@ class EcoRepair
 
         if ($field === 'id_employee_tech' && $dbValue) {
             $emp = new Employee((int) $dbValue);
-            if (!Validate::isLoadedObject($emp) || !$emp->active) {
+            if (!Validate::isLoadedObject($emp) || (!$emp->active && !in_array((int) $dbValue, EcoRepairStaff::techEmployeeIds(), true))) {
                 return array('ok' => false, 'error' => 'Ese técnico no existe o no está activo.');
             }
             $readable = trim($emp->firstname . ' ' . $emp->lastname);
