@@ -222,7 +222,7 @@ window.ECOR.ready(function () {
     $('#er-p-dev').innerHTML = '<h3>' + icon(r.category_icon || 'device') + 'Equipo y avería<span class="er-saved">Guardado</span>' +
       (canEdit ? '<button type="button" class="er-btn er-btn-sm er-r" id="er-dev-edit" style="margin-left:auto">Cambiar equipo</button>' : '') + '</h3>' +
       (D.modelUrl ? '<div class="er-kbbar"><label class="er-search er-find" style="margin:0;flex:1">' + icon('code', true) + '<input class="er-input" id="er-errcode" placeholder="Código de error (ej. 21)" autocomplete="off"></label>' +
-        '<a class="er-btn er-btn-sm" href="' + esc(D.modelUrl) + '" target="_blank" rel="noopener">' + icon('book', true) + 'Códigos y manual' +
+        '<a class="er-btn er-btn-sm" href="' + esc(D.modelUrl + '&from=' + r.id) + '">' + icon('book', true) + 'Códigos y manual' +
         (D.kbCount && (D.kbCount.codes + D.kbCount.faults) ? ' <span class="er-hist-n" style="background:var(--er-pri)">' + (D.kbCount.codes + D.kbCount.params + D.kbCount.faults) + '</span>' : '') + '</a></div><div id="er-errres"></div>' : '') +
       '<div class="er-kv"><div><span class="er-k">Categoría</span><span class="er-v">' + esc(r.category_name || '—') + '</span></div>' +
         '<div><span class="er-k">Equipo</span><span class="er-v">' + esc(r.device_name) + '</span></div>' +
@@ -258,7 +258,7 @@ window.ECOR.ready(function () {
         box.innerHTML = list.length ? list.map(function (c) {
           return '<div class="er-errhit"><span class="er-code-n">' + esc(c.code) + '</span><div><b>' + esc(c.title) + '</b>' + (c.causes ? '<div class="er-small">' + esc(c.causes) + '</div>' : '') +
             (c.parts ? '<div class="er-small er-muted">Piezas: ' + esc(c.parts) + '</div>' : '') + (!c.verified ? '<div class="er-small er-muted">Por revisar</div>' : '') + '</div></div>';
-        }).join('') : '<div class="er-muted er-small" style="padding:6px 2px">No hay código «' + esc(q) + '» para este modelo. <a href="' + esc(D.modelUrl + '&code=' + encodeURIComponent(q)) + '" target="_blank" rel="noopener">Añadirlo</a></div>';
+        }).join('') : '<div class="er-muted er-small" style="padding:6px 2px">No hay código «' + esc(q) + '» para este modelo. <a href="' + esc(D.modelUrl + '&from=' + r.id + '&code=' + encodeURIComponent(q)) + '">Añadirlo</a></div>';
       });
     }, 250);
   });
@@ -524,7 +524,7 @@ window.ECOR.ready(function () {
         (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
         (nInc ? '<span class="er-fm-bad">' + nInc + ' no compatible' + (nInc === 1 ? '' : 's') + '</span>' : '') +
-        (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts') + '" target="_blank" rel="noopener">Ficha del modelo</a>' : '') +
+        (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">Ficha del modelo</a>' : '') +
       '</div></div>' +
       E.unlockButton(D.unlock, 'data-unl') +
       '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
@@ -550,7 +550,7 @@ window.ECOR.ready(function () {
       } : null });
       return;
     }
-    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, zonesUrl: D.modelUrl && r.id_model ? D.modelUrl + '&tab=parts' : '', suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, zonesUrl: D.modelUrl && r.id_model ? D.modelUrl + '&tab=parts&from=' + r.id : '', suggested: D.suggestedZones || [], admin: !!D.isAdmin,
       incompat: D.incompat || [],
       onIncompat: canEdit ? function () {
         E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {

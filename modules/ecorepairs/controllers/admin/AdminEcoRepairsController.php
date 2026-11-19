@@ -176,6 +176,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                     'canEdit' => (bool) $this->access('edit'),
                     'canDelete' => (bool) $this->access('delete'),
                     'code' => (string) Tools::getValue('code'),
+                    'from' => (int) Tools::getValue('from'),
                     'bundle' => $this->modelBundle($idBrand, $names && $names['model'] ? $idModel : 0, $names ? (string) $names['image'] : ''),
                     'modelIndex' => $this->modelIndex(),
                 )),

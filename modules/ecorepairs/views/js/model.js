@@ -11,12 +11,12 @@ window.ECOR.ready(function () {
   var parts = D.parts || [], incompat = D.incompat || [], B = D.bundle || {};
   var title = D.brand + (D.model ? ' ' + D.model : '');
 
-  function base() { return E.boot.links.model + '&id_brand=' + D.id_brand; }
+  function base() { return E.boot.links.model + '&id_brand=' + D.id_brand + (D.from ? '&from=' + D.from : ''); }
 
   function render() {
     app.innerHTML =
       '<div class="er-f-head">' +
-        '<a class="er-btn er-btn-ghost er-icon-btn" href="javascript:history.back()" aria-label="Volver">' + icon('back') + '</a>' +
+        '<a class="er-btn er-btn-ghost er-icon-btn" href="' + esc(D.from ? E.boot.links.repair + D.from : E.boot.links.board) + '" aria-label="' + (D.from ? 'Volver a la reparación' : 'Volver al tablero') + '" title="' + (D.from ? 'Volver a la reparación' : 'Volver al tablero') + '">' + icon('back') + '</a>' +
         (D.image ? '<span class="er-f-cover"><img src="' + esc(D.image) + '" alt=""></span>' : '') +
         '<div class="er-f-title"><h1>' + esc(title) + '</h1><span class="er-st-chip">' + (D.model ? 'Ficha del modelo' : 'Ficha de la marca · vale para todos sus modelos') + '</span></div>' +
         E.unlockButton(B.unlock || [], 'data-tab="unlock"' + (tab === 'unlock' ? ' aria-pressed="true"' : '')) +
