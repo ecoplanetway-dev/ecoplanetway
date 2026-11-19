@@ -851,13 +851,14 @@ class EcoRepairQuote
             INNER JOIN `{$p}product_shop` ps ON ps.id_product = p.id_product AND ps.id_shop = " . (int) $idShop . "
             INNER JOIN `{$p}product_lang` pl ON pl.id_product = p.id_product AND pl.id_lang = " . (int) $idLang . ' AND pl.id_shop = ' . (int) $idShop . "
             LEFT JOIN `{$p}product_attribute` pa ON pa.id_product = p.id_product
-            WHERE %s
+            WHERE {WHERE}
             ORDER BY (" . implode(' AND ', $inName) . ") DESC, ps.active DESC, CHAR_LENGTH(pl.name) ASC
             LIMIT 300";
         $db = Db::getInstance();
-        $rows = $db->executeS(sprintf($sql, implode(' AND ', $conds)));
+        // Sin sprintf: el ORDER BY lleva «%» de los LIKE
+        $rows = $db->executeS(str_replace('{WHERE}', implode(' AND ', $conds), $sql));
         if (!$rows && count($conds) > 1) {
-            $rows = $db->executeS(sprintf($sql, implode(' OR ', $conds)));
+            $rows = $db->executeS(str_replace('{WHERE}', implode(' OR ', $conds), $sql));
         }
         if (!$rows) {
             return array();
