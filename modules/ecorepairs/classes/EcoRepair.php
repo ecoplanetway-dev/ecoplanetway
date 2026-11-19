@@ -251,7 +251,7 @@ class EcoRepair
         }
         $rows = Db::getInstance()->executeS(self::baseSelect()
             . 'WHERE r.id_shop = ' . (int) $idShop . ' AND r.status IN (' . implode(',', $statuses) . ')
-               ORDER BY r.urgent DESC, r.date_add ASC');
+               ORDER BY r.date_status DESC, r.id_ecorepair DESC');
 
         return array_map(array('EcoRepair', 'decorate'), $rows ?: array());
     }

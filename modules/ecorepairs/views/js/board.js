@@ -146,7 +146,8 @@ window.ECOR.ready(function () {
     var list = repairs.filter(match);
     $('#er-board').innerHTML = D.board.map(function (st) {
       var s = D.statuses[st];
-      var items = list.filter(function (r) { return r.status === st; });
+      // La última que entró o cambió de estado, la primera
+      var items = list.filter(function (r) { return r.status === st; }).sort(function (a, b) { return String(b.date_status).localeCompare(String(a.date_status)) || b.id - a.id; });
       return '<section class="er-col" data-col="' + st + '" aria-label="' + esc(s.name) + '">' +
         '<div class="er-col-h"><span class="er-dot" style="background:' + esc(s.color) + '"></span>' + esc(s.name) + '<span class="er-cnt">' + items.length + '</span></div>' +
         (items.length ? items.map(card).join('') : '<div class="er-empty">Sin reparaciones</div>') + '</section>';
