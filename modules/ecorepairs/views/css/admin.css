@@ -1034,3 +1034,24 @@
 .ecor #er-kbd-b { flex: 1; }
 .ecor .er-kbd-list { flex: 1; }
 .ecor .er-kbd-f { margin-top: auto; }
+/* Deslimitar: tarjeta con la foto del producto (sin borde de color) */
+.ecor .er-unl2 { display: flex; gap: 14px; padding: 12px; border: 1px solid var(--er-line2); border-radius: 14px; background: #fff; margin-bottom: 10px; }
+.ecor .er-unl2-ph { width: 96px; height: 96px; flex: none; border-radius: 12px; background: #F4F5F7; display: grid; place-items: center; overflow: hidden; border: 1px solid #EEF0F3; }
+.ecor .er-unl2-ph img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.ecor .er-unl2-ph .er-gauge { width: 46px; height: 46px; stroke: #9AA1AE; }
+.ecor .er-unl2-ph .er-gauge path:nth-child(2) { stroke-width: 2.4; }
+.ecor .er-unl2-ph .er-gauge circle { fill: #9AA1AE; }
+.ecor .er-unl2-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ecor .er-unl2-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ecor .er-unl2-top b { font-size: 16px; }
+.ecor .er-unl2-sp { font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(100deg, #F97316, #DC2626); border-radius: 999px; padding: 3px 10px; }
+.ecor .er-unl2-p { margin-left: auto; font-size: 18px; font-weight: 800; }
+.ecor .er-unl2-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.ecor .er-unl2-meta span { font-size: 12px; font-weight: 600; color: #3A3F48; background: #F1F3F5; border-radius: 999px; padding: 2px 9px; }
+.ecor .er-unl2-prods { display: flex; flex-direction: column; gap: 4px; }
+.ecor .er-unl2-prods span { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ecor .er-unl2-prods img { width: 28px; height: 28px; object-fit: contain; border-radius: 6px; border: 1px solid #EEF0F3; background: #fff; }
+.ecor .er-unl2-prods em { font-style: normal; font-size: 11px; font-weight: 700; color: #B91C1C; background: #FEE2E2; border-radius: 999px; padding: 1px 7px; }
+.ecor .er-unl2-steps summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--er-pri); }
+.ecor .er-unl2-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+@media (max-width: 600px) { .ecor .er-unl2-ph { width: 64px; height: 64px; } }

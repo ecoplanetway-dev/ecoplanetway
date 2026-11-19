@@ -499,22 +499,26 @@
     function render() {
       var l = opts.list || [];
       el.innerHTML = (l.length ? l.map(function (u, i) {
-        return '<div class="er-unl">' +
-          '<div class="er-row" style="gap:8px"><b class="er-unl-m">' + esc(u.method_name) + '</b>' +
-            (u.speed_to ? '<span class="er-unl-sp">' + (u.speed_from ? esc(u.speed_from) + ' → ' : '') + esc(u.speed_to) + ' km/h</span>' : '') +
-            (u.scope === 'brand' ? '<span class="er-tag er-t-neu">Toda la marca</span>' : '') +
-            '<span class="er-tag er-t-neu">' + esc(DIFF[u.difficulty] || '') + (u.minutes ? ' · ' + u.minutes + ' min' : '') + '</span>' +
-            (u.firmware ? '<span class="er-tag er-t-neu">Firmware ' + esc(u.firmware) + '</span>' : '') +
-            '<b class="er-num" style="margin-left:auto">' + esc(E.fmtMoney(u.price)) + '</b></div>' +
-          '<details class="er-unl-steps"><summary>Pasos</summary><div class="er-kb-body">' + esc(u.steps) + '</div></details>' +
-          prodLines(u.products) +
-          (opts.admin && (u.supplier_name || u.supplier_url) ? '<div class="er-supplier er-small">' + icon('box', true) + esc(u.supplier_name || 'Dónde comprarlo') +
-            (u.supplier_url ? ' <a href="' + esc(u.supplier_url) + '" target="_blank" rel="noopener">Abrir</a>' : '') + '</div>' : '') +
-          '<div class="er-row" style="margin-top:8px">' +
-            (opts.onAdd ? '<button type="button" class="er-btn er-btn-sm er-btn-pri" data-uadd="' + i + '">' + icon('plus', true) + 'Añadir al presupuesto</button>' : '') +
-            (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-uedit="' + i + '">' + icon('pen', true) + 'Editar</button>' : '') +
-            (opts.onDelete ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-btn-danger" data-udel="' + i + '">' + icon('trash', true) + '</button>' : '') +
-            '<span class="er-muted er-small" style="margin-left:auto">' + esc((u.author ? u.author + ' · ' : '') + E.fmtDate(u.date)) + '</span></div></div>';
+        var cover = (u.products || []).filter(function (p) { return p.image; })[0];
+        return '<div class="er-unl2">' +
+          '<div class="er-unl2-ph">' + (cover ? '<img src="' + esc(cover.image) + '" alt="">' : '<svg class="er-gauge" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 23a11 11 0 1 1 22 0" class="er-g-arc"/><path d="M16 23 23 14"/><circle cx="16" cy="23" r="2.2"/></svg>') + '</div>' +
+          '<div class="er-unl2-main">' +
+            '<div class="er-unl2-top"><b>' + esc(u.method_name) + '</b>' +
+              (u.speed_to ? '<span class="er-unl2-sp">' + (u.speed_from ? esc(u.speed_from) + ' → ' : '') + esc(u.speed_to) + ' km/h</span>' : '') +
+              '<span class="er-unl2-p er-num">' + esc(E.fmtMoney(u.price)) + '</span></div>' +
+            '<div class="er-unl2-meta">' + [DIFF[u.difficulty] || '', u.minutes ? u.minutes + ' min' : '', u.firmware ? 'Firmware ' + u.firmware : '', u.scope === 'brand' ? 'Toda la marca' : ''].filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('') + '</div>' +
+            (u.products.length ? '<div class="er-unl2-prods">' + u.products.map(function (p) {
+              return '<span>' + (p.image ? '<img src="' + esc(p.image) + '" alt="">' : '') + esc((p.qty > 1 ? p.qty + ' × ' : '') + p.name) + ' · <b>' + esc(E.fmtMoney(p.price)) + '</b>' + (p.stock <= 0 ? ' <em>sin stock</em>' : '') + '</span>';
+            }).join('') + '</div>' : '') +
+            '<details class="er-unl2-steps"><summary>Ver los pasos</summary><div class="er-kb-body">' + esc(u.steps) + '</div></details>' +
+            (opts.admin && (u.supplier_name || u.supplier_url) ? '<div class="er-supplier er-small">' + icon('box', true) + esc(u.supplier_name || 'Dónde comprarlo') +
+              (u.supplier_url ? ' <a href="' + esc(u.supplier_url) + '" target="_blank" rel="noopener">Abrir</a>' : '') + '</div>' : '') +
+            '<div class="er-unl2-act">' +
+              (opts.onAdd ? '<button type="button" class="er-btn er-btn-sm er-btn-pri" data-uadd="' + i + '">' + icon('plus', true) + 'Añadir al presupuesto</button>' : '') +
+              (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-uedit="' + i + '">' + icon('pen', true) + 'Editar</button>' : '') +
+              (opts.onDelete ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-btn-danger er-icon-btn" data-udel="' + i + '" aria-label="Borrar">' + icon('trash', true) + '</button>' : '') +
+              '<span class="er-muted er-small" style="margin-left:auto">' + esc((u.author ? u.author + ' · ' : '') + E.fmtDate(u.date)) + '</span></div>' +
+          '</div></div>';
       }).join('') : '<div class="er-empty">Aún no hay forma de deslimitar apuntada para este modelo.</div>') +
         (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm" data-unew>' + icon('plus', true) + 'Añadir método</button>' : '');
     }

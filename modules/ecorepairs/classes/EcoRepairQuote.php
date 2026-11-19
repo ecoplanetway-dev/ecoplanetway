@@ -857,8 +857,19 @@ class EcoRepairQuote
         $db = Db::getInstance();
         // Sin sprintf: el ORDER BY lleva «%» de los LIKE
         $rows = $db->executeS(str_replace('{WHERE}', implode(' AND ', $conds), $sql));
-        if (!$rows && count($conds) > 1) {
-            $rows = $db->executeS(str_replace('{WHERE}', implode(' OR ', $conds), $sql));
+        if (!$rows) {
+            // Segundo intento más flexible: raíz de cada palabra («controladora» → «controlad», «pastillas» → «pastill»)
+            // y también en la descripción corta del producto
+            $loose = array();
+            foreach ($words as $w) {
+                $root = ctype_digit($w) || strlen($w) <= 4 ? $w : substr($w, 0, max(4, strlen($w) - 2));
+                $l = pSQL(str_replace(array('%', '_'), array('\\%', '\\_'), $root));
+                $loose[] = "(pl.name LIKE '%{$l}%' OR pl.description_short LIKE '%{$l}%' OR p.reference LIKE '%{$l}%' OR p.supplier_reference LIKE '%{$l}%')";
+            }
+            $rows = $db->executeS(str_replace('{WHERE}', implode(' AND ', $loose), $sql));
+            if (!$rows && count($loose) > 1) {
+                $rows = $db->executeS(str_replace('{WHERE}', implode(' OR ', $loose), $sql));
+            }
         }
         if (!$rows) {
             return array();
