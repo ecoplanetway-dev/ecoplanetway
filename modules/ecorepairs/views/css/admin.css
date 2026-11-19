@@ -1029,3 +1029,8 @@
 @media (max-width: 700px) { .ecor #er-p-dev .er-kv, .ecor #er-p-dev .er-fg { grid-template-columns: 1fr 1fr; } }
 /* «Otro…» más corto para que «Editar listas» quepa en la misma línea */
 .ecor #er-acc .er-inl .er-input, .ecor #er-dmg .er-inl .er-input { width: 170px; }
+/* La ventana de códigos y manual no cambia de tamaño al cambiar de pestaña */
+.ecor .er-kbd { height: min(640px, 86vh); }
+.ecor #er-kbd-b { flex: 1; }
+.ecor .er-kbd-list { flex: 1; }
+.ecor .er-kbd-f { margin-top: auto; }

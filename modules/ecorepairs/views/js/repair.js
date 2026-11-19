@@ -278,7 +278,15 @@ window.ECOR.ready(function () {
     function item(head, body) { return '<details class="er-kb-item"><summary>' + head + '</summary>' + body + '</details>'; }
     function draw(kb) {
       var n = { codes: kb.codes.length, manual: kb.menu.length + kb.params.length, faults: kb.faults.length };
-      var html = '<div class="er-seg2" style="margin:12px 14px">' + [['codes', 'Códigos de error'], ['manual', 'Manual y menú'], ['faults', 'Soluciones']].map(function (t) {
+      // Solo salen las pestañas que tienen algo
+      var tabs = [['codes', 'Códigos de error'], ['manual', 'Manual y menú'], ['faults', 'Soluciones']].filter(function (t) { return n[t[0]] > 0; });
+      if (!tabs.length) {
+        wrap.querySelector('#er-kbd-b').innerHTML = '<div class="er-kbd-list"><div class="er-empty">Este modelo todavía no tiene códigos, manual ni soluciones apuntados.</div></div>' +
+          '<div class="er-kbd-f"><a href="' + esc(D.modelUrl + '&from=' + r.id + '&tab=codes') + '">' + icon('pen', true) + 'Añadir en la ficha del modelo</a></div>';
+        return;
+      }
+      if (!n[tab]) tab = tabs[0][0];
+      var html = '<div class="er-seg2" style="margin:12px 14px">' + tabs.map(function (t) {
         return '<button type="button" data-kt="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + ' <b>' + n[t[0]] + '</b></button>';
       }).join('') + '</div><div class="er-kbd-list">';
       if (tab === 'codes') {
