@@ -22,7 +22,7 @@
     bolt: '<svg class="er-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>'
   };
   function icon(name, small) {
-    var svg = (boot.icons && boot.icons[name]) || ICONS_EXTRA[name] || '';
+    var svg = ((boot.icons && boot.icons[name]) || ICONS_EXTRA[name] || '').replace('class="er-i"', 'class="er-i" data-ic="' + name + '"');
     return small ? svg.replace('class="er-i"', 'class="er-i er-s"') : svg;
   }
 
@@ -683,6 +683,29 @@
     });
   }
 
+  /**
+   * Arrastrar fotos desde el ordenador. zone: donde se sueltan. getInput(e): el campo de archivo que las recibe
+   * (se le pasan los archivos y se lanza su «change», así funciona igual que al elegirlas).
+   */
+  function dropZone(zone, getInput) {
+    var n = 0;
+    function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') > -1; }
+    zone.addEventListener('dragenter', function (e) { if (!hasFiles(e)) return; e.preventDefault(); n++; zone.classList.add('er-drop-on'); });
+    zone.addEventListener('dragover', function (e) { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    zone.addEventListener('dragleave', function () { n = Math.max(0, n - 1); if (!n) zone.classList.remove('er-drop-on'); });
+    zone.addEventListener('drop', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); n = 0; zone.classList.remove('er-drop-on');
+      var input = getInput(e);
+      if (!input) return;
+      var dt = new DataTransfer();
+      Array.prototype.forEach.call(e.dataTransfer.files, function (f) { if (!f.type || /^image\//.test(f.type)) dt.items.add(f); });
+      if (!dt.files.length) { toast('Arrastra fotos (JPG, PNG o WEBP).', true); return; }
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   /* Efecto al pulsar: el brillo sale desde donde se toca */
   document.addEventListener('pointerdown', function (e) {
     var b = e.target.closest && e.target.closest('.ecor .er-btn, .ecor .er-chip, .ecor .er-opt, .ecor .er-tile');
@@ -728,6 +751,7 @@
     listen: listen,
     pickFromText: pickFromText,
     phoneFromText: phoneFromText,
-    trimImage: trimImage
+    trimImage: trimImage,
+    dropZone: dropZone
   };
 })();

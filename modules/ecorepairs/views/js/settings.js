@@ -208,6 +208,14 @@ window.ECOR.ready(function () {
     }
   });
   var imgTarget = 0;
+  // Arrastrar la foto encima de la línea del modelo
+  E.dropZone($('#er-cat-grid'), function (e) {
+    var row = e.target.closest && e.target.closest('.er-pick-row');
+    var up = row ? row.querySelector('[data-imgup]') : null;
+    if (!up || !canEdit) { E.toast('Suelta la foto encima de la línea del modelo.', true); return null; }
+    imgTarget = up.getAttribute('data-imgup');
+    return $('#er-img-file');
+  });
   app.addEventListener('change', function (e) {
     if (e.target.id !== 'er-img-file' || !e.target.files.length) return;
     var f = e.target.files[0];

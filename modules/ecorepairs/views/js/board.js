@@ -36,7 +36,6 @@ window.ECOR.ready(function () {
           return nav(E.boot.links.requests, 'package', '#EA580C', 'Encargos', open ? '<span class="er-badge' + (rc.arrived ? ' er-badge-hot' : '') + '">' + (rc.arrived || open) + '</span>' : '');
         })() +
         nav(E.boot.links.cash, 'tag', '#0B6E4B', 'Caja') +
-        nav(E.boot.links.parts, 'box', '#2F6FE0', 'Piezas') +
         (E.boot.links.techs ? nav(E.boot.links.techs, 'assign', '#8B5CF6', 'Técnicos') : '') +
         nav(E.boot.links.stats, 'chart', '#DB2777', 'Indicadores') +
         '<span class="er-hsp"></span><div id="er-msearch" class="er-msearch"></div>' +

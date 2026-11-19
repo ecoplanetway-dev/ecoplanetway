@@ -20,6 +20,7 @@ window.ECOR.ready(function () {
         (D.image ? '<span class="er-f-cover"><img src="' + esc(D.image) + '" alt=""></span>' : '') +
         '<div class="er-f-title"><h1>' + esc(title) + '</h1><span class="er-st-chip">' + (D.model ? 'Ficha del modelo' : 'Ficha de la marca · vale para todos sus modelos') + '</span></div>' +
         E.unlockButton(B.unlock || [], 'data-tab="unlock"' + (tab === 'unlock' ? ' aria-pressed="true"' : '')) +
+        E.incompatButton(incompat, canEdit) +
         '<div class="er-msearch" id="er-ms"></div>' +
         '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
@@ -171,6 +172,21 @@ window.ECOR.ready(function () {
 
   app.addEventListener('click', function (e) {
     var t;
+    if (e.target.closest('[data-bell]')) {
+      E.incompatPanel({ title: title, list: incompat,
+        onAdd: canEdit ? function () {
+          E.incompatDialog({ title: title, canBrand: !!D.id_model, onSave: function (d) {
+            return E.api('incompatSave', {}, { id_brand: D.id_brand, id_model: d.all_brand ? 0 : D.id_model, view_model: D.id_model, data: JSON.stringify(d) }).then(function (res) {
+              if (res.ok) { incompat = res.incompat; render(); }
+              return res;
+            });
+          } });
+        } : null,
+        onDelete: canDelete ? function (id) {
+          return E.api('incompatDelete', {}, { id: id, id_brand: D.id_brand, id_model: D.id_model }).then(function (res) { incompat = res.incompat || []; render(); return incompat; });
+        } : null });
+      return;
+    }
     if ((t = e.target.closest('[data-tab]'))) { tab = t.getAttribute('data-tab'); render(); return; }
     if ((t = e.target.closest('[data-new]'))) { form(t.getAttribute('data-new')); return; }
     if ((t = e.target.closest('[data-edit]'))) { e.preventDefault(); var a = t.getAttribute('data-edit').split(':'); form(a[0], find(a[0], +a[1])); return; }

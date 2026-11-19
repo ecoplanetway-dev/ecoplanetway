@@ -1125,7 +1125,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $idBrand = (int) Tools::getValue('id_brand');
         $res = EcoRepairUnlock::save((int) Tools::getValue('id'), $idBrand, (int) Tools::getValue('id_model'), json_decode((string) Tools::getValue('data'), true) ?: array(),
-            trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname));
+            trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname), $this->isAdmin());
         $res['unlock'] = EcoRepairUnlock::forModel($idBrand, (int) Tools::getValue('view_model'), $this->isAdmin());
         $this->jsonOut($res);
     }

@@ -153,28 +153,36 @@
    */
   function PartsDiagram(el, opts) {
     var parts = opts.parts || [], zones = opts.zones || {}, sug = opts.suggested || [], sections = opts.sections || SECTIONS;
-    var st = { mode: sug.length ? 'suggested' : 'all', sec: null, cat: null };
+    var nSug = parts.filter(function (p) { return sug.indexOf(p.zone) > -1; }).length;
+    var st = { mode: nSug ? 'suggested' : 'all', sec: null, cat: null };
     function secOf(k) { return sections.filter(function (s) { return s.key === k; })[0] || null; }
     function inSec(s) { return parts.filter(function (p) { return s.cats.indexOf(p.zone) > -1; }); }
     function sugSecs() { return sections.filter(function (s) { return s.cats.some(function (c) { return sug.indexOf(c) > -1; }); }).map(function (s) { return s.key; }); }
+    /* Bloque 2: partes y, dentro de la elegida, sus categorías */
     function secList() {
       var sugs = sugSecs();
       function row(attr, on, ico, name, n, tag) {
         return '<button type="button" class="er-sl' + (on ? ' on' : '') + '" ' + attr + '><span class="er-sl-i">' + ico + '</span><span class="er-sl-n">' + esc(name) + (tag ? '<span class="er-sl-tag">' + tag + '</span>' : '') + '</span><span class="er-sl-c">' + n + '</span></button>';
       }
       return '<div class="er-secl">' +
-        (sug.length ? row('data-mode="suggested"', st.mode === 'suggested', icon('alert', true), 'Sugeridas por la avería', parts.filter(function (p) { return sug.indexOf(p.zone) > -1; }).length) : '') +
+        (nSug ? row('data-mode="suggested"', st.mode === 'suggested', icon('alert', true), 'Sugeridas por la avería', nSug) : '') +
         row('data-mode="all"', st.mode === 'all', icon('box', true), 'Todas las piezas', parts.length) +
         sections.map(function (x) {
-          return row('data-sec="' + x.key + '"', st.mode === 'sec' && st.sec === x.key, secIcon(x.key), x.name, inSec(x).length, sugs.indexOf(x.key) > -1 ? 'Avería' : '');
+          var open = st.mode === 'sec' && st.sec === x.key;
+          return row('data-sec="' + x.key + '"', open && !st.cat, secIcon(x.key), x.name, inSec(x).length, sugs.indexOf(x.key) > -1 ? 'Avería' : '') +
+            (open ? '<div class="er-subcats">' + x.cats.map(function (c) {
+              var n = parts.filter(function (p) { return p.zone === c; }).length;
+              return '<button type="button" class="er-sc' + (st.cat === c ? ' on' : '') + (sug.indexOf(c) > -1 ? ' sug' : '') + (n ? '' : ' empty') + '" data-cat="' + c + '"><span>' + esc(zones[c] || c) + '</span><b>' + n + '</b></button>';
+            }).join('') + '</div>' : '');
         }).join('') + '</div>';
     }
+    /* Bloque 1: la foto */
     function visual() {
       var map = opts.map, photo = opts.photo;
-      if (photo && map && map.polys) return '<div class="er-dw-photo">' + photoMap(photo, map, sections, { compact: true, sel: st.mode === 'sec' ? st.sec : null, sug: sugSecs(), count: function (s) { return inSec(s).length; } }) + '</div>' + secList();
-      // Foto sin partes marcadas: se enseña igual y se avisa de dónde marcarlas
-      return (photo ? '<div class="er-dw-photo"><div class="er-pmap"><img src="' + esc(photo) + '" alt="" draggable="false"></div>' +
-        '<div class="er-dw-hint">' + icon('pen', true) + (opts.zonesUrl ? '<a href="' + esc(opts.zonesUrl) + '">Marca las partes sobre la foto</a> para tocar directamente en el patín.' : 'Las partes se marcan sobre la foto en la ficha del modelo.') + '</div></div>' : '') + secList();
+      if (photo && map && map.polys) return '<div class="er-dw-photo">' + photoMap(photo, map, sections, { compact: true, sel: st.mode === 'sec' ? st.sec : null, sug: sugSecs(), count: function (s) { return inSec(s).length; } }) + '</div>';
+      if (!photo) return '';
+      return '<div class="er-dw-photo"><div class="er-pmap"><img src="' + esc(photo) + '" alt="" draggable="false"></div>' +
+        '<div class="er-dw-hint">' + icon('pen', true) + (opts.zonesUrl ? '<a href="' + esc(opts.zonesUrl) + '">Marca las partes sobre la foto</a>' : 'Las partes se marcan en la ficha del modelo') + '</div></div>';
     }
     function list() {
       if (st.mode === 'suggested') return parts.filter(function (p) { return sug.indexOf(p.zone) > -1; });
@@ -183,18 +191,14 @@
       return parts.filter(function (p) { return st.cat ? p.zone === st.cat : s.cats.indexOf(p.zone) > -1; });
     }
     function render() {
-      var s = st.mode === 'sec' ? secOf(st.sec) : null, l = list();
-      var title = st.mode === 'suggested' ? 'Sugeridas por la avería: ' + sug.map(function (z) { return zones[z]; }).join(', ') : st.mode === 'all' ? 'Todas las piezas' : (st.cat ? zones[st.cat] : 'Todas de ' + s.name);
-      el.innerHTML = '<div class="er-pd"><div class="er-pd-l">' + visual() + '</div><div class="er-pd-r">' +
-        (s ? '<div class="er-cats2"><button type="button" class="er-c2' + (!st.cat ? ' on' : '') + '" data-cat="">Todo <b>' + inSec(s).length + '</b></button>' + s.cats.map(function (c) {
-          var n = parts.filter(function (p) { return p.zone === c; }).length;
-          return '<button type="button" class="er-c2' + (st.cat === c ? ' on' : '') + (sug.indexOf(c) > -1 ? ' sug' : '') + '" data-cat="' + c + '">' + esc(zones[c] || c) + ' <b>' + n + '</b></button>';
-        }).join('') + '</div>' : '') +
-        incompatList(opts.incompat || [], opts) +
-        '<div class="er-sub" style="margin:4px 0 0">' + esc(title) + '</div>' +
-        '<div class="er-parts">' + (l.length ? l.map(function (p) { return partCard(p, opts, parts.indexOf(p)); }).join('')
+      var s = st.mode === 'sec' ? secOf(st.sec) : null, l = list(), ph = visual();
+      var title = st.mode === 'suggested' ? 'Sugeridas por la avería' : st.mode === 'all' ? 'Todas las piezas' : (st.cat ? zones[st.cat] : s.name);
+      el.innerHTML = '<div class="er-pd3' + (ph ? '' : ' er-pd3-nophoto') + '">' + (ph ? '<div class="er-pd3-ph">' + ph + '</div>' : '') +
+        '<div class="er-pd3-sec">' + secList() + '</div>' +
+        '<div class="er-pd3-pr"><div class="er-pd3-h"><b>' + esc(title) + '</b><span class="er-muted er-small">' + l.length + ' pieza' + (l.length === 1 ? '' : 's') + '</span>' +
+          (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-pnew style="margin-left:auto">' + icon('plus', true) + 'Añadir pieza</button>' : '') + '</div>' +
+        '<div class="er-parts er-parts-c">' + (l.length ? l.map(function (p) { return partCard(p, opts, parts.indexOf(p)); }).join('')
           : '<div class="er-empty">' + (st.mode === 'sec' ? 'Sin piezas apuntadas aquí.' : 'Aún no hay piezas apuntadas para este modelo.') + '</div>') + '</div>' +
-        (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm" data-pnew>' + icon('plus', true) + 'Añadir pieza' + (st.cat ? ' en ' + esc(zones[st.cat]) : s ? ' en ' + esc(s.name) : '') + '</button>' : '') +
         '</div></div>';
     }
     el.addEventListener('click', function (e) {
@@ -650,7 +654,47 @@
     return { set: function (d) { opts.done = d; render(); } };
   }
 
+
+  /* ---------- Avisos del modelo (piezas que no valen): botón de campana y lista ---------- */
+  function incompatButton(list, canEdit, attrs) {
+    var n = (list || []).length;
+    if (!n && !canEdit) return '';
+    return '<button type="button" class="er-bell' + (n ? ' has' : '') + '" ' + (attrs || 'data-bell') + ' title="Piezas que no valen o con precaución para este modelo">' +
+      '<svg class="er-bell-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>' +
+      '<span>Avisos del modelo</span>' + (n ? '<b>' + n + '</b>' : '') + '</button>';
+  }
+  /** opts: title, list, onAdd() (abre el formulario), onDelete(id) → Promise(lista nueva) */
+  function incompatPanel(opts) {
+    var list = opts.list || [];
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    function draw() {
+      wrap.innerHTML = '<div class="er-dlg er-bellp"><div class="er-bellp-h">' + icon('alert', true) + '<b>Ojo con ' + esc(opts.title) + '</b>' +
+        (opts.onAdd ? '<button type="button" class="er-btn er-btn-sm" data-badd>' + icon('plus', true) + 'Apuntar aviso</button>' : '') +
+        '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+        (list.length ? list.map(function (w) {
+          var block = w.level === 'block';
+          return '<div class="er-bellp-it">' + (w.image ? '<img class="er-pimg" src="' + esc(w.image) + '" alt="">' : '<i class="' + (block ? 'no' : 'ojo') + '">' + (block ? '✕' : '!') + '</i>') +
+            '<div class="er-grow"><b>' + esc(w.label) + '</b><p>' + esc(w.reason) + '</p><small>' + esc((w.author ? w.author + ' · ' : '') + (w.scope === 'brand' ? 'toda la marca' : E.fmtDate(w.date))) + '</small></div>' +
+            '<em class="' + (block ? 'no' : 'ojo') + '">' + (block ? 'No poner' : 'Precaución') + '</em>' +
+            (opts.onDelete ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" data-bdel="' + w.id + '" aria-label="Quitar aviso">' + icon('trash', true) + '</button>' : '') + '</div>';
+        }).join('') : '<div class="er-empty" style="margin:14px">Sin avisos. Apunta aquí las piezas que no valen para este modelo.</div>') + '</div>';
+    }
+    draw();
+    (E.root() || document.body).appendChild(wrap);
+    wrap.addEventListener('click', function (e) {
+      var t;
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if (e.target.closest('[data-badd]')) { wrap.remove(); opts.onAdd(); return; }
+      if ((t = e.target.closest('[data-bdel]'))) {
+        opts.onDelete(+t.getAttribute('data-bdel')).then(function (l) { list = l || []; draw(); });
+      }
+    });
+  }
+
   E.PartsDiagram = PartsDiagram;
+  E.incompatButton = incompatButton;
+  E.incompatPanel = incompatPanel;
   E.UnlockPanel = UnlockPanel;
   E.unlockButton = unlockButton;
   E.unlockDialog = unlockDialog;

@@ -222,8 +222,8 @@ window.ECOR.ready(function () {
     $('#er-p-dev').innerHTML = '<h3>' + icon(r.category_icon || 'device') + 'Equipo y avería<span class="er-saved">Guardado</span>' +
       (canEdit ? '<button type="button" class="er-btn er-btn-sm er-r" id="er-dev-edit" style="margin-left:auto">Cambiar equipo</button>' : '') + '</h3>' +
       (D.modelUrl ? '<div class="er-kbbar"><label class="er-search er-find" style="margin:0;flex:1">' + icon('code', true) + '<input class="er-input" id="er-errcode" placeholder="Código de error (ej. 21)" autocomplete="off"></label>' +
-        '<a class="er-btn er-btn-sm" href="' + esc(D.modelUrl + '&from=' + r.id) + '">' + icon('book', true) + 'Códigos y manual' +
-        (D.kbCount && (D.kbCount.codes + D.kbCount.faults) ? ' <span class="er-hist-n" style="background:var(--er-pri)">' + (D.kbCount.codes + D.kbCount.params + D.kbCount.faults) + '</span>' : '') + '</a></div><div id="er-errres"></div>' : '') +
+        '<button type="button" class="er-kbbtn" id="er-kbbtn"><span class="er-kbbtn-i">' + icon('book', true) + '</span><span>Códigos y manual</span>' +
+        (D.kbCount && (D.kbCount.codes + D.kbCount.params + D.kbCount.faults) ? '<b>' + (D.kbCount.codes + D.kbCount.params + D.kbCount.faults) + '</b>' : '') + '</button></div><div id="er-errres"></div>' : '') +
       '<div class="er-kv"><div><span class="er-k">Categoría</span><span class="er-v">' + esc(r.category_name || '—') + '</span></div>' +
         '<div><span class="er-k">Equipo</span><span class="er-v">' + esc(r.device_name) + '</span></div>' +
         '<div><span class="er-k">Entrada</span><span class="er-v er-num">' + esc(E.fmtDateTime(r.date_add)) + '</span></div></div>' +
@@ -266,7 +266,56 @@ window.ECOR.ready(function () {
     var f = e.target.getAttribute('data-f');
     if (f && r[f] !== e.target.value.trim()) save(f, e.target.value.trim(), e.target);
   });
+  /* Ventana de códigos de error, manual y soluciones del modelo (sin salir de la reparación) */
+  function kbDialog() {
+    var tab = 'codes', q = '';
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-kbd"><div class="er-kbd-h">' + icon('book', true) + '<b>' + esc(r.device_name) + '</b>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div><div id="er-kbd-b"><div class="er-empty" style="margin:16px">Cargando…</div></div></div>';
+    app.appendChild(wrap);
+    var load = kbCache ? Promise.resolve(kbCache) : E.api('kbLookup', { id_brand: r.id_brand, id_model: r.id_model }).then(function (res) { kbCache = res.kb || { codes: [], params: [], menu: [], faults: [] }; return kbCache; });
+    function item(head, body) { return '<details class="er-kb-item"><summary>' + head + '</summary>' + body + '</details>'; }
+    function draw(kb) {
+      var n = { codes: kb.codes.length, manual: kb.menu.length + kb.params.length, faults: kb.faults.length };
+      var html = '<div class="er-seg2" style="margin:12px 14px">' + [['codes', 'Códigos de error'], ['manual', 'Manual y menú'], ['faults', 'Soluciones']].map(function (t) {
+        return '<button type="button" data-kt="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + ' <b>' + n[t[0]] + '</b></button>';
+      }).join('') + '</div><div class="er-kbd-list">';
+      if (tab === 'codes') {
+        var nq = q.toUpperCase().replace(/^E[-\s]?/, '');
+        var list = kb.codes.filter(function (c) { return !nq || c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(nq) === 0; });
+        html += '<label class="er-search" style="margin-bottom:8px">' + icon('search') + '<input class="er-input" id="er-kbd-q" placeholder="Código que sale en la pantalla" value="' + esc(q) + '" data-novoice></label>' +
+          (list.length ? list.map(function (c) {
+            return item('<span class="er-code-n">' + esc(c.code) + '</span><b>' + esc(c.title) + '</b>', (c.causes ? '<div class="er-kb-body">' + esc(c.causes) + '</div>' : '') + (c.parts ? '<div class="er-small"><b>Piezas:</b> ' + esc(c.parts) + '</div>' : ''));
+          }).join('') : '<div class="er-empty">' + (kb.codes.length ? 'No hay ningún código «' + esc(q) + '».' : 'Este modelo no tiene códigos de error apuntados.') + '</div>');
+      } else if (tab === 'manual') {
+        html += (kb.menu.length ? kb.menu.map(function (m) { return '<details class="er-kb-item" open><summary><b>' + esc(m.title) + '</b></summary><div class="er-kb-body">' + esc(m.body) + '</div></details>'; }).join('') : '') +
+          (kb.params.length ? '<div class="er-ptable"><div class="er-ptr er-pth"><span>Parámetro</span><span>Para qué sirve</span><span>De fábrica</span><span></span></div>' + kb.params.map(function (p) {
+            return '<div class="er-ptr"><b class="er-num">' + esc(p.code) + '</b><span>' + esc(p.name) + '</span><span class="er-num">' + esc(p.default_value || '—') + '</span><span></span></div>';
+          }).join('') + '</div>' : '') +
+          (!kb.menu.length && !kb.params.length ? '<div class="er-empty">Este modelo no tiene manual ni parámetros apuntados.</div>' : '');
+      } else {
+        html += kb.faults.length ? kb.faults.map(function (f) { return item('<b>' + esc(f.title) + '</b>', '<div class="er-kb-body">' + esc(f.body) + '</div>'); }).join('') : '<div class="er-empty">Sin soluciones apuntadas para este modelo.</div>';
+      }
+      html += '</div><div class="er-kbd-f"><a href="' + esc(D.modelUrl + '&from=' + r.id + '&tab=' + (tab === 'manual' ? 'params' : tab)) + '">' + icon('pen', true) + 'Añadir o cambiar en la ficha del modelo</a></div>';
+      wrap.querySelector('#er-kbd-b').innerHTML = html;
+      var qi = wrap.querySelector('#er-kbd-q');
+      if (qi && q) { qi.focus(); qi.setSelectionRange(q.length, q.length); }
+    }
+    load.then(function (kb) {
+      if (!kb.codes.length && (kb.menu.length || kb.params.length)) tab = 'manual';
+      draw(kb);
+    });
+    wrap.addEventListener('click', function (e) {
+      var t;
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if ((t = e.target.closest('[data-kt]'))) { tab = t.getAttribute('data-kt'); load.then(draw); }
+    });
+    wrap.addEventListener('input', function (e) { if (e.target.id === 'er-kbd-q') { q = e.target.value; load.then(draw); } });
+  }
+
   $('#er-p-dev').addEventListener('click', function (e) {
+    if (e.target.closest('#er-kbbtn')) { kbDialog(); return; }
     if (!e.target.closest('#er-dev-edit')) return;
     var wrap = document.createElement('div');
     wrap.className = 'er-modal';
@@ -408,6 +457,8 @@ window.ECOR.ready(function () {
     chain.then(function () { renderPhotos(); renderLog(); });
   });
 
+  E.dropZone($('#er-p-photos'), function () { return $('#er-file'); });
+
   function useAsModel() {
     E.api('deviceToModel', { id_ecorepair: r.id }, {}).then(function (res) {
       if (!res.ok) { E.toast(res.error, true); return; }
@@ -515,7 +566,7 @@ window.ECOR.ready(function () {
   function renderParts() {
     var box = $('#er-p-parts');
     if (!box) return;
-    var nParts = (D.modelParts || []).length, nFix = (D.fixed || []).length, nInc = (D.incompat || []).length, sz = D.suggestedZones || [];
+    var nParts = (D.modelParts || []).length, nFix = (D.fixed || []).length, sz = D.suggestedZones || [];
     box.classList.toggle('er-open', partsOpen);
     box.innerHTML = '<div class="er-fold">' +
       '<span class="er-fold-ico">' + icon('box') + '</span>' +
@@ -523,16 +574,16 @@ window.ECOR.ready(function () {
         '<span>' + nParts + ' pieza' + (nParts === 1 ? '' : 's') + '</span>' +
         (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
-        (nInc ? '<span class="er-fm-bad">' + nInc + ' no compatible' + (nInc === 1 ? '' : 's') + '</span>' : '') +
         (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">Ficha del modelo</a>' : '') +
       '</div></div>' +
       E.unlockButton(D.unlock, 'data-unl') +
       '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
+      E.incompatButton(D.incompat, canEdit) +
       '</div>' +
       (partsOpen ? '<div class="er-fold-body"><div class="er-seg2">' + [['parts', 'Piezas', nParts], ['fixed', 'Precio cerrado', nFix]].map(function (t) {
           return '<button type="button" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>';
         }).join('') + (partsTab === 'unlock' ? '<button type="button" aria-pressed="true">' + icon('bolt', true) + ' Deslimitar</button>' : '') +
-        '<a class="er-seg2-a" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></div><div id="er-dwr"></div></div>' : '');
+        '</div><div id="er-dwr"></div></div>' : '');
     if (!partsOpen) return;
     var host = box.querySelector('#er-dwr');
     if (partsTab !== 'parts') host.classList.add('er-plain');
@@ -544,7 +595,16 @@ window.ECOR.ready(function () {
       return;
     }
     if (partsTab === 'unlock') {
-      E.UnlockPanel(host, { list: D.unlock || [], admin: !!D.isAdmin, onAdd: canEdit ? function (u, btn) {
+      var up = E.UnlockPanel(host, { list: D.unlock || [], admin: !!D.isAdmin,
+        onEdit: canEdit && r.id_brand ? function (u) {
+          E.unlockDialog(u, { title: r.device_name, methods: D.unlockMethods || {}, admin: !!D.isAdmin, canBrand: !!r.id_model, onSave: function (d, allBrand) {
+            return E.api('unlockSave', {}, { id: u ? u.id : 0, id_brand: r.id_brand, id_model: u ? (u.scope === 'brand' ? 0 : r.id_model) : (allBrand ? 0 : r.id_model), view_model: r.id_model, data: JSON.stringify(d) }).then(function (res) {
+              if (res.ok) { D.unlock = res.unlock; renderParts(); }
+              return res;
+            });
+          } });
+        } : null,
+        onAdd: canEdit ? function (u, btn) {
         btn.disabled = true;
         E.api('unlockAdd', { id_ecorepair: r.id }, { id: u.id }).then(function (res) { btn.disabled = false; afterQuote(res, 'Deslimitación añadida al presupuesto con el aviso legal'); });
       } : null });
@@ -588,8 +648,24 @@ window.ECOR.ready(function () {
     var t = e.target.closest('[data-ptab]');
     if (t) { partsTab = t.getAttribute('data-ptab'); renderParts(); return; }
     if (e.target.closest('[data-fold]')) { partsOpen = !partsOpen; if (!partsOpen && partsTab === 'unlock') partsTab = 'parts'; renderParts(); return; }
+    if (e.target.closest('[data-bell]')) { openBell(); return; }
     if (e.target.closest('[data-unl]')) { partsOpen = true; partsTab = 'unlock'; renderParts(); var b = $('#er-p-parts'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
+
+  function openBell() {
+    E.incompatPanel({ title: r.device_name, list: D.incompat || [],
+      onAdd: canEdit ? function () {
+        E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {
+          return E.api('incompatSave', {}, { id_brand: r.id_brand, id_model: d.all_brand ? 0 : r.id_model, view_model: r.id_model, id_ecorepair: r.id, data: JSON.stringify(d) }).then(function (res) {
+            if (res.ok) { D.incompat = res.incompat; renderParts(); }
+            return res;
+          });
+        } });
+      } : null,
+      onDelete: D.canDelete && canEdit ? function (id) {
+        return E.api('incompatDelete', {}, { id: id, id_brand: r.id_brand, id_model: r.id_model }).then(function (res) { D.incompat = res.incompat || []; renderParts(); return D.incompat; });
+      } : null });
+  }
 
   /* ---------- Revisión de salida ---------- */
   function renderCheck() {

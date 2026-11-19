@@ -242,11 +242,14 @@ window.ECOR.ready(function () {
     var el = main.querySelector('#er-tab');
     if (tab === 'parts') {
       var sub = R._sub || 'parts';
-      el.innerHTML = E.unlockButton(R.unlock || [], 'data-sub="unlock" style="width:100%;justify-content:center"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
+      el.innerHTML = '<div class="er-row" style="flex-wrap:nowrap">' + E.unlockButton(R.unlock || [], 'data-sub="unlock" style="flex:1;justify-content:center"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
+        E.incompatButton(R.incompat || [], false) + '</div>' +
         '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')]].map(function (t) {
         return '<button type="button" data-sub="' + t[0] + '" aria-pressed="' + (sub === t[0]) + '">' + t[1] + '</button>';
       }).join('') + '</div><div id="er-sub"></div>';
-      el.addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b && !e.target.closest('#er-sub')) { R._sub = b.getAttribute('data-sub'); drawRepair('parts'); } });
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('[data-bell]')) { E.incompatPanel({ title: r.device_name, list: R.incompat || [] }); return; }
+        var b = e.target.closest('[data-sub]'); if (b && !e.target.closest('#er-sub')) { R._sub = b.getAttribute('data-sub'); drawRepair('parts'); } });
       var host = el.querySelector('#er-sub');
       function quoteAdd(action, id, btn, msg) {
         btn.disabled = true;
@@ -511,7 +514,7 @@ window.ECOR.ready(function () {
   function loadCatalog() { return catalog ? Promise.resolve(catalog) : api('catalog', {}, null).then(function (res) { catalog = res.catalog || []; return catalog; }); }
   function modelsView() {
     tabbar('models');
-    main.innerHTML = header('Códigos, manuales y piezas', '#home') + '<a class="er-bigbtn" href="#psearch">' + icon('box') + '<span><b>Buscar una pieza</b><small>Por medida o nombre: en qué modelos va y si hay stock</small></span></a>' +
+    main.innerHTML = header('Códigos, manuales y piezas', '#home') + ''+
       '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-m-q" type="search" placeholder="Buscar marca o modelo"></label><div id="er-m-list" class="er-mini" style="margin-top:12px"></div>';
     loadCatalog().then(function (cat) {
       var all = [];

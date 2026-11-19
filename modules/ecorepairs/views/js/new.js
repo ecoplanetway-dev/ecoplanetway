@@ -445,4 +445,5 @@ window.ECOR.ready(function () {
 
   renderCustomer();
   renderPhotos();
+  E.dropZone($('#er-photos').parentNode, function () { return $('#er-file'); });
 });

@@ -108,7 +108,7 @@ class EcoRepairUnlock
         return $out;
     }
 
-    public static function save($id, $idBrand, $idModel, array $d, $author)
+    public static function save($id, $idBrand, $idModel, array $d, $author, $admin = true)
     {
         if (!(int) $idBrand) {
             return array('ok' => false, 'error' => 'Falta la marca.');
@@ -142,6 +142,10 @@ class EcoRepairUnlock
             'date_upd' => date('Y-m-d H:i:s'),
         );
         $db = Db::getInstance();
+        if (!$admin) {
+            // Solo el administrador ve y cambia dónde se compra
+            unset($row['supplier_name'], $row['supplier_url']);
+        }
         if ($id) {
             $db->update('ecorepair_unlock', $row, 'id_ecorepair_unlock = ' . (int) $id);
         } else {
