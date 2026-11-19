@@ -287,6 +287,10 @@ class EcoRepairQuote
             }
             unset($l);
         }
+        foreach ($lines as &$l) {
+            $l['image'] = $l['id_product'] ? self::productImage($l['id_product'], $l['id_product_attribute'], '', (int) Context::getContext()->shop->id) : '';
+        }
+        unset($l);
         $names = self::statusNames();
         $acceptedBy = '';
         if ((int) $q['id_employee_accept']) {
@@ -626,6 +630,34 @@ class EcoRepairQuote
     /* ------------------------------------------------------------------ */
 
     /**
+     * Foto pequeña del producto: la de la combinación si tiene; si no, la portada del producto.
+     */
+    public static function productImage($idProduct, $idAttr, $linkRewrite, $idShop)
+    {
+        $p = _DB_PREFIX_;
+        $db = Db::getInstance();
+        $idImage = 0;
+        if ($idAttr) {
+            $idImage = (int) $db->getValue("SELECT pai.id_image FROM `{$p}product_attribute_image` pai
+                INNER JOIN `{$p}image` i ON i.id_image = pai.id_image
+                WHERE pai.id_product_attribute = " . (int) $idAttr . ' ORDER BY i.position ASC');
+        }
+        if (!$idImage) {
+            $idImage = (int) $db->getValue("SELECT id_image FROM `{$p}image_shop` WHERE id_product = " . (int) $idProduct
+                . ' AND id_shop = ' . (int) $idShop . ' AND cover = 1');
+        }
+        if (!$idImage) {
+            return '';
+        }
+        if ($linkRewrite === '') {
+            $linkRewrite = (string) $db->getValue("SELECT link_rewrite FROM `{$p}product_lang` WHERE id_product = " . (int) $idProduct
+                . ' AND id_lang = ' . (int) Context::getContext()->language->id . ' AND id_shop = ' . (int) $idShop);
+        }
+
+        return Context::getContext()->link->getImageLink($linkRewrite ?: 'producto', (int) $idProduct . '-' . $idImage, ImageType::getFormattedName('small'));
+    }
+
+    /**
      * Palabras de búsqueda: minúsculas, sin signos y en singular aproximado ("pastillas" → "pastilla").
      */
     public static function searchWords($text)
@@ -673,7 +705,7 @@ class EcoRepairQuote
             $conds[] = "(pl.name LIKE '%{$like}%' OR p.reference LIKE '%{$like}%' OR p.ean13 LIKE '%{$like}%'
                 OR pa.reference LIKE '%{$like}%' OR pa.ean13 LIKE '%{$like}%' OR p.supplier_reference LIKE '%{$like}%')";
         }
-        $sql = "SELECT p.id_product, IFNULL(pa.id_product_attribute, 0) AS id_product_attribute, pl.name AS pname,
+        $sql = "SELECT p.id_product, IFNULL(pa.id_product_attribute, 0) AS id_product_attribute, pl.name AS pname, pl.link_rewrite,
                 IF(pa.reference IS NOT NULL AND pa.reference != '', pa.reference, p.reference) AS reference,
                 p.ean13, pa.ean13 AS aean, ps.active
             FROM `{$p}product` p
@@ -751,6 +783,7 @@ class EcoRepairQuote
                 'tax_rate' => (int) round($rate),
                 'stock' => $stock,
                 'active' => (int) $r['active'],
+                'image' => self::productImage($id, $ida, (string) $r['link_rewrite'], $idShop),
             );
         }
         return array_values($out);

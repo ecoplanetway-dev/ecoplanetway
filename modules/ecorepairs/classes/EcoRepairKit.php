@@ -38,6 +38,7 @@ class EcoRepairKit
             $kl = isset($byKit[(int) $k['id_ecorepair_kit']]) ? EcoRepairQuote::decorateLines($byKit[(int) $k['id_ecorepair_kit']]) : array();
             if ($kl) {
                 foreach ($kl as &$l) {
+                    $l['image'] = $l['id_product'] ? EcoRepairQuote::productImage($l['id_product'], $l['id_product_attribute'], '', $idShop) : '';
                     $l['stock'] = $l['id_product']
                         ? (int) StockAvailable::getQuantityAvailableByProduct($l['id_product'], $l['id_product_attribute'], $idShop)
                         : null;

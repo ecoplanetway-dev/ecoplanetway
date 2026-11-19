@@ -502,3 +502,9 @@
   .ecor .er-rgrid > #er-p-photos { grid-area: photos; }
   .ecor .er-rgrid > #er-p-log { grid-area: log; }
 }
+/* Foto de las piezas en el presupuesto */
+.ecor .er-pimg { width: 44px; height: 44px; border-radius: 8px; object-fit: contain; background: #fff; border: 1px solid var(--er-line2); flex: none; display: inline-grid; place-items: center; color: var(--er-fg2); }
+.ecor .er-qs-res .er-pimg { width: 52px; height: 52px; }
+.ecor .er-ql .er-pimg, .ecor .er-mini .er-pimg { cursor: zoom-in; transition: transform .15s; }
+.ecor .er-ql .er-pimg:hover, .ecor .er-mini .er-pimg:hover { transform: scale(1.08); }
+.ecor .er-pimg-empty { cursor: default !important; }

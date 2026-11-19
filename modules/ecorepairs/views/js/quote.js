@@ -56,6 +56,10 @@ window.ECOR.ready(function () {
     return { total_tax_excl: r2(excl), total_tax_incl: r2(incl), tax: r2(incl - excl), warranty_amount: r2(war) };
   }
 
+  function pimg(src) {
+    return src ? '<img class="er-pimg" src="' + esc(src) + '" alt="" loading="lazy" data-zoom="' + esc(src) + '">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>';
+  }
+
   function stockTag(stock, qty) {
     if (stock === null || stock === undefined) return '';
     if (stock <= 0) return '<span class="er-tag er-t-bad">Sin stock</span>';
@@ -200,7 +204,7 @@ window.ECOR.ready(function () {
     rows.innerHTML = '<div class="er-ql er-ql-h" aria-hidden="true"><span>Concepto</span><span>Cant.</span><span>Precio IVA incl.</span><span>IVA</span><span>Garantía</span><span class="er-ql-t">Importe</span><span></span></div>' +
       work.lines.map(function (l, i) {
         return '<div class="er-ql' + (l.warranty ? ' er-ql-war' : '') + '" data-i="' + i + '">' +
-          '<div class="er-ql-name"><span class="er-tag er-t-neu">' + esc(TYPES[l.type] || 'Otro') + '</span>' +
+          '<div class="er-ql-name"><span class="er-row" style="flex-wrap:nowrap">' + (l.type === 'part' ? pimg(l.image) : '') + '<span class="er-tag er-t-neu">' + esc(TYPES[l.type] || 'Otro') + '</span></span>' +
             '<input class="er-input" data-k="name" maxlength="128" value="' + esc(l.name) + '" placeholder="Descripción" aria-label="Descripción">' +
             '<div class="er-row er-small">' + (l.reference ? '<span class="er-muted">Ref. ' + esc(l.reference) + '</span>' : '') + stockTag(l.stock, num(l.qty)) + '</div></div>' +
           '<label class="er-ql-f"><span>Cant.' + (l.type === 'labour' ? ' (h)' : '') + '</span><input class="er-input er-num" data-k="qty" inputmode="decimal" value="' + esc(fmtNum(num(l.qty))) + '" aria-label="Cantidad"></label>' +
@@ -260,6 +264,7 @@ window.ECOR.ready(function () {
   app.addEventListener('click', function (e) {
     var t;
     if (e.target.closest('#er-q-create')) { createQuote(); return; }
+    if ((t = e.target.closest('.er-ql [data-zoom], .er-mini [data-zoom]'))) { E.viewer([{ src: t.getAttribute('data-zoom').replace(/small_default/, 'large_default') }], 0); return; }
     if (!work) return;
     if ((t = e.target.closest('[data-del]'))) {
       var i = +t.closest('.er-ql').getAttribute('data-i');
@@ -278,7 +283,7 @@ window.ECOR.ready(function () {
       var p = searchResults[+t.getAttribute('data-pick')];
       if (!p) return;
       addLine({ type: 'part', id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference,
-        qty: 1, price: p.price, tax_rate: p.tax_rate, warranty: r.warranty ? 1 : 0, stock: p.stock }, false);
+        qty: 1, price: p.price, tax_rate: p.tax_rate, warranty: r.warranty ? 1 : 0, stock: p.stock, image: p.image }, false);
       if (p.stock <= 0) E.toast('Esa pieza no tiene stock: habrá que pedirla.', true);
       var s = $('#er-q-search'); s.value = ''; hideResults(); s.focus();
       return;
@@ -306,7 +311,7 @@ window.ECOR.ready(function () {
         box.hidden = false;
         if (!res.ok) { box.innerHTML = '<div class="er-muted er-small" style="padding:12px">' + esc(res.error) + '</div>'; return; }
         box.innerHTML = searchResults.length ? searchResults.map(function (p, i) {
-          return '<button type="button" data-pick="' + i + '"><span class="er-grow"><b>' + esc(p.name) + '</b>' +
+          return '<button type="button" data-pick="' + i + '">' + pimg(p.image) + '<span class="er-grow"><b>' + esc(p.name) + '</b>' +
             '<span class="er-row er-small er-muted">' + (p.reference ? 'Ref. ' + esc(p.reference) : '') + (p.active ? '' : ' · No visible en la tienda') + '</span></span>' +
             stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></button>';
         }).join('') : '<div class="er-muted er-small" style="padding:12px">Nada encontrado. Usa «Línea libre» si la pieza no está en el catálogo.</div>';
@@ -354,7 +359,7 @@ window.ECOR.ready(function () {
         if (!k) return;
         k.lines.forEach(function (l) {
           work.lines.push({ type: l.type, id_product: l.id_product, id_product_attribute: l.id_product_attribute, name: l.name, reference: l.reference,
-            qty: l.qty, price: l.price, tax_rate: l.tax_rate, warranty: r.warranty ? 1 : 0, stock: l.stock });
+            qty: l.qty, price: l.price, tax_rate: l.tax_rate, warranty: r.warranty ? 1 : 0, stock: l.stock, image: l.image });
         });
         wrap.remove();
         renderRows();
@@ -411,7 +416,7 @@ window.ECOR.ready(function () {
     var lock = q.status === 'accepted' ? '<span class="er-r">' + icon('lock', true) + ' Bloqueado</span>' : '<span class="er-r">' + qTag(q) + '</span>';
     $('#er-q-lines').innerHTML = '<h3>' + icon('doc') + esc(q.label) + lock + '</h3>' +
       (q.lines.length ? '<div class="er-mini">' + q.lines.map(function (l) {
-        return '<div><span class="er-grow" style="white-space:normal"><b>' + esc(l.name) + '</b>' + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') +
+        return '<div>' + (l.type === 'part' ? pimg(l.image) : '') + '<span class="er-grow" style="white-space:normal"><b>' + esc(l.name) + '</b>' + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') +
           '<span class="er-muted er-small" style="display:block">' + esc(TYPES[l.type] + (l.reference ? ' · Ref. ' + l.reference : '') + ' · ' + fmtNum(l.qty) + (l.type === 'labour' ? ' h' : ' ud.') + ' × ' + E.fmtMoney(l.price) + ' · IVA ' + l.tax_rate + ' %') + '</span></span>' +
           '<b class="er-num">' + (l.warranty ? '<s class="er-muted">' + esc(E.fmtMoney(l.total)) + '</s>' : esc(E.fmtMoney(l.total))) + '</b></div>';
       }).join('') + '</div>' : '<div class="er-empty">Sin líneas</div>');
