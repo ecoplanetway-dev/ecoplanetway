@@ -508,3 +508,6 @@
 .ecor .er-ql .er-pimg, .ecor .er-mini .er-pimg { cursor: zoom-in; transition: transform .15s; }
 .ecor .er-ql .er-pimg:hover, .ecor .er-mini .er-pimg:hover { transform: scale(1.08); }
 .ecor .er-pimg-empty { cursor: default !important; }
+/* La lista de resultados del buscador de piezas queda por encima de «Observaciones» */
+.ecor #er-q-lines { position: relative; z-index: 20; }
+.ecor #er-q-lines .er-qs-res { max-height: min(60vh, 520px); }
