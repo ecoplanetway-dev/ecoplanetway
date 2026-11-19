@@ -1055,3 +1055,20 @@
 .ecor .er-unl2-steps summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--er-pri); }
 .ecor .er-unl2-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 @media (max-width: 600px) { .ecor .er-unl2-ph { width: 64px; height: 64px; } }
+
+/* ===== Acento lima de la marca (poco y siempre junto al negro) ===== */
+.ecor { --er-lime: #D4FF2A; }
+/* «Nueva reparación» del tablero: negro con letra y halo lima */
+.ecor .er-hrow .er-btn-pri { background: #0F1113; color: var(--er-lime); border-color: #0F1113; box-shadow: 0 0 0 1px rgba(212,255,42,.35), 0 0 18px rgba(212,255,42,.28); }
+.ecor .er-hrow .er-btn-pri:hover { box-shadow: 0 0 0 1px rgba(212,255,42,.5), 0 0 24px rgba(212,255,42,.42); }
+/* Lo elegido en listas: raya y número en lima */
+.ecor .er-sl.on::before { background: var(--er-lime); box-shadow: 0 0 10px var(--er-lime); }
+.ecor .er-sl.on .er-sl-i, .ecor .er-set-l.on .er-set-i { color: var(--er-lime); }
+.ecor .er-sl.on .er-sl-c, .ecor .er-c2.on b { color: var(--er-lime); }
+.ecor .er-sc.on::before { background: #A6E000; box-shadow: 0 0 8px var(--er-lime); }
+/* «Ver piezas del modelo»: flecha en lima */
+.ecor .er-fold-chev { color: var(--er-lime); }
+/* Lo que deja el cliente: lima con resplandor (los daños siguen en rojo) */
+.ecor #er-acc .er-opt[aria-pressed="true"] { color: #3F5200; border-color: #A6E000; background: radial-gradient(120% 140% at 30% 20%, #FAFFE0 0%, #EAFF9A 55%, #D4FF2A 100%);
+  box-shadow: 0 0 0 1px rgba(166,224,0,.25), 0 0 14px rgba(212,255,42,.6); }
+.ecor #er-acc .er-opt[aria-pressed="true"] .er-i { color: #4D6B00; }
