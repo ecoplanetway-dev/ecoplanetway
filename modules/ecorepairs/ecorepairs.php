@@ -24,6 +24,8 @@ require_once __DIR__ . '/classes/EcoRepairPayment.php';
 require_once __DIR__ . '/classes/EcoRepairMessage.php';
 require_once __DIR__ . '/classes/EcoRepairRequest.php';
 require_once __DIR__ . '/classes/EcoRepairRateLimit.php';
+require_once __DIR__ . '/classes/EcoRepairKnowledge.php';
+require_once __DIR__ . '/classes/EcoRepairStaff.php';
 
 /**
  * También es un módulo de pago (Taller · Efectivo / Tarjeta / Transferencia) para crear los pedidos del taller.
@@ -35,7 +37,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.5.1';
+        $this->version = '1.6.0';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
@@ -85,6 +87,12 @@ class EcoRepairs extends PaymentModule
                 'rule' => 'seguimiento',
                 'keywords' => array(),
                 'params' => array('fc' => 'module', 'module' => 'ecorepairs', 'controller' => 'tracking'),
+            ),
+            'module-ecorepairs-app' => array(
+                'controller' => 'app',
+                'rule' => 'taller',
+                'keywords' => array(),
+                'params' => array('fc' => 'module', 'module' => 'ecorepairs', 'controller' => 'app'),
             ),
         );
     }

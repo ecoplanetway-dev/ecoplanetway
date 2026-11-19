@@ -89,6 +89,13 @@ window.ECOR.ready(function () {
       b += '<div class="er-banner er-warn">' + icon('clock') + '<div style="flex:1"><b>Lleva ' + r.days_in_status + ' días sin recoger.</b> Envía un recordatorio al cliente.</div>' +
         (D.canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-wa" data-wa>' + icon('whatsapp', true) + 'Recordatorio</button>' : '') + '</div>';
     }
+    if (D.repeat) {
+      b += '<div class="er-banner ' + (D.repeat.same ? 'er-bad' : 'er-warn') + '">' + icon('refresh') + '<div><b>Repetida:</b> vuelve ' + D.repeat.days + ' días después de <a href="' + esc(E.boot.links.repair + D.repeat.id) + '"><b>' + esc(D.repeat.reference) + '</b></a>' +
+        (D.repeat.same ? ' por la misma avería' : ' (otra avería)') + (D.repeat.tech ? ' · técnico ' + esc(D.repeat.tech) : '') + '.</div></div>';
+    }
+    if (r.status === 'delivered' && D.canEdit && D.reviewUrl) {
+      b += '<div class="er-banner er-info">' + icon('star') + '<div style="flex:1">¿Le ha gustado? Pídele una reseña en Google.</div><button type="button" class="er-btn er-btn-sm er-btn-wa" data-wa>' + icon('whatsapp', true) + 'Pedir reseña</button></div>';
+    }
     if (D.parent) {
       b += '<div class="er-banner er-info">' + icon('refresh') + '<div>Reapertura de <a href="' + esc(E.boot.links.repair + D.parent.id_ecorepair) + '"><b>' + esc(D.parent.reference) + '</b></a>' +
         (r.warranty ? ' · en garantía' : '') + '</div></div>';
@@ -211,6 +218,9 @@ window.ECOR.ready(function () {
   function renderDevice() {
     $('#er-p-dev').innerHTML = '<h3>' + icon(r.category_icon || 'device') + 'Equipo y avería<span class="er-saved">Guardado</span>' +
       (canEdit ? '<button type="button" class="er-btn er-btn-sm er-r" id="er-dev-edit" style="margin-left:auto">Cambiar equipo</button>' : '') + '</h3>' +
+      (D.modelUrl ? '<div class="er-kbbar"><label class="er-search er-find" style="margin:0;flex:1">' + icon('code', true) + '<input class="er-input" id="er-errcode" placeholder="Código de error (ej. 21)" autocomplete="off"></label>' +
+        '<a class="er-btn er-btn-sm" href="' + esc(D.modelUrl) + '" target="_blank" rel="noopener">' + icon('book', true) + 'Códigos y manual' +
+        (D.kbCount && (D.kbCount.codes + D.kbCount.faults) ? ' <span class="er-hist-n" style="background:var(--er-pri)">' + (D.kbCount.codes + D.kbCount.params + D.kbCount.faults) + '</span>' : '') + '</a></div><div id="er-errres"></div>' : '') +
       '<div class="er-kv"><div><span class="er-k">Categoría</span><span class="er-v">' + esc(r.category_name || '—') + '</span></div>' +
         '<div><span class="er-k">Equipo</span><span class="er-v">' + esc(r.device_name) + '</span></div>' +
         '<div><span class="er-k">Entrada</span><span class="er-v er-num">' + esc(E.fmtDateTime(r.date_add)) + '</span></div></div>' +
@@ -232,6 +242,23 @@ window.ECOR.ready(function () {
       $('#er-dmg').innerHTML = (r.damages || []).map(function (a) { return '<span class="er-tag er-t-warn">' + esc(a) + '</span> '; }).join('') || '<span class="er-muted">Ninguno</span>';
     }
   }
+  var kbCache = null, kbTimer;
+  $('#er-p-dev').addEventListener('input', function (e) {
+    if (e.target.id !== 'er-errcode') return;
+    var q = e.target.value.trim().toUpperCase().replace(/^E[-\s]?/, ''), box = $('#er-errres');
+    clearTimeout(kbTimer);
+    if (!q) { box.innerHTML = ''; return; }
+    kbTimer = setTimeout(function () {
+      var go = kbCache ? Promise.resolve(kbCache) : E.api('kbLookup', { id_brand: r.id_brand, id_model: r.id_model }).then(function (res) { kbCache = res.kb; return kbCache; });
+      go.then(function (kb) {
+        var list = (kb.codes || []).filter(function (c) { return c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(q) === 0; }).slice(0, 3);
+        box.innerHTML = list.length ? list.map(function (c) {
+          return '<div class="er-errhit"><span class="er-code-n">' + esc(c.code) + '</span><div><b>' + esc(c.title) + '</b>' + (c.causes ? '<div class="er-small">' + esc(c.causes) + '</div>' : '') +
+            (c.parts ? '<div class="er-small er-muted">Piezas: ' + esc(c.parts) + '</div>' : '') + (!c.verified ? '<div class="er-small er-muted">Por revisar</div>' : '') + '</div></div>';
+        }).join('') : '<div class="er-muted er-small" style="padding:6px 2px">No hay código «' + esc(q) + '» para este modelo. <a href="' + esc(D.modelUrl + '&code=' + encodeURIComponent(q)) + '" target="_blank" rel="noopener">Añadirlo</a></div>';
+      });
+    }, 250);
+  });
   $('#er-p-dev').addEventListener('change', function (e) {
     var f = e.target.getAttribute('data-f');
     if (f && r[f] !== e.target.value.trim()) save(f, e.target.value.trim(), e.target);
@@ -276,7 +303,8 @@ window.ECOR.ready(function () {
       '<div class="er-sub" style="margin:4px 0 0">Fotos de entrada (estado y daños)</div>' +
       '<div class="er-photos" id="er-ph">' + photos.map(function (p) {
         return '<div class="er-ph"><a href="' + esc(p.full) + '" data-ph="' + p.id + '"><img src="' + esc(p.thumb) + '" alt="Foto de la reparación" loading="lazy"></a>' +
-          (D.canDelete ? '<button type="button" class="er-del" data-del="' + p.id + '" aria-label="Borrar foto">' + icon('trash', true) + '</button>' : '') + '</div>';
+          (D.canDelete ? '<button type="button" class="er-del" data-del="' + p.id + '" aria-label="Borrar foto">' + icon('trash', true) + '</button>' : '') +
+          (canEdit ? '<button type="button" class="er-pub' + (p.public ? ' on' : '') + '" data-pub="' + p.id + '" title="' + (p.public ? 'El cliente la ve en el seguimiento' : 'Mostrar al cliente en el seguimiento') + '">' + icon('eye', true) + '</button>' : (p.public ? '<span class="er-pub on">' + icon('eye', true) + '</span>' : '')) + '</div>';
       }).join('') +
       (canEdit ? '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('plus') + 'Añadir foto</button>' : '') +
       (!photos.length && !canEdit ? '<div class="er-muted">Sin fotos</div>' : '') + '</div>' +
@@ -294,6 +322,16 @@ window.ECOR.ready(function () {
     }
     if (e.target.closest('[data-view]')) { if (coverSrc()) E.viewer(allPhotos(), 0); else if (canEdit) $('#er-dev-file').click(); return; }
     if (e.target.closest('#er-dev-shot')) { $('#er-dev-file').click(); return; }
+    var pub = e.target.closest('[data-pub]');
+    if (pub) {
+      var ph = photos.filter(function (x) { return String(x.id) === pub.getAttribute('data-pub'); })[0];
+      E.api('photoPublic', { id_photo: ph.id }, { public: ph.public ? 0 : 1 }).then(function (res) {
+        if (!res.ok) { E.toast(res.error, true); return; }
+        ph.public = res.public; log = res.log; renderPhotos(); renderLog(); renderHead();
+        E.toast(ph.public ? 'El cliente verá esta foto en el seguimiento' : 'Foto oculta al cliente');
+      });
+      return;
+    }
     if (e.target.closest('#er-dev-reset')) {
       E.api('deviceReset', { id_ecorepair: r.id }, {}).then(function (res) {
         if (!res.ok) { E.toast(res.error, true); return; }
@@ -606,7 +644,8 @@ window.ECOR.ready(function () {
   /* ---------- Asignación ---------- */
   function renderAssign() {
     $('#er-p-assign').innerHTML = '<h3>' + icon('assign') + 'Asignación<span class="er-saved">Guardado</span></h3>' +
-      '<label class="er-field">Técnico<select class="er-input" data-f="id_employee_tech"' + dis + '><option value="0">Sin asignar</option>' +
+      '<label class="er-field">Técnico' + (r.id_employee_tech && !D.isAdmin ? ' <span class="er-muted er-small">(solo el administrador puede cambiarlo)</span>' : '') +
+        '<select class="er-input" data-f="id_employee_tech"' + (r.id_employee_tech && !D.isAdmin ? ' disabled' : dis) + '><option value="0">Sin asignar</option>' +
         D.technicians.map(function (t) { return '<option value="' + t.id + '"' + (t.id === r.id_employee_tech ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select></label>' +
       '<label class="er-field">Fecha prevista de entrega<input class="er-input" type="date" data-f="eta_date" value="' + esc(r.eta_date && r.eta_date !== '0000-00-00' ? r.eta_date : '') + '"' + dis + '></label>' +
       '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" data-b="urgent"' + (r.urgent ? ' checked' : '') + dis + '></label>' +

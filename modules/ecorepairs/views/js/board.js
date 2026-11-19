@@ -30,6 +30,7 @@ window.ECOR.ready(function () {
           (open ? '<span class="er-badge' + (rc.arrived ? ' er-badge-hot' : '') + '">' + (rc.arrived || open) + '</span>' : '') + '</a>';
       })() +
       '<a class="er-btn" href="' + esc(E.boot.links.cash) + '">' + icon('tag') + '<span>Caja</span></a>' +
+      '<a class="er-btn" href="' + esc(E.boot.links.techs) + '">' + icon('assign') + '<span>Técnicos</span></a>' +
       '<a class="er-btn" href="' + esc(E.boot.links.stats) + '">' + icon('chart') + '<span>Indicadores</span></a>' +
       '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +
     '</header>' +
@@ -65,7 +66,8 @@ window.ECOR.ready(function () {
   function card(r) {
     var tags = (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') +
       (r.warranty ? '<span class="er-tag er-t-gar">Garantía</span>' : '') +
-      (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '');
+      (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '') +
+      (r.repeat_of ? '<span class="er-tag ' + (r.repeat_same ? 'er-t-bad' : 'er-t-warn') + '" title="Vuelve poco después de otra reparación">Repetida</span>' : '');
     var dl = daysLabel(r);
     var cat = catById[r.id_category] || { name: r.category_name || '', icon: r.category_icon || 'other' };
     var fault = r.fault_customer || (r.faults || []).join(', ');

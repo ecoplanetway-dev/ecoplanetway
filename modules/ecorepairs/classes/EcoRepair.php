@@ -400,6 +400,43 @@ class EcoRepair
         return array('ok' => true);
     }
 
+    /**
+     * Reparación repetida: el mismo equipo (nº de serie, o mismo cliente y modelo) entregado hace menos de X días.
+     * «Misma avería» si comparten alguna avería marcada.
+     */
+    public static function detectRepeat($id, $idEmployee = 0)
+    {
+        $r = self::get((int) $id);
+        if (!$r) {
+            return false;
+        }
+        $days = max(1, (int) Configuration::get('ECOREPAIRS_REPEAT_DAYS'));
+        $p = _DB_PREFIX_;
+        $same = array();
+        if ($r['serial'] !== '') {
+            $same[] = "p.serial = '" . pSQL($r['serial']) . "'";
+        }
+        if ((int) $r['id_model']) {
+            $same[] = '(p.id_customer = ' . (int) $r['id_customer'] . ' AND p.id_model = ' . (int) $r['id_model'] . ')';
+        } else {
+            $same[] = '(p.id_customer = ' . (int) $r['id_customer'] . " AND p.device_name = '" . pSQL($r['device_name']) . "')";
+        }
+        $prev = Db::getInstance()->getRow("SELECT p.* FROM `{$p}ecorepair` p
+            WHERE p.id_ecorepair != " . (int) $id . " AND p.id_shop = " . (int) $r['id_shop'] . " AND p.status = 'delivered'
+              AND p.date_status >= DATE_SUB('" . pSQL($r['date_add']) . "', INTERVAL {$days} DAY)
+              AND (" . implode(' OR ', $same) . ') ORDER BY p.date_status DESC');
+        if (!$prev) {
+            return false;
+        }
+        $a = json_decode((string) $prev['faults'], true);
+        $sameFault = is_array($a) && array_intersect(array_map('strtolower', $a), array_map('strtolower', $r['faults'])) ? 1 : 0;
+        Db::getInstance()->update('ecorepair', array('repeat_of' => (int) $prev['id_ecorepair'], 'repeat_same' => $sameFault), 'id_ecorepair = ' . (int) $id);
+        $d = max(0, (int) floor((strtotime($r['date_add']) - strtotime($prev['date_status'])) / 86400));
+        EcoRepairLog::add((int) $id, $idEmployee, 'field', 'Repetida: vuelve ' . $d . ' días después de ' . $prev['reference'] . ($sameFault ? ' por la misma avería' : ' (otra avería)'));
+
+        return array('id' => (int) $prev['id_ecorepair'], 'reference' => $prev['reference'], 'days' => $d, 'same' => $sameFault);
+    }
+
     /** Fin de la garantía de la reparación (desde la entrega). '' si no está entregada. */
     public static function warrantyUntil(array $r)
     {

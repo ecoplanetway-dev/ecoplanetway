@@ -59,6 +59,13 @@
         <div class="labels">{foreach from=$steps item=s}<span>{$s.name|escape:'html':'UTF-8'}</span>{/foreach}</div>
       {/if}
     </div>
+    {if $photos}
+      <div class="card"><b>Fotos del trabajo</b>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:10px">
+          {foreach from=$photos item=ph}<a href="{$ph.full|escape:'html':'UTF-8'}" target="_blank" rel="noopener"><img src="{$ph.thumb|escape:'html':'UTF-8'}" alt="" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;display:block"></a>{/foreach}
+        </div>
+      </div>
+    {/if}
     {if $quoteLink}
       <div class="card"><b>Tienes un presupuesto pendiente</b><p class="muted" style="margin:4px 0 12px">Revísalo y acéptalo para que empecemos la reparación.</p>
         <a class="btn" href="{$quoteLink|escape:'html':'UTF-8'}">Ver el presupuesto</a></div>

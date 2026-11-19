@@ -98,7 +98,15 @@ window.ECOR.ready(function () {
     function renderCust() {
       custBox.innerHTML = cust ? '<div class="er-chosen"><span class="er-av" style="background:#5B6170">' + esc(E.initials(cust.name)) + '</span><div class="er-grow"><b>' + esc(cust.name) + '</b></div>' +
         (rq.id ? '' : '<button type="button" class="er-btn er-btn-sm" data-cchange>Cambiar</button>') + '</div>'
-        : '<label class="er-search">' + icon('search') + '<input class="er-input" data-cq type="search" placeholder="Nombre, teléfono o email" autocomplete="off"></label><div class="er-pick" data-cres></div>';
+        : '<label class="er-search">' + icon('search') + '<input class="er-input" data-cq type="search" placeholder="Nombre, teléfono o email" autocomplete="off"></label><div class="er-pick" data-cres></div>' +
+          '<button type="button" class="er-btn er-btn-sm" data-cnew style="margin-top:8px">' + icon('plus', true) + 'Cliente nuevo</button>' +
+          '<div data-cform hidden class="er-stack" style="gap:10px;margin-top:10px"><div class="er-fg">' +
+            '<label class="er-field">Nombre <span class="er-req">*</span><input class="er-input" data-nc="firstname" maxlength="64"></label>' +
+            '<label class="er-field">Apellidos <span class="er-req">*</span><input class="er-input" data-nc="lastname" maxlength="64"></label>' +
+            '<label class="er-field">Teléfono<input class="er-input" data-nc="phone" inputmode="tel" maxlength="32"></label>' +
+            '<label class="er-field">Email<input class="er-input" data-nc="email" type="email" maxlength="128"></label></div>' +
+            '<div class="er-err" data-ncerr hidden></div><div><button type="button" class="er-btn er-btn-pri er-btn-sm" data-ncsave>' + icon('check', true) + 'Crear cliente</button></div>' +
+            '<p class="er-muted er-small" style="margin:0">Se crea también en PrestaShop.</p></div>';
       var q = custBox.querySelector('[data-cq]'); if (q) q.focus();
     }
     renderCust();
@@ -113,7 +121,7 @@ window.ECOR.ready(function () {
           var box = custBox.querySelector('[data-cres]');
           if (box) box.innerHTML = results.map(function (c, i) {
             return '<button type="button" data-ci="' + i + '"><span class="er-grow"><b>' + esc(c.name) + '</b><br><span class="er-muted er-small">' + esc([c.phone, c.email].filter(Boolean).join(' · ')) + '</span></span></button>';
-          }).join('') || '<div class="er-muted er-small" style="padding:10px">Sin resultados. Crea el cliente desde «Nueva reparación» o en PrestaShop.</div>';
+          }).join('') || '<div class="er-muted er-small" style="padding:10px">Sin resultados. Pulsa «Cliente nuevo».</div>';
         });
       }, 300);
     });
@@ -121,6 +129,20 @@ window.ECOR.ready(function () {
       var t;
       if ((t = e.target.closest('[data-ci]'))) { cust = results[+t.getAttribute('data-ci')]; renderCust(); }
       if (e.target.closest('[data-cchange]')) { cust = null; renderCust(); }
+      if (e.target.closest('[data-cnew]')) { custBox.querySelector('[data-cform]').hidden = false; custBox.querySelector('[data-nc="firstname"]').focus(); }
+      if (e.target.closest('[data-ncsave]')) {
+        var body = { consent_rgpd: 1 };
+        custBox.querySelectorAll('[data-nc]').forEach(function (i) { body[i.getAttribute('data-nc')] = i.value.trim(); });
+        E.api('createCustomer', {}, body).then(function (res) {
+          var er = custBox.querySelector('[data-ncerr]');
+          if (!res.ok) {
+            if (res.existingCustomer) { cust = res.existingCustomer; renderCust(); E.toast('Ya existía: se ha elegido ' + cust.name); return; }
+            er.textContent = res.error || Object.keys(res.errors || {}).map(function (k) { return res.errors[k]; }).join(' ');
+            er.hidden = false; return;
+          }
+          cust = res.customer; renderCust(); E.toast('Cliente creado');
+        });
+      }
     });
     wrap.addEventListener('click', function (e) {
       if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }

@@ -54,6 +54,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/stats.js' . $v, false);
         } elseif ($view === 'cash') {
             $this->addJS($base . 'views/js/cash.js' . $v, false);
+        } elseif ($view === 'techs') {
+            $this->addJS($base . 'views/js/techs.js' . $v, false);
+        } elseif ($view === 'model') {
+            $this->addJS($base . 'views/js/model.js' . $v, false);
         } elseif ($view === 'requests') {
             $this->addJS($base . 'views/js/notify.js' . $v, false);
             $this->addJS($base . 'views/js/requests.js' . $v, false);
@@ -79,6 +83,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         if (Tools::getValue('view') === 'requests') {
             return 'requests';
+        }
+        if (Tools::getValue('view') === 'techs') {
+            return 'techs';
+        }
+        if (Tools::getValue('view') === 'model' && (int) Tools::getValue('id_brand')) {
+            return 'model';
         }
         if (Tools::getValue('view') === 'customer' && (int) Tools::getValue('id_customer')) {
             return 'customer';
@@ -112,7 +122,42 @@ class AdminEcoRepairsController extends ModuleAdminController
             'ecor_data' => '{}',
         ));
 
-        if ($view === 'requests') {
+        if ($view === 'techs') {
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array(
+                    'stats' => EcoRepairStats::technicians((int) $this->context->shop->id, date('Y-m-01'), date('Y-m-d')),
+                    'from' => date('Y-m-01'),
+                    'to' => date('Y-m-d'),
+                )),
+                'ecor_view' => 'techs',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'model') {
+            $idBrand = (int) Tools::getValue('id_brand');
+            $idModel = (int) Tools::getValue('id_model');
+            $names = Db::getInstance()->getRow('SELECT b.name AS brand, m.name AS model, m.image FROM `' . _DB_PREFIX_ . 'ecorepair_brand` b
+                LEFT JOIN `' . _DB_PREFIX_ . 'ecorepair_model` m ON m.id_ecorepair_model = ' . $idModel . ' AND m.id_ecorepair_brand = b.id_ecorepair_brand
+                WHERE b.id_ecorepair_brand = ' . $idBrand);
+            $models = Db::getInstance()->executeS('SELECT id_ecorepair_model AS id, name FROM `' . _DB_PREFIX_ . 'ecorepair_model` WHERE id_ecorepair_brand = ' . $idBrand . ' AND active = 1 ORDER BY name') ?: array();
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array(
+                    'id_brand' => $idBrand,
+                    'id_model' => $names && $names['model'] ? $idModel : 0,
+                    'brand' => $names ? $names['brand'] : '',
+                    'model' => $names ? (string) $names['model'] : '',
+                    'image' => $names && $names['image'] ? $this->modelImageUrl($names['image']) : '',
+                    'models' => array_map(function ($m) {
+                        return array('id' => (int) $m['id'], 'name' => $m['name']);
+                    }, $models),
+                    'kb' => EcoRepairKnowledge::forModel($idBrand, $names && $names['model'] ? $idModel : 0),
+                    'canEdit' => (bool) $this->access('edit'),
+                    'canDelete' => (bool) $this->access('delete'),
+                    'code' => (string) Tools::getValue('code'),
+                )),
+                'ecor_view' => 'model',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'requests') {
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array(
                     'requests' => EcoRepairRequest::listFor((int) $this->context->shop->id, 'open'),
@@ -227,6 +272,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'date' => $ph['date_add'],
                 'thumb' => $this->photoUrl((int) $ph['id_ecorepair_photo'], true),
                 'full' => $this->photoUrl((int) $ph['id_ecorepair_photo'], false),
+                'public' => isset($ph['public']) ? (int) $ph['public'] : 0,
             );
             if ($ph['type'] === 'signature') {
                 $signature = $item;
@@ -269,6 +315,13 @@ class AdminEcoRepairsController extends ModuleAdminController
             'methods' => EcoRepairPayment::methods(),
             'isAdmin' => $this->isAdmin(),
             'warrantyUntil' => EcoRepair::warrantyUntil($repair),
+            'repeat' => (int) $repair['repeat_of'] ? (function ($o, $r) {
+                return $o ? array('id' => (int) $o['id_ecorepair'], 'reference' => $o['reference'], 'tech' => $o['tech_name'], 'same' => (int) $r['repeat_same'],
+                    'days' => max(0, (int) floor((strtotime($r['date_add']) - strtotime($o['date_status'])) / 86400))) : null;
+            })(EcoRepair::get((int) $repair['repeat_of']), $repair) : null,
+            'kbCount' => (int) $repair['id_brand'] ? EcoRepairKnowledge::counts((int) $repair['id_brand'], (int) $repair['id_model']) : null,
+            'modelUrl' => (int) $repair['id_brand'] ? $this->baseUrl() . '&view=model&id_brand=' . (int) $repair['id_brand'] . '&id_model=' . (int) $repair['id_model'] : '',
+            'reviewUrl' => (string) Configuration::get('ECOREPAIRS_REVIEW_URL'),
             'parent' => (int) $repair['id_parent_repair'] ? EcoRepair::get((int) $repair['id_parent_repair']) : null,
             'children' => EcoRepair::children($id),
             'pickupDays' => (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS'),
@@ -376,6 +429,12 @@ class AdminEcoRepairsController extends ModuleAdminController
             'printCash' => array('ajaxPrintCash', 'view', false),
             'exportQuarter' => array('ajaxExportQuarter', 'view', false),
             'notifyPreview' => array('ajaxNotifyPreview', 'view', false),
+            'kbSave' => array('ajaxKbSave', 'edit', true),
+            'kbDelete' => array('ajaxKbDelete', 'delete', true),
+            'kbLookup' => array('ajaxKbLookup', 'view', false),
+            'photoPublic' => array('ajaxPhotoPublic', 'edit', true),
+            'techDetail' => array('ajaxTechDetail', 'view', false),
+            'techList' => array('ajaxTechList', 'view', false),
             'logMessage' => array('ajaxLogMessage', 'edit', true),
             'newTrackingCode' => array('ajaxNewTrackingCode', 'edit', true),
             'reopen' => array('ajaxReopen', 'add', true),
@@ -732,7 +791,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 $out[$k] = array('name' => $t['name'], 'text' => EcoRepairMessage::render($t['text'], $vals));
             }
         }
-        $default = array('received' => 'received', 'quote' => 'quote', 'ready' => (int) $repair['days_in_status'] >= (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS') ? 'reminder' : 'ready');
+        $default = array('delivered' => 'review', 'received' => 'received', 'quote' => 'quote', 'ready' => (int) $repair['days_in_status'] >= (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS') ? 'reminder' : 'ready');
         $c = EcoRepairCustomer::info((int) $repair['id_customer']);
         $this->jsonOut(array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
             'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received'));
@@ -878,6 +937,53 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->setTemplate('app.tpl');
     }
 
+    protected function ajaxKbSave()
+    {
+        $res = EcoRepairKnowledge::save((string) Tools::getValue('type'), (int) Tools::getValue('id'), (int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'),
+            json_decode((string) Tools::getValue('data'), true) ?: array(), trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname));
+        if ($res['ok']) {
+            $res['kb'] = EcoRepairKnowledge::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'));
+        }
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxKbDelete()
+    {
+        $res = EcoRepairKnowledge::delete((string) Tools::getValue('type'), (int) Tools::getValue('id'));
+        $res['kb'] = EcoRepairKnowledge::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxKbLookup()
+    {
+        $this->jsonOut(array('ok' => true, 'kb' => EcoRepairKnowledge::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'))));
+    }
+
+    protected function ajaxPhotoPublic()
+    {
+        $ph = EcoRepairPhoto::get((int) Tools::getValue('id_photo'));
+        $repair = $ph ? EcoRepair::get((int) $ph['id_ecorepair']) : false;
+        if (!$repair || (int) $repair['id_shop'] !== (int) $this->context->shop->id) {
+            $this->jsonOut(array('ok' => false, 'error' => 'La foto no existe.'), 404);
+        }
+        $on = Tools::getValue('public') ? 1 : 0;
+        Db::getInstance()->update('ecorepair_photo', array('public' => $on), 'id_ecorepair_photo = ' . (int) $ph['id_ecorepair_photo']);
+        EcoRepairLog::add((int) $ph['id_ecorepair'], (int) $this->context->employee->id, 'photo', $on ? 'Foto visible para el cliente en el seguimiento' : 'Foto oculta al cliente');
+        $this->jsonOut($this->withLog(array('ok' => true, 'public' => $on), (int) $ph['id_ecorepair']));
+    }
+
+    protected function ajaxTechList()
+    {
+        list($from, $to) = EcoRepairStats::cleanRange((string) Tools::getValue('from'), (string) Tools::getValue('to'));
+        $this->jsonOut(array('ok' => true, 'stats' => EcoRepairStats::technicians((int) $this->context->shop->id, $from, $to), 'from' => $from, 'to' => $to));
+    }
+
+    protected function ajaxTechDetail()
+    {
+        $this->jsonOut(array('ok' => true, 'detail' => EcoRepairStats::techDetail((int) $this->context->shop->id, (int) Tools::getValue('id_employee'),
+            (string) Tools::getValue('from'), (string) Tools::getValue('to'))));
+    }
+
     protected function ajaxStats()
     {
         $this->jsonOut(array('ok' => true, 'stats' => EcoRepairStats::get(
@@ -993,6 +1099,7 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         EcoRepairCustomer::touch($idCustomer, isset($p['phone']) ? (string) $p['phone'] : '', !empty($p['consent_rgpd']), !empty($p['consent_whatsapp']));
         EcoRepairLog::add($id, (int) $this->context->employee->id, 'create', 'Reparación registrada · ' . $names['category'] . ' · ' . $names['device_name']);
+        EcoRepair::detectRepeat($id, (int) $this->context->employee->id);
         EcoRepairMessage::statusEmail($id, EcoRepairStatus::RECEIVED, (int) $this->context->employee->id, $this->trackingUrl(EcoRepair::get($id)['tracking_code']));
 
         $repair = EcoRepair::get($id);
@@ -1028,6 +1135,9 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $repair = $this->loadRepairOr404();
         $field = (string) Tools::getValue('field');
+        if ($field === 'id_employee_tech' && (int) $repair['id_employee_tech'] && !$this->isAdmin()) {
+            $this->jsonOut(array('ok' => false, 'error' => 'Ya tiene técnico. Solo el administrador puede cambiarlo o dejarlo sin asignar.'));
+        }
         $value = Tools::getValue('value');
         if (in_array($field, array('accessories', 'damages', 'faults'), true)) {
             $value = json_decode((string) $value, true);
@@ -1443,6 +1553,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             'stats' => $this->baseUrl() . '&view=stats',
             'cash' => $this->baseUrl() . '&view=cash',
             'requests' => $this->baseUrl() . '&view=requests',
+            'techs' => $this->baseUrl() . '&view=techs',
+            'model' => $this->baseUrl() . '&view=model',
             'customer' => $this->baseUrl() . '&view=customer&id_customer=',
             'repair' => $this->baseUrl() . '&id_ecorepair=',
             'ajax' => $this->baseUrl() . '&ajax=1',
@@ -1519,6 +1631,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             'id_order' => (int) $r['id_order'],
             'date_upd' => $r['date_upd'],
             'id_parent_repair' => isset($r['id_parent_repair']) ? (int) $r['id_parent_repair'] : 0,
+            'repeat_of' => isset($r['repeat_of']) ? (int) $r['repeat_of'] : 0,
+            'repeat_same' => isset($r['repeat_same']) ? (int) $r['repeat_same'] : 0,
+            'id_brand_raw' => (int) $r['id_brand'],
         );
     }
 
@@ -1587,6 +1702,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             'mail' => $s . '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
             'refresh' => $s . '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>',
             'package' => $s . '<path d="M16.5 9.4 7.5 4.2M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>',
+            'book' => $s . '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/></svg>',
+            'code' => $s . '<path d="m8 9-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>',
+            'eye' => $s . '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+            'star' => $s . '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>',
             'trend' => $s . '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
             'logo' => $s . '<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/><path d="M12.8 8.6 10.6 12.3h2.8l-2.2 3.7" stroke-width="2.2"/></svg>',
             'doc' => $s . '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',

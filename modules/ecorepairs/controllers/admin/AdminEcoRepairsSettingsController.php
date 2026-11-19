@@ -37,6 +37,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
         $this->addCSS('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', 'all', null, false);
         $this->addCSS($base . 'views/css/admin.css' . $v, 'all', null, false);
         $this->addJS($base . 'views/js/common.js' . $v, false);
+        $this->addJS($base . 'views/js/vendor/qrcode.js' . $v, false);
         $this->addJS($base . 'views/js/settings.js' . $v, false);
     }
 
@@ -57,6 +58,11 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'config' => $this->currentConfig(),
             'carriers' => $this->carriers(),
             'templates' => EcoRepairMessage::templates(),
+            'staff' => EcoRepairStaff::all(),
+            'employees' => array_map(function ($e) {
+                return array('id' => (int) $e['id_employee'], 'name' => trim($e['firstname'] . ' ' . $e['lastname']));
+            }, Employee::getEmployees(false)),
+            'appUrl' => Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true),
             'variables' => EcoRepairMessage::variables(),
             'statuses' => EcoRepairStatus::all(),
             'canEdit' => (bool) $this->access('edit'),
@@ -69,6 +75,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                     'board' => $this->context->link->getAdminLink('AdminEcoRepairs'),
                     'ajax' => $this->context->link->getAdminLink('AdminEcoRepairsSettings') . '&ajax=1',
                     'modelImage' => $this->context->link->getAdminLink('AdminEcoRepairs') . '&ajax=1&action=modelImage',
+                    'model' => $this->context->link->getAdminLink('AdminEcoRepairs') . '&view=model',
                 ),
             )),
             'ecor_data' => $this->json($data),
@@ -151,6 +158,28 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 }
                 $res = array('ok' => true, 'saved' => $n);
                 break;
+            case 'staffSave':
+                $res = EcoRepairStaff::save((int) Tools::getValue('id'), array(
+                    'name' => (string) Tools::getValue('name'),
+                    'id_employee' => (int) Tools::getValue('id_employee'),
+                    'pin' => (string) Tools::getValue('pin'),
+                    'role_tech' => (bool) Tools::getValue('role_tech'),
+                    'role_reception' => (bool) Tools::getValue('role_reception'),
+                    'active' => (bool) Tools::getValue('active'),
+                ));
+                $res['staff'] = EcoRepairStaff::all();
+                $this->jsonOut($res);
+                // no break
+            case 'staffRevoke':
+                $res = EcoRepairStaff::revoke($id);
+                $res['staff'] = EcoRepairStaff::all();
+                $this->jsonOut($res);
+                // no break
+            case 'staffDelete':
+                $res = EcoRepairStaff::delete($id);
+                $res['staff'] = EcoRepairStaff::all();
+                $this->jsonOut($res);
+                // no break
             case 'importCatalog':
                 $added = EcoRepairCatalogSeed::importMissing();
                 $res = array('ok' => true, 'added' => $added);
@@ -213,6 +242,14 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                     break;
                 case 'ECOREPAIRS_CARRIER':
                     $v = (string) (int) $v;
+                    break;
+                case 'ECOREPAIRS_REPEAT_DAYS':
+                    $v = (string) max(1, min(365, (int) $v));
+                    break;
+                case 'ECOREPAIRS_REVIEW_URL':
+                    if ($v !== '' && (!preg_match('#^https://#i', $v) || !Validate::isAbsoluteUrl($v) || Tools::strlen($v) > 255)) {
+                        $errors[$key] = 'Pega el enlace de reseñas de Google (empieza por https://).';
+                    }
                     break;
                 case 'ECOREPAIRS_WARRANTY_MONTHS':
                     $v = (string) max(0, min(60, (int) $v));
@@ -289,6 +326,9 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'camera' => $s . '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
             'link' => $s . '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
             'x' => $s . '<path d="M18 6 6 18M6 6l12 12"/></svg>',
+            'user' => $s . '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+            'qr' => $s . '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v7h-7"/></svg>',
+            'book' => $s . '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/></svg>',
             'whatsapp' => $s . '<path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.3-1.3-2-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-2z"/></svg>',
             'search' => $s . '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
             'download' => $s . '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',

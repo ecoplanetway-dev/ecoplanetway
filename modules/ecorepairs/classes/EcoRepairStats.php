@@ -163,7 +163,19 @@ class EcoRepairStats
                 'date' => $r['date_status'], 'labour' => round($lab, 2), 'hours' => round($hours, 2), 'parts' => round($parts + $other, 2), 'total' => round($lab + $parts + $other, 2));
             unset($t);
         }
+        // Repetidas: reparaciones que entraron en el periodo y vuelven sobre una entregada por este técnico
+        $rep = Db::getInstance()->executeS("SELECT o.id_employee_tech, COUNT(*) AS n, SUM(r.repeat_same) AS same
+            FROM `{$p}ecorepair` r INNER JOIN `{$p}ecorepair` o ON o.id_ecorepair = r.repeat_of
+            WHERE r.id_shop = " . (int) $idShop . " AND r.date_add BETWEEN '" . pSQL($from) . " 00:00:00' AND '" . pSQL($to) . " 23:59:59'
+            GROUP BY o.id_employee_tech") ?: array();
+        $repBy = array();
+        foreach ($rep as $x) {
+            $repBy[(int) $x['id_employee_tech']] = array((int) $x['n'], (int) $x['same']);
+        }
         foreach ($byTech as &$t) {
+            $t['repeats'] = isset($repBy[$t['id']]) ? $repBy[$t['id']][0] : 0;
+            $t['repeats_same'] = isset($repBy[$t['id']]) ? $repBy[$t['id']][1] : 0;
+            $t['repeat_rate'] = $t['repairs'] ? round($t['repeats_same'] / $t['repairs'] * 100, 1) : 0;
             foreach (array('labour', 'hours', 'parts', 'other', 'total') as $k) {
                 $t[$k] = round($t[$k], 2);
             }
@@ -176,6 +188,54 @@ class EcoRepairStats
         });
 
         return array_values($byTech);
+    }
+
+    /**
+     * Panel de un técnico: sus cifras del periodo, importe por semana/mes, averías y modelos que más repara.
+     */
+    public static function techDetail($idShop, $idEmployee, $from, $to)
+    {
+        list($from, $to) = self::cleanRange($from, $to);
+        $all = self::technicians($idShop, $from, $to);
+        $t = null;
+        foreach ($all as $x) {
+            if ((int) $x['id'] === (int) $idEmployee) {
+                $t = $x;
+            }
+        }
+        $emp = new Employee((int) $idEmployee);
+        if (!$t) {
+            $t = array('id' => (int) $idEmployee, 'name' => Validate::isLoadedObject($emp) ? trim($emp->firstname . ' ' . $emp->lastname) : 'Sin asignar',
+                'repairs' => 0, 'labour' => 0, 'hours' => 0, 'parts' => 0, 'other' => 0, 'total' => 0, 'warranty' => 0, 'avg_days' => 0,
+                'repeats' => 0, 'repeats_same' => 0, 'repeat_rate' => 0, 'list' => array());
+        }
+        $days = (int) round((strtotime($to) - strtotime($from)) / 86400) + 1;
+        $unit = $days <= 31 ? 'day' : ($days <= 190 ? 'week' : 'month');
+        $series = self::emptyBuckets($from, $to, $unit);
+        foreach ($t['list'] as $r) {
+            $k = self::bucketKey($r['date'], $unit);
+            if (isset($series[$k])) {
+                $series[$k]['value'] = round($series[$k]['value'] + $r['total'], 2);
+            }
+        }
+        $p = _DB_PREFIX_;
+        $rows = Db::getInstance()->executeS("SELECT r.faults, r.device_name FROM `{$p}ecorepair` r WHERE r.id_shop = " . (int) $idShop
+            . ' AND r.id_employee_tech = ' . (int) $idEmployee . " AND r.status = 'delivered'
+              AND r.date_status BETWEEN '" . pSQL($from) . " 00:00:00' AND '" . pSQL($to) . " 23:59:59'") ?: array();
+        $faults = array();
+        $models = array();
+        foreach ($rows as $r) {
+            $list = json_decode((string) $r['faults'], true);
+            foreach (is_array($list) ? $list : array() as $f) {
+                $faults[$f] = (isset($faults[$f]) ? $faults[$f] : 0) + 1;
+            }
+            $models[$r['device_name']] = (isset($models[$r['device_name']]) ? $models[$r['device_name']] : 0) + 1;
+        }
+        $open = (int) Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$p}ecorepair` WHERE id_shop = " . (int) $idShop
+            . ' AND id_employee_tech = ' . (int) $idEmployee . " AND status IN ('received', 'diagnosis', 'quote', 'repair', 'ready')");
+
+        return array('from' => $from, 'to' => $to, 'unit' => $unit, 'tech' => $t, 'series' => array_values($series),
+            'faults' => self::top($faults, 8), 'models' => self::top($models, 8), 'open' => $open);
     }
 
     protected static function top(array $counts, $n)

@@ -1,0 +1,100 @@
+/* App del taller en el móvil (/taller). Se apoya en admin.css (.ecor) y añade el diseño de móvil. */
+html, body.er-appbody { margin: 0; padding: 0; background: #F4F5F7; }
+body.er-appbody { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+.ecor.er-app { margin: 0; padding: 0 0 calc(84px + env(safe-area-inset-bottom)); min-height: 100vh; max-width: 720px; margin-inline: auto; }
+.ecor .er-app-main { padding: 0 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.ecor .er-app-main > div:not(.er-seg):not(.er-app-big):not(.er-scan) { display: flex; flex-direction: column; gap: 14px; }
+
+/* Cabecera */
+.ecor .er-app-h { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 8px; margin: 0 -14px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; background: rgba(244,245,247,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+#ecor-app .er-app-h h1 { font-size: 20px; font-weight: 700; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Barra de abajo */
+.ecor .er-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: space-around; align-items: stretch; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--er-line2); box-shadow: 0 -6px 20px -14px rgba(20,22,26,.35); }
+.ecor .er-tabbar a { flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 12px; color: var(--er-fg2); text-decoration: none; font-size: 11px; font-weight: 600; transition: background .15s, color .15s, transform .15s; }
+.ecor .er-tabbar a:active { transform: scale(.94); }
+.ecor .er-tabbar a.on { color: var(--er-pri); background: var(--er-grad-soft); }
+.ecor .er-tabbar .er-tab-scan { color: #fff; background: var(--er-grad); box-shadow: var(--er-glow); margin-top: -18px; border-radius: 18px; padding: 10px 4px 8px; }
+.ecor .er-tabbar .er-tab-scan.on { color: #fff; background: var(--er-grad-h); }
+.ecor .er-tabbar .er-i { width: 24px; height: 24px; }
+
+/* Entrar con PIN */
+.ecor .er-login { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 18px; text-align: center; }
+.ecor .er-login-logo { max-width: 180px; max-height: 60px; }
+#ecor-app .er-login h1 { font-size: 26px; font-weight: 700; }
+.ecor .er-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; width: 100%; max-width: 480px; }
+.ecor .er-person-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px; border-radius: var(--er-r-card); border: 1px solid var(--er-line2); background: var(--er-card); box-shadow: var(--er-shadow); font-weight: 600; cursor: pointer; animation: er-pop .35s var(--er-ease) both; }
+.ecor .er-pin-dots { display: flex; gap: 12px; }
+.ecor .er-pin-dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--er-fg2); transition: background .15s, transform .15s; }
+.ecor .er-pin-dots span.opt { border-style: dashed; opacity: .5; }
+.ecor .er-pin-dots span.on { background: var(--er-pri); border-color: var(--er-pri); transform: scale(1.1); opacity: 1; }
+.ecor .er-shake { animation: er-shake .4s; }
+@keyframes er-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.ecor .er-pinpad { display: grid; grid-template-columns: repeat(3, 76px); gap: 12px; }
+.ecor .er-pinpad button { height: 76px; border-radius: 50%; border: 1px solid var(--er-line2); background: var(--er-card); font-size: 26px; font-weight: 600; box-shadow: var(--er-shadow); cursor: pointer; display: grid; place-items: center; }
+.ecor .er-pinpad button:active { background: var(--er-grad-soft); transform: scale(.95); }
+.ecor .er-pinpad .er-pin-ok { background: var(--er-grad); color: #fff; border: 0; }
+
+/* Inicio */
+.ecor .er-app-big { display: grid; gap: 10px; }
+.ecor .er-bigbtn { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 18px; background: var(--er-card); border: 1px solid var(--er-line2); box-shadow: var(--er-shadow); text-decoration: none; color: var(--er-fg); transition: transform .15s; }
+.ecor .er-bigbtn:active { transform: scale(.98); }
+.ecor .er-bigbtn .er-i { width: 34px; height: 34px; color: var(--er-pri); }
+.ecor .er-bigbtn b { font-size: 17px; display: block; }
+.ecor .er-bigbtn small { color: var(--er-fg2); }
+.ecor .er-bigbtn-pri { background: var(--er-grad); color: #fff; border: 0; box-shadow: var(--er-glow); }
+.ecor .er-bigbtn-pri .er-i, .ecor .er-bigbtn-pri small { color: #fff; }
+.ecor .er-seg { display: flex; gap: 4px; padding: 4px; background: #E7E9ED; border-radius: 14px; }
+.ecor .er-seg > * { flex: 1; min-height: 42px; border: 0; border-radius: 10px; background: transparent; font-weight: 600; font-size: 13px; color: var(--er-fg2); display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; cursor: pointer; transition: background .15s, color .15s; }
+.ecor .er-seg > [aria-pressed="true"] { background: var(--er-card); color: var(--er-fg); box-shadow: var(--er-shadow); }
+.ecor .er-seg .er-n { font-size: 11px; background: var(--er-line2); border-radius: 999px; padding: 1px 7px; }
+.ecor .er-app-card { text-decoration: none; color: inherit; cursor: pointer; touch-action: auto; }
+
+/* Escanear */
+.ecor .er-scan { position: relative; border-radius: 20px; overflow: hidden; background: #000; aspect-ratio: 3 / 4; max-height: 62vh; }
+.ecor .er-scan video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ecor .er-scan-frame { position: absolute; inset: 18% 14%; border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); border: 3px solid rgba(255,255,255,.9); animation: er-scanpulse 1.6s ease-in-out infinite; }
+@keyframes er-scanpulse { 50% { border-color: #2FD06F; } }
+
+/* Reparación */
+.ecor .er-app-rep { display: flex; flex-direction: column; gap: 12px; }
+.ecor .er-app-rephead { display: flex; gap: 12px; align-items: center; }
+.ecor .er-app-cover { width: 84px; height: 84px; border: 0; padding: 0; cursor: zoom-in; }
+.ecor .er-app-tech { font-size: 14px; display: flex; align-items: center; gap: 6px; color: var(--er-fg2); }
+.ecor .er-seg-4 > * { font-size: 12px; padding: 0 4px; }
+.ecor .er-app-states { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ecor .er-app-states .er-btn { justify-content: flex-start; }
+.ecor .er-btn-warn { background: var(--er-wait-bg); border-color: #E7C66B; color: var(--er-wait-fg); }
+.ecor .er-app-res { display: flex; flex-direction: column; gap: 8px; }
+.ecor .er-app-prod { display: flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--er-line2); border-radius: 12px; }
+.ecor .er-app-prod .er-grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ecor .er-app-cart { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--er-grad-soft); position: sticky; bottom: calc(80px + env(safe-area-inset-bottom)); box-shadow: var(--er-lift); }
+.ecor .er-code-in { font-size: 18px; letter-spacing: .04em; }
+.ecor .er-kb-item { border: 1px solid var(--er-line2); border-radius: 12px; padding: 10px 12px; background: var(--er-card); }
+.ecor .er-kb-item summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: center; }
+.ecor .er-kb-item summary::-webkit-details-marker { display: none; }
+.ecor .er-kb-item[open] { box-shadow: var(--er-shadow); }
+.ecor .er-kb-body { white-space: pre-wrap; margin: 8px 0 4px; line-height: 1.5; }
+.ecor .er-code-n { min-width: 44px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; background: var(--er-fg); color: #fff; font-variant-numeric: tabular-nums; flex: none; padding: 0 6px; }
+.ecor .er-params { display: flex; flex-direction: column; }
+.ecor .er-params > div { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--er-line2); }
+.ecor .er-params > div:first-child { border-top: 0; }
+.ecor .er-params b { min-width: 40px; }
+
+/* Nueva reparación */
+.ecor .er-steps-m { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.ecor .er-steps-m span { flex: none; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 999px; background: var(--er-line2); color: var(--er-fg2); }
+.ecor .er-steps-m .cur { background: var(--er-grad); color: #fff; }
+.ecor .er-steps-m .done { background: var(--er-grad-soft); color: var(--er-pri); }
+.ecor .er-app-next { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom)); display: flex; gap: 8px; padding: 10px 0; background: linear-gradient(transparent, #F4F5F7 30%); }
+.ecor .er-app-next .er-btn { flex: 1; }
+.ecor .er-done { align-items: center; text-align: center; }
+.ecor .er-done-ico { width: 72px; height: 72px; border-radius: 50%; background: var(--er-grad); color: #fff; display: grid; place-items: center; box-shadow: var(--er-glow); animation: er-pop .4s var(--er-ease) both; }
+.ecor .er-done-ico .er-i { width: 36px; height: 36px; stroke-width: 3; }
+
+/* Ajustes generales en móvil */
+.ecor.er-app .er-panel { padding: 14px; border-radius: 16px; }
+.ecor.er-app .er-tiles { grid-template-columns: repeat(2, 1fr); }
+.ecor.er-app .er-fg { grid-template-columns: 1fr 1fr; }
+.ecor.er-app .er-inl .er-input { width: 100%; }
+.ecor.er-app .er-photos { grid-template-columns: repeat(3, 1fr); }

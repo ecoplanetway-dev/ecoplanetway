@@ -1,0 +1,637 @@
+/* Reparaciones del taller · app del móvil (/taller) para técnicos y recepción */
+window.ECOR.ready(function () {
+  'use strict';
+  var E = window.ECOR, esc = E.esc, icon = E.icon;
+  var D = E.data;
+  var app = E.root();
+  if (!app || app.getAttribute('data-view') !== 'app') return;
+
+  var me = D.me;
+  var view = document.createElement('div');
+  var stopCamera = null;
+
+  /* ---------- Entrar con PIN ---------- */
+  if (!me) { renderLogin(); return; }
+
+  app.innerHTML = '<div class="er-app-main" id="er-main"></div><nav class="er-tabbar" id="er-tabbar"></nav>';
+  var main = app.querySelector('#er-main');
+
+  function renderLogin() {
+    var who = null, pin = '';
+    function draw() {
+      app.innerHTML = '<div class="er-login">' +
+        (app.getAttribute('data-logo') ? '<img class="er-login-logo" src="' + esc(app.getAttribute('data-logo')) + '" alt="">' : '') +
+        '<h1>Taller</h1>' +
+        (!who ? '<p class="er-muted">¿Quién eres?</p><div class="er-people">' + (D.people || []).map(function (p) {
+            return '<button type="button" class="er-person-btn" data-who="' + p.id + '"><span class="er-av er-av-xl">' + esc(E.initials(p.name)) + '</span>' + esc(p.name) + '</button>';
+          }).join('') + '</div>' + (!(D.people || []).length ? '<div class="er-empty">Aún no hay personal. El administrador lo da de alta en Ajustes del taller.</div>' : '')
+          : '<p class="er-muted">Hola, <b>' + esc(who.name) + '</b>. Escribe tu PIN</p>' +
+            '<div class="er-pin-dots">' + [0, 1, 2, 3, 4, 5].map(function (i) { return '<span class="' + (i < pin.length ? 'on' : '') + (i >= 4 ? ' opt' : '') + '"></span>'; }).join('') + '</div>' +
+            '<div class="er-err" id="er-pin-err" hidden></div>' +
+            '<div class="er-pinpad">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '0', 'ok'].map(function (k) {
+              return '<button type="button" data-k="' + k + '" class="' + (k === 'ok' ? 'er-pin-ok' : '') + '">' + (k === 'x' ? icon('back') : k === 'ok' ? icon('check') : k) + '</button>';
+            }).join('') + '</div><button type="button" class="er-link" data-who="">Cambiar de persona</button>') +
+        '</div>';
+    }
+    draw();
+    app.addEventListener('click', function (e) {
+      var t;
+      if ((t = e.target.closest('[data-who]'))) {
+        var id = +t.getAttribute('data-who');
+        who = id ? (D.people || []).filter(function (p) { return p.id === id; })[0] : null;
+        pin = ''; draw(); return;
+      }
+      if (!(t = e.target.closest('[data-k]'))) return;
+      var k = t.getAttribute('data-k');
+      if (k === 'x') pin = pin.slice(0, -1);
+      else if (k === 'ok') { if (pin.length >= 4) send(); return; }
+      else if (pin.length < 6) pin += k;
+      draw();
+      if (pin.length === 6) send();
+    });
+    function send() {
+      E.api('login', {}, { id: who.id, pin: pin }).then(function (res) {
+        if (res.ok) { location.reload(); return; }
+        pin = ''; draw();
+        var er = app.querySelector('#er-pin-err'); er.textContent = res.error; er.hidden = false;
+        app.querySelector('.er-pin-dots').classList.add('er-shake');
+      });
+    }
+  }
+
+  /* ---------- Utilidades ---------- */
+  function api(action, params, body) {
+    // Siempre POST (la app exige POST y la clave de sesión en todas las peticiones)
+    return E.api(action, params || {}, body == null ? {} : body).then(function (res) {
+      if (res && res.login) { E.toast(res.error, true); setTimeout(function () { location.reload(); }, 1500); }
+      return res;
+    });
+  }
+  function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+  function statusChip(statuses, s) { return E.statusChip(statuses, s); }
+  function tabbar(active) {
+    var items = [['home', 'Inicio', 'wrench']];
+    if (me.tech) items.push(['scan', 'Escanear', 'qr']);
+    if (me.reception) items.push(['new', 'Nueva', 'plus']);
+    items.push(['models', 'Manuales', 'book']);
+    app.querySelector('#er-tabbar').innerHTML = items.map(function (it) {
+      return '<a href="#' + it[0] + '" class="' + (active === it[0] ? 'on' : '') + (it[0] === 'scan' ? ' er-tab-scan' : '') + '">' + icon(it[2]) + '<span>' + it[1] + '</span></a>';
+    }).join('');
+  }
+  function header(title, back) {
+    return '<header class="er-app-h">' + (back ? '<a class="er-btn er-btn-ghost er-icon-btn" href="' + back + '" aria-label="Volver">' + icon('back') + '</a>' : '') +
+      '<h1>' + title + '</h1>' + (!back ? '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-logout aria-label="Salir">' + icon('logout') + '</button>' : '') + '</header>';
+  }
+  app.addEventListener('click', function (e) {
+    if (e.target.closest('[data-logout]')) {
+      E.dialog({ title: 'Salir', text: 'Tendrás que volver a poner tu PIN.', ok: 'Salir' }).then(function (y) {
+        if (y) api('logout').then(function () { location.reload(); });
+      });
+    }
+  });
+
+  /* ---------- Rutas ---------- */
+  function route() {
+    if (stopCamera) { stopCamera(); stopCamera = null; }
+    var h = (location.hash || '#home').slice(1).split('/');
+    window.scrollTo(0, 0);
+    if (h[0] === 'scan') return scanView();
+    if (h[0] === 'rep') return repairView({ code: decodeURIComponent(h[1] || '') }, h[2] || 'work');
+    if (h[0] === 'id') return repairView({ id: h[1] }, h[2] || 'work');
+    if (h[0] === 'models') return modelsView();
+    if (h[0] === 'model') return modelView(+h[1], +h[2], h[3] || '', h[4] || 'codes');
+    if (h[0] === 'new' && me.reception) return newView();
+    return homeView();
+  }
+  window.addEventListener('hashchange', route);
+
+  /* ---------- Inicio ---------- */
+  var homeTab = 'mine';
+  function card(r, statuses) {
+    return '<a class="er-card er-app-card" href="#id/' + r.id + '"><div class="er-c-dev"><div class="er-c-img">' + (r.cover ? '<img src="' + esc(r.cover) + '" alt="">' : icon(r.category_icon || 'device')) + '</div>' +
+      '<div class="er-c-devtxt"><div class="er-c-top"><span class="er-ref">' + esc(r.reference) + '</span>' + (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') +
+      (r.waiting_part ? '<span class="er-tag er-t-wait">Pieza</span>' : '') + '</div><div class="er-model">' + esc(r.device_name) + '</div>' +
+      '<div class="er-fault">' + esc(r.fault || '') + '</div></div></div>' +
+      '<div class="er-c-foot">' + statusChip(statuses, r.status) + '<span class="er-days">' + icon('clock', true) + (r.days_in_shop ? r.days_in_shop + ' d' : 'Hoy') + '</span></div></a>';
+  }
+  function homeView() {
+    tabbar('home');
+    main.innerHTML = header('Hola, ' + esc(me.name.split(' ')[0])) +
+      '<div class="er-app-big">' + (me.tech ? '<a class="er-bigbtn er-bigbtn-pri" href="#scan">' + icon('qr') + '<span><b>Escanear QR</b><small>Del patinete o del resguardo</small></span></a>' : '') +
+      (me.reception ? '<a class="er-bigbtn" href="#new">' + icon('plus') + '<span><b>Nueva reparación</b><small>Entra un equipo al taller</small></span></a>' : '') + '</div>' +
+      (me.tech ? '<div class="er-seg" id="er-seg"><button type="button" data-ht="mine">Mis reparaciones</button><button type="button" data-ht="free">Sin asignar</button></div><div id="er-home-list" class="er-stack" style="gap:10px"><div class="er-empty">Cargando…</div></div>' : '');
+    if (!me.tech) return;
+    api('home').then(function (res) {
+      if (!res.ok) return;
+      function draw() {
+        main.querySelectorAll('[data-ht]').forEach(function (b) {
+          var n = res[b.getAttribute('data-ht')].length;
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-ht') === homeTab));
+          b.innerHTML = (b.getAttribute('data-ht') === 'mine' ? 'Mis reparaciones' : 'Sin asignar') + ' <span class="er-n">' + n + '</span>';
+        });
+        var list = res[homeTab];
+        main.querySelector('#er-home-list').innerHTML = list.length ? list.map(function (r) { return card(r, res.statuses); }).join('')
+          : '<div class="er-empty">' + (homeTab === 'mine' ? 'No tienes reparaciones abiertas. Escanea un QR o mira «Sin asignar».' : 'No hay reparaciones sin técnico.') + '</div>';
+      }
+      draw();
+      main.querySelector('#er-seg').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-ht]'); if (!b) return;
+        homeTab = b.getAttribute('data-ht'); draw();
+      });
+    });
+  }
+
+  /* ---------- Escanear ---------- */
+  function scanView() {
+    tabbar('scan');
+    main.innerHTML = header('Escanear QR', '#home') +
+      '<div class="er-scan"><video id="er-video" playsinline muted></video><div class="er-scan-frame"></div><canvas id="er-canvas" hidden></canvas></div>' +
+      '<p class="er-muted" style="text-align:center">Apunta al QR de la etiqueta o del resguardo.</p>' +
+      '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-code" placeholder="O escribe el código: ABCD-1234" maxlength="9" autocapitalize="characters"><button type="button" class="er-btn er-btn-pri" id="er-code-go">Abrir</button></div>' +
+      '<div class="er-err" id="er-scan-err" hidden></div>';
+    main.querySelector('#er-code-go').addEventListener('click', function () {
+      var v = main.querySelector('#er-code').value.trim(); if (v) go('#rep/' + encodeURIComponent(v));
+    });
+    var video = main.querySelector('#er-video'), canvas = main.querySelector('#er-canvas'), ctx = canvas.getContext('2d'), stream = null, alive = true, detector = null;
+    stopCamera = function () { alive = false; if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      var er = main.querySelector('#er-scan-err'); er.textContent = 'Este navegador no deja usar la cámara. Usa la cámara del móvil directamente o escribe el código.'; er.hidden = false; return;
+    }
+    try { if ('BarcodeDetector' in window) detector = new window.BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { detector = null; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(function (s) {
+      stream = s; video.srcObject = s; video.play(); tick();
+    }).catch(function () {
+      var er = main.querySelector('#er-scan-err'); er.textContent = 'No hay permiso para usar la cámara. Actívalo en el navegador o escribe el código.'; er.hidden = false;
+    });
+    function found(text) {
+      var m = /[?&]c=([A-Za-z0-9-]+)/.exec(text), code = m ? m[1] : text;
+      if (!/^[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}$/.test(code)) return false;
+      if (navigator.vibrate) navigator.vibrate(60);
+      stopCamera(); stopCamera = null;
+      go('#rep/' + encodeURIComponent(code));
+      return true;
+    }
+    function tick() {
+      if (!alive) return;
+      if (video.readyState >= 2) {
+        if (detector) {
+          detector.detect(video).then(function (codes) { if (!(codes.length && found(codes[0].rawValue))) setTimeout(tick, 200); }).catch(function () { detector = null; setTimeout(tick, 200); });
+          return;
+        }
+        var w = video.videoWidth, h = video.videoHeight, sc = Math.min(1, 640 / Math.max(w, h));
+        canvas.width = Math.round(w * sc); canvas.height = Math.round(h * sc);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var qr = window.jsQR ? window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' }) : null;
+        if (qr && found(qr.data)) return;
+      }
+      setTimeout(tick, 180);
+    }
+  }
+
+  /* ---------- Reparación ---------- */
+  var R = null; // datos de la reparación abierta
+  function repairView(key, tab) {
+    tabbar(me.tech ? 'scan' : 'home');
+    main.innerHTML = header('Cargando…', '#home') + '<div class="er-empty">Cargando…</div>';
+    api('repair', key).then(function (res) {
+      if (!res.ok) { main.innerHTML = header('Reparación', '#home') + '<div class="er-banner er-bad">' + icon('alert') + '<div>' + esc(res.error) + '</div></div>'; return; }
+      R = res;
+      drawRepair(tab);
+    });
+  }
+  function drawRepair(tab) {
+    var r = R.repair, st = R.statuses;
+    var closed = r.status === 'delivered' || r.status === 'cancelled';
+    var mine = r.id_employee_tech && r.id_employee_tech === me.id_employee;
+    var canWork = me.tech && R.mineOrFree && !closed;
+    var base = '#id/' + r.id;
+    main.innerHTML = header(esc(r.reference), '#home') +
+      '<div class="er-app-rep">' +
+        '<div class="er-app-rephead"><button type="button" class="er-c-img er-app-cover" data-zoom>' + (r.cover ? '<img src="' + esc(r.cover) + '" alt="">' : icon(r.category_icon || 'device')) + '</button>' +
+          '<div style="min-width:0"><div class="er-model">' + esc(r.device_name) + '</div><div class="er-muted er-small">' + esc(r.category_name + (r.serial ? ' · ' + r.serial : '')) + '</div>' +
+          '<div class="er-row" style="margin-top:6px">' + statusChip(st, r.status) + (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') + (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '') + (r.warranty ? '<span class="er-tag er-t-gar">Garantía</span>' : '') + '</div></div></div>' +
+        (r.id_employee_tech ? '<div class="er-app-tech">' + icon('user', true) + 'Técnico: <b>' + esc(r.tech_name) + '</b>' + (mine ? ' (tú)' : '') + '</div>'
+          : me.tech && !closed ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-claim>' + icon('check') + 'Asignármela</button>' : '') +
+        (R.repeat ? '<div class="er-banner ' + (R.repeat.same ? 'er-bad' : 'er-warn') + '">' + icon('refresh') + '<div><b>Repetida:</b> vuelve ' + R.repeat.days + ' días después de ' + esc(R.repeat.reference) +
+          (R.repeat.same ? ' por la misma avería' : ' (otra avería)') + (R.repeat.tech ? ' · técnico ' + esc(R.repeat.tech) : '') + '.</div></div>' : '') +
+        (R.kbCount && R.kbCount.faults ? '<a class="er-banner er-info" href="' + base + '/manual">' + icon('book') + '<div>Este modelo tiene <b>' + R.kbCount.faults + ' fallo' + (R.kbCount.faults === 1 ? '' : 's') + ' conocido' + (R.kbCount.faults === 1 ? '' : 's') + '</b> con solución.</div></a>' : '') +
+        '<div class="er-seg er-seg-4">' + [['work', 'Trabajo'], ['parts', 'Piezas'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
+          return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
+        }).join('') + '</div>' +
+        '<div id="er-tab"></div>' +
+      '</div>';
+    main.querySelector('[data-zoom]').addEventListener('click', function () {
+      var list = R.photos.map(function (p) { return { src: p.full, caption: p.type === 'device' ? 'Foto del equipo' : 'Foto' }; });
+      if (r.cover && !list.length) list.push({ src: r.cover });
+      E.viewer(list, 0);
+    });
+    var claim = main.querySelector('[data-claim]');
+    if (claim) claim.addEventListener('click', function () {
+      claim.disabled = true;
+      api('claim', { id: r.id }).then(function (res) {
+        claim.disabled = false;
+        if (!res.ok) { E.toast(res.error, true); return; }
+        R = res; drawRepair(tab); E.toast('Asignada a ti');
+      });
+    });
+    var el = main.querySelector('#er-tab');
+    if (tab === 'parts') partsTab(el, canWork);
+    else if (tab === 'codes' || tab === 'manual') kbTab(el, r.id_brand, r.id_model, r.device_name, tab, r.id);
+    else workTab(el, canWork);
+  }
+
+  function workTab(el, canWork) {
+    var r = R.repair;
+    var btn = function (s, label) {
+      return '<button type="button" class="er-btn er-btn-lg' + (r.status === s ? ' er-btn-pri' : '') + '" data-st="' + s + '"' + (canWork ? '' : ' disabled') + '><span class="er-dot" style="background:' + esc(R.statuses[s].color) + '"></span>' + label + '</button>';
+    };
+    el.innerHTML =
+      '<div class="er-panel"><h3>' + icon('alert') + 'Avería</h3><div>' + esc(r.fault || 'Sin indicar') + '</div>' +
+        (r.diagnosis ? '<div class="er-sub" style="margin:4px 0 0">Diagnóstico</div><div>' + esc(r.diagnosis) + '</div>' : '') +
+        ((r.accessories || []).length ? '<div class="er-muted er-small">Entregado con: ' + esc(r.accessories.join(', ')) + '</div>' : '') +
+        ((r.damages || []).length ? '<div class="er-muted er-small">Daños previos: ' + esc(r.damages.join(', ')) + '</div>' : '') + '</div>' +
+      (me.tech ? '<div class="er-panel"><h3>Estado</h3><div class="er-app-states">' + btn('diagnosis', 'Diagnóstico') + btn('repair', 'En reparación') +
+        '<button type="button" class="er-btn er-btn-lg' + (r.waiting_part ? ' er-btn-warn' : '') + '" data-st="wait"' + (canWork && r.status !== 'ready' ? '' : ' disabled') + '><span class="er-dot" style="background:#E0A100"></span>' + (r.waiting_part ? 'Pieza recibida' : 'Esperando pieza') + '</button>' +
+        btn('ready', 'Listo') + '</div>' + (!canWork && R.mineOrFree === false ? '<p class="er-muted er-small" style="margin:0">Es de otro técnico: solo puedes consultarla.</p>' : '') + '</div>' : '') +
+      '<div class="er-panel"><h3>' + icon('pen') + 'Nota interna</h3><div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-app-note" maxlength="2000" placeholder="Qué has visto o hecho"><button type="button" class="er-btn er-btn-pri" id="er-app-note-add">' + icon('check') + '</button></div></div>' +
+      '<div class="er-panel"><h3>' + icon('camera') + 'Fotos<span class="er-r">' + R.photos.length + '</span></h3>' +
+        '<div class="er-photos">' + R.photos.map(function (p, i) { return '<button type="button" class="er-ph" data-ph="' + i + '"><img src="' + esc(p.thumb) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' +
+        '<div class="er-row"><button type="button" class="er-btn" data-shot="work">' + icon('camera', true) + 'Foto del trabajo</button><button type="button" class="er-btn er-btn-ghost" data-shot="device">' + icon('camera', true) + 'Foto del equipo</button></div>' +
+        '<input type="file" id="er-app-file" accept="image/*" hidden></div>' +
+      '<div class="er-panel"><h3>' + icon('clock') + 'Últimos movimientos</h3><ul class="er-timeline">' + R.log.slice(0, 8).map(function (l) {
+        return '<li><span class="er-tdot"></span><div>' + esc(l.detail) + '<div class="er-when">' + esc(E.fmtDateTime(l.date) + (l.employee ? ' · ' + l.employee : '')) + '</div></div></li>';
+      }).join('') + '</ul></div>';
+    var shotType = 'work';
+    el.addEventListener('click', function (e) {
+      var t;
+      if ((t = e.target.closest('[data-st]'))) {
+        t.disabled = true;
+        api('status', { id: r.id, status: t.getAttribute('data-st') }).then(function (res) {
+          t.disabled = false;
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('work'); E.toast('Guardado');
+        });
+        return;
+      }
+      if ((t = e.target.closest('[data-ph]'))) { E.viewer(R.photos.map(function (p) { return { src: p.full }; }), +t.getAttribute('data-ph')); return; }
+      if ((t = e.target.closest('[data-shot]'))) { shotType = t.getAttribute('data-shot'); el.querySelector('#er-app-file').click(); return; }
+      if (e.target.closest('#er-app-note-add')) {
+        var inp = el.querySelector('#er-app-note'), v = inp.value.trim();
+        if (!v) { inp.focus(); return; }
+        api('note', { id: r.id }, { note: v }).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('work'); E.toast('Nota guardada');
+        });
+      }
+    });
+    el.addEventListener('change', function (e) {
+      if (e.target.id !== 'er-app-file' || !e.target.files.length) return;
+      var f = e.target.files[0]; e.target.value = '';
+      E.toast('Subiendo foto…');
+      E.shrinkImage(f, 1600).then(function (small) {
+        var fd = new FormData(); fd.append('photo', small, 'foto.jpg'); fd.append('type', shotType);
+        api('photo', { id: r.id }, fd).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('work'); E.toast('Foto guardada');
+        });
+      });
+    });
+  }
+
+  function partsTab(el, canWork) {
+    var r = R.repair, cart = [];
+    function stockTag(s) { return s <= 0 ? '<span class="er-tag er-t-bad">Sin stock</span>' : '<span class="er-tag er-t-ok">' + s + ' en stock</span>'; }
+    function draw(results) {
+      el.innerHTML =
+        '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
+          (R.lines.length ? '<div class="er-mini">' + R.lines.map(function (l) {
+            return '<div><span class="er-grow" style="white-space:normal">' + esc(l.qty_text + ' × ' + l.name) + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.total)) + '</b></div>';
+          }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>' +
+        (canWork ? '<div class="er-panel"><h3>' + icon('search') + 'Añadir piezas</h3>' +
+          '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-app-q" type="search" placeholder="Nombre, referencia o EAN" autocomplete="off"></label>' +
+          '<div class="er-app-res" id="er-app-res">' + (results || []).map(function (p, i) {
+            return '<div class="er-app-prod">' + (p.image ? '<img class="er-pimg" src="' + esc(p.image) + '" alt="">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>') +
+              '<span class="er-grow"><b>' + esc(p.name) + '</b><span class="er-row er-small">' + stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></span></span>' +
+              '<span class="er-stack" style="gap:6px"><button type="button" class="er-btn er-btn-sm er-btn-pri" data-add="' + i + '">' + icon('plus', true) + '</button>' +
+              (p.stock <= 0 ? '<button type="button" class="er-btn er-btn-sm" data-req="' + i + '">Encargar</button>' : '') + '</span></div>';
+          }).join('') + '</div>' +
+          (cart.length ? '<div class="er-app-cart"><div class="er-sub">Vas a añadir</div>' + cart.map(function (c, i) {
+            return '<div class="er-row" style="flex-wrap:nowrap"><span class="er-grow">' + esc(c.name) + '</span><button type="button" class="er-btn er-btn-sm er-icon-btn" data-dec="' + i + '">−</button><b class="er-num">' + c.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-inc="' + i + '">+</button></div>';
+          }).join('') + '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-addparts">' + icon('check') + 'Añadir al presupuesto</button>' +
+          '<p class="er-muted er-small" style="margin:0">Van al borrador del presupuesto. En la tienda lo revisan y lo envían al cliente.</p></div>' : '') +
+          '</div>' : '<p class="er-muted">Asígnate la reparación para añadir piezas.</p>');
+      var q = el.querySelector('#er-app-q');
+      if (q && last) { q.value = last; }
+    }
+    var results = [], last = '', timer, seq = 0;
+    draw();
+    el.addEventListener('input', function (e) {
+      if (e.target.id !== 'er-app-q') return;
+      last = e.target.value.trim(); clearTimeout(timer);
+      if (last.length < 2) return;
+      timer = setTimeout(function () {
+        var my = ++seq;
+        api('search', { id: r.id, q: last }, null).then(function (res) {
+          if (my !== seq || !res.ok) return;
+          results = res.products;
+          var keep = document.activeElement && document.activeElement.id === 'er-app-q';
+          draw(results);
+          if (keep) { var qq = el.querySelector('#er-app-q'); qq.focus(); qq.setSelectionRange(qq.value.length, qq.value.length); }
+        });
+      }, 300);
+    });
+    el.addEventListener('click', function (e) {
+      var t;
+      if ((t = e.target.closest('[data-add]'))) {
+        var p = results[+t.getAttribute('data-add')], ex = cart.filter(function (c) { return c.id_product === p.id_product && c.id_product_attribute === p.id_product_attribute; })[0];
+        if (ex) ex.qty++; else cart.push({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference, qty: 1, price: p.price, tax_rate: p.tax_rate });
+        if (navigator.vibrate) navigator.vibrate(30);
+        draw(results); return;
+      }
+      if ((t = e.target.closest('[data-inc]'))) { cart[+t.getAttribute('data-inc')].qty++; draw(results); return; }
+      if ((t = e.target.closest('[data-dec]'))) { var c = cart[+t.getAttribute('data-dec')]; c.qty--; if (c.qty <= 0) cart.splice(cart.indexOf(c), 1); draw(results); return; }
+      if ((t = e.target.closest('[data-req]'))) {
+        var pr = results[+t.getAttribute('data-req')];
+        api('request', { id: r.id }, { name: pr.name, qty: 1, price: pr.price, id_product: pr.id_product, id_product_attribute: pr.id_product_attribute }).then(function (res) {
+          E.toast(res.ok ? 'Encargo creado: ' + pr.name : res.error, !res.ok);
+        });
+        return;
+      }
+      if (e.target.closest('#er-app-addparts')) {
+        api('addParts', { id: r.id }, { lines: JSON.stringify(cart) }).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; cart = []; results = []; last = '';
+          drawRepair('parts'); E.toast(res.added + ' pieza(s) añadidas al presupuesto');
+        });
+      }
+    });
+  }
+
+  /* ---------- Códigos y manual ---------- */
+  function kbTab(el, idBrand, idModel, name, tab, idRepair) {
+    if (!idBrand) { el.innerHTML = '<div class="er-empty">Esta reparación no tiene marca elegida. Mira «Manuales» para buscar el modelo.</div>'; return; }
+    el.innerHTML = '<div class="er-empty">Cargando…</div>';
+    api('knowledge', { id_brand: idBrand, id_model: idModel }, null).then(function (res) {
+      if (!res.ok) return;
+      var kb = res.kb;
+      function draw() {
+        if (tab === 'codes') {
+          el.innerHTML = '<div class="er-panel"><label class="er-search">' + icon('search') + '<input class="er-input er-code-in" id="er-kb-q" inputmode="text" placeholder="Código que sale en la pantalla (ej. 21)" autocomplete="off"></label>' +
+            '<div id="er-kb-codes" class="er-stack" style="gap:8px"></div>' +
+            '<button type="button" class="er-btn er-btn-ghost" data-addkb="code">' + icon('plus', true) + 'Añadir un código que no está</button></div>';
+          drawCodes('');
+        } else {
+          el.innerHTML =
+            (kb.menu.length ? kb.menu.map(function (m) { return '<div class="er-panel"><h3>' + icon('book') + esc(m.title) + '</h3><div class="er-kb-body">' + esc(m.body) + '</div></div>'; }).join('') : '') +
+            '<div class="er-panel"><h3>' + icon('code') + 'Menú y parámetros<span class="er-r">' + kb.params.length + '</span></h3>' +
+              (kb.params.length ? '<div class="er-params">' + kb.params.map(function (p) {
+                return '<div><b class="er-num">' + esc(p.code) + '</b><span class="er-grow">' + esc(p.name) + (p.notes ? '<span class="er-muted er-small" style="display:block">' + esc(p.notes) + '</span>' : '') + '</span>' +
+                  (p.default_value !== '' ? '<span class="er-tag er-t-neu">' + esc(p.default_value) + '</span>' : '') + '</div>';
+              }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Sin parámetros apuntados. Se añaden desde el PC en la ficha del modelo.</p>') + '</div>' +
+            '<div class="er-panel"><h3>' + icon('wrench') + 'Fallos y soluciones<span class="er-r">' + kb.faults.length + '</span></h3>' +
+              (kb.faults.length ? kb.faults.map(function (f) {
+                return '<details class="er-kb-item"><summary><b>' + esc(f.title) + '</b>' + (f.scope === 'brand' ? ' <span class="er-tag er-t-neu">Toda la marca</span>' : '') + '</summary><div class="er-kb-body">' + esc(f.body) +
+                  '</div><div class="er-muted er-small">' + esc((f.author ? f.author + ' · ' : '') + E.fmtDate(f.date)) + '</div></details>';
+              }).join('') : '<p class="er-muted" style="margin:0">Aún no hay soluciones apuntadas.</p>') +
+              '<button type="button" class="er-btn er-btn-pri" data-addkb="fault">' + icon('plus', true) + 'Añadir solución</button></div>';
+        }
+      }
+      function drawCodes(q) {
+        var norm = q.trim().toUpperCase().replace(/^E[-\s]?/, '');
+        var list = kb.codes.filter(function (c) { return !norm || c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(norm) === 0; });
+        el.querySelector('#er-kb-codes').innerHTML = list.length ? list.map(function (c) {
+          return '<details class="er-kb-item er-code-item"' + (norm && list.length <= 2 ? ' open' : '') + '><summary><span class="er-code-n">' + esc(c.code) + '</span><b>' + esc(c.title) + '</b></summary>' +
+            (c.causes ? '<div class="er-kb-body">' + esc(c.causes) + '</div>' : '') + (c.parts ? '<div class="er-small"><b>Piezas:</b> ' + esc(c.parts) + '</div>' : '') +
+            (!c.verified ? '<div class="er-muted er-small">Por revisar en el taller</div>' : '') + '</details>';
+        }).join('') : '<div class="er-empty">' + (kb.codes.length ? 'No hay ningún código «' + esc(q) + '».' : 'Este modelo no tiene códigos apuntados.') + '</div>';
+      }
+      draw();
+      el.addEventListener('input', function (e) { if (e.target.id === 'er-kb-q') drawCodes(e.target.value); });
+      el.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-addkb]');
+        if (!t) return;
+        var type = t.getAttribute('data-addkb');
+        var wrap = document.createElement('div');
+        wrap.className = 'er-modal';
+        wrap.innerHTML = '<div class="er-dlg"><h2>' + (type === 'code' ? 'Añadir código de error' : 'Añadir fallo y solución') + '</h2>' +
+          '<p class="er-muted er-small" style="margin:0">Para ' + esc(name) + '. Lo verá todo el equipo.</p>' +
+          (type === 'code' ? '<label class="er-field">Código<input class="er-input" data-k="code" maxlength="16"></label><label class="er-field">Qué significa<input class="er-input" data-k="title" maxlength="160"></label>' +
+            '<label class="er-field">Qué revisar<textarea class="er-input" data-k="causes" rows="3"></textarea></label><label class="er-field">Piezas habituales<input class="er-input" data-k="parts" maxlength="255"></label>'
+            : '<label class="er-field">Fallo<input class="er-input" data-k="title" maxlength="160" placeholder="Ej.: se apaga al frenar"></label><label class="er-field">Solución<textarea class="er-input" data-k="body" rows="5" placeholder="Qué era y cómo se arregló"></textarea></label>') +
+          '<label class="er-toggle">Solo para este modelo (no para toda la marca)<input type="checkbox" class="er-sw" id="er-kb-model"' + (idModel ? ' checked' : ' disabled') + '></label>' +
+          '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar</button></div></div>';
+        app.appendChild(wrap);
+        wrap.addEventListener('click', function (ev) {
+          if (ev.target === wrap || ev.target.closest('[data-x]')) { wrap.remove(); return; }
+          if (!ev.target.closest('[data-ok]')) return;
+          var data = { id_ecorepair: idRepair || 0 };
+          wrap.querySelectorAll('[data-k]').forEach(function (i) { data[i.getAttribute('data-k')] = i.value.trim(); });
+          api('kbSave', {}, { type: type, id_brand: idBrand, id_model: wrap.querySelector('#er-kb-model').checked ? idModel : 0, data: JSON.stringify(data) }).then(function (r2) {
+            if (!r2.ok) { E.toast(r2.error, true); return; }
+            kb = r2.kb; wrap.remove(); draw(); E.toast('Guardado. Gracias.');
+          });
+        });
+      });
+    });
+  }
+
+  /* ---------- Manuales (sin reparación) ---------- */
+  var catalog = null;
+  function loadCatalog() { return catalog ? Promise.resolve(catalog) : api('catalog', {}, null).then(function (res) { catalog = res.catalog || []; return catalog; }); }
+  function modelsView() {
+    tabbar('models');
+    main.innerHTML = header('Códigos y manuales', '#home') + '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-m-q" type="search" placeholder="Buscar marca o modelo"></label><div id="er-m-list" class="er-mini" style="margin-top:12px"></div>';
+    loadCatalog().then(function (cat) {
+      var all = [];
+      cat.forEach(function (c) { c.brands.forEach(function (b) { all.push({ brand: b, cat: c, model: null }); b.models.forEach(function (m) { all.push({ brand: b, cat: c, model: m }); }); }); });
+      function draw(q) {
+        q = q.trim().toLowerCase();
+        var list = all.filter(function (x) { return !q ? !x.model : (x.brand.name + ' ' + (x.model ? x.model.name : '')).toLowerCase().indexOf(q) > -1; }).slice(0, 80);
+        main.querySelector('#er-m-list').innerHTML = list.map(function (x) {
+          var label = x.brand.name + (x.model ? ' ' + x.model.name : '');
+          return '<a href="#model/' + x.brand.id + '/' + (x.model ? x.model.id : 0) + '/' + encodeURIComponent(label) + '">' +
+            (x.model && x.model.image ? '<img class="er-mthumb" src="' + esc(E.modelImg(x.model.image)) + '" alt="">' : icon(x.cat.icon || 'other', true)) +
+            '<span class="er-grow">' + esc(label) + (x.model ? '' : ' <span class="er-muted er-small">(toda la marca)</span>') + '</span><span class="er-muted er-small">' + esc(x.cat.name) + '</span></a>';
+        }).join('') || '<div class="er-muted" style="padding:12px">Nada encontrado.</div>';
+      }
+      draw('');
+      main.querySelector('#er-m-q').addEventListener('input', function (e) { draw(e.target.value); });
+    });
+  }
+  function modelView(idBrand, idModel, name, tab) {
+    tabbar('models');
+    name = decodeURIComponent(name || '');
+    var base = '#model/' + idBrand + '/' + idModel + '/' + encodeURIComponent(name);
+    main.innerHTML = header(esc(name), '#models') + '<div class="er-seg">' + [['codes', 'Códigos de error'], ['manual', 'Menú y soluciones']].map(function (t) {
+      return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
+    }).join('') + '</div><div id="er-tab"></div>';
+    kbTab(main.querySelector('#er-tab'), idBrand, idModel, name, tab, 0);
+  }
+
+  /* ---------- Nueva reparación (recepción) ---------- */
+  function newView() {
+    tabbar('new');
+    var nv = document.createElement('div');
+    main.innerHTML = '';
+    main.appendChild(nv);
+    var st = { step: 1, customer: null, device: null, photos: [] };
+    var picker = null, acc = null, dmg = null, pad = null;
+    function stepper() {
+      return '<div class="er-steps-m">' + ['Cliente', 'Equipo', 'Avería', 'Firma'].map(function (s, i) {
+        return '<span class="' + (i + 1 < st.step ? 'done' : i + 1 === st.step ? 'cur' : '') + '">' + (i + 1) + '. ' + s + '</span>';
+      }).join('') + '</div>';
+    }
+    function draw() {
+      nv.innerHTML = header('Nueva reparación', '#home') + stepper() + '<div id="er-step" class="er-stack"></div>' +
+        '<div class="er-app-next">' + (st.step > 1 ? '<button type="button" class="er-btn er-btn-lg" data-prev>' + icon('back') + 'Atrás</button>' : '') +
+        '<button type="button" class="er-btn er-btn-pri er-btn-lg" data-next>' + (st.step === 4 ? icon('check') + 'Crear reparación' : 'Siguiente') + '</button></div>';
+      var el = nv.querySelector('#er-step');
+      if (st.step === 1) stepCustomer(el);
+      if (st.step === 2) {
+        el.innerHTML = '<div class="er-panel"><h3>' + icon('device') + 'Equipo</h3><div id="er-dev" class="er-stack" style="gap:14px"><div class="er-empty">Cargando…</div></div>' +
+          '<div class="er-fg"><label class="er-field">Nº de serie<input class="er-input" data-f="serial" maxlength="64" value="' + esc(st.serial || '') + '"></label>' +
+          '<label class="er-field">Kilómetros<input class="er-input" data-f="km" inputmode="numeric" maxlength="9" value="' + esc(st.km || '') + '"></label>' +
+          '<label class="er-field">Color<input class="er-input" data-f="color" maxlength="64" value="' + esc(st.color || '') + '"></label></div></div>';
+        loadCatalog().then(function (cat) {
+          picker = E.DevicePicker(el.querySelector('#er-dev'), { catalog: cat, canAdd: true, canManage: false, showFaults: true, value: st.device ? { cat: st.device.id_category, brand: st.device.id_brand, model: st.device.id_model, faults: st.device.faults } : null });
+        });
+      }
+      if (st.step === 3) {
+        el.innerHTML = '<div class="er-panel"><h3>' + icon('alert') + 'Avería</h3><label class="er-field">Lo que cuenta el cliente<textarea class="er-input" id="er-fault" rows="4">' + esc(st.fault || '') + '</textarea></label>' +
+          '<div><div class="er-sub">Entregado con el equipo</div><div id="er-acc"></div></div><div><div class="er-sub">Daños previos</div><div id="er-dmg"></div></div>' +
+          '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" id="er-urg"' + (st.urgent ? ' checked' : '') + '></label></div>' +
+          '<div class="er-panel"><h3>' + icon('camera') + 'Fotos de entrada<span class="er-r">' + st.photos.length + '</span></h3><div class="er-photos">' +
+          st.photos.map(function (p, i) { return '<div class="er-ph"><img src="' + esc(p.url) + '" alt=""><button type="button" class="er-del" data-rmph="' + i + '">' + icon('x', true) + '</button></div>'; }).join('') +
+          '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('camera') + 'Añadir foto</button></div><input type="file" id="er-ph-file" accept="image/*" multiple hidden></div>';
+        acc = E.ChipSet(el.querySelector('#er-acc'), { options: D.accessories, selected: st.accessories || [], allowOther: true });
+        dmg = E.ChipSet(el.querySelector('#er-dmg'), { options: D.damages, selected: st.damages || [], warn: true, allowOther: true });
+      }
+      if (st.step === 4) {
+        el.innerHTML = '<div class="er-panel"><h3>' + icon('pen') + 'Firma del cliente<button type="button" class="er-btn er-btn-ghost er-btn-sm" id="er-sigclr" style="margin-left:auto">Borrar</button></h3>' +
+          '<canvas class="er-sig" id="er-sig"></canvas>' +
+          '<label class="er-toggle" style="font-size:14px">Acepta las condiciones y la protección de datos <span class="er-req">*</span><input type="checkbox" class="er-sw" id="er-rgpd"></label>' +
+          '<label class="er-toggle" style="font-size:14px">Acepta avisos por WhatsApp<input type="checkbox" class="er-sw" id="er-wa"' + (st.customer && st.customer.consent_whatsapp ? ' checked' : '') + '></label></div>' +
+          '<div class="er-panel er-small"><b>' + esc(st.customer.name) + '</b> · ' + esc(st.device.label) + '<br>' + esc(st.fault || (st.device.faults || []).join(', ')) + '</div>';
+        pad = E.signaturePad(el.querySelector('#er-sig'));
+        el.querySelector('#er-sigclr').addEventListener('click', function () { pad.clear(); });
+      }
+    }
+    function keep() {
+      if (st.step === 2) {
+        if (picker) st.device = picker.get();
+        nv.querySelectorAll('[data-f]').forEach(function (i) { st[i.getAttribute('data-f')] = i.value.trim(); });
+      }
+      if (st.step === 3) {
+        st.fault = nv.querySelector('#er-fault').value.trim();
+        st.accessories = acc.get(); st.damages = dmg.get(); st.urgent = nv.querySelector('#er-urg').checked;
+      }
+    }
+    function stepCustomer(el) {
+      var results = [], timer;
+      function drawC() {
+        if (st.customer) {
+          el.innerHTML = '<div class="er-panel"><h3>' + icon('user') + 'Cliente</h3><div class="er-chosen"><span class="er-av" style="background:#5B6170">' + esc(E.initials(st.customer.name)) + '</span>' +
+            '<div class="er-grow"><b>' + esc(st.customer.name) + '</b><div class="er-muted er-small">' + esc(st.customer.phone || '') + '</div></div><button type="button" class="er-btn er-btn-sm" data-cchg>Cambiar</button></div></div>';
+          return;
+        }
+        el.innerHTML = '<div class="er-panel"><h3>' + icon('user') + 'Cliente</h3><label class="er-search">' + icon('search') + '<input class="er-input" id="er-cq" type="search" placeholder="Nombre o teléfono" autocomplete="off"></label>' +
+          '<div class="er-pick" id="er-cres"></div><button type="button" class="er-btn" data-cnew>' + icon('plus') + 'Cliente nuevo</button>' +
+          '<div id="er-cform" hidden class="er-stack" style="gap:10px"><div class="er-fg">' +
+            '<label class="er-field">Nombre <span class="er-req">*</span><input class="er-input" data-c="firstname" maxlength="64"></label>' +
+            '<label class="er-field">Apellidos <span class="er-req">*</span><input class="er-input" data-c="lastname" maxlength="64"></label>' +
+            '<label class="er-field">Teléfono<input class="er-input" data-c="phone" inputmode="tel" maxlength="32"></label>' +
+            '<label class="er-field">Email<input class="er-input" data-c="email" type="email" maxlength="128"></label></div>' +
+            '<div class="er-err" id="er-cerr" hidden></div><button type="button" class="er-btn er-btn-pri" data-csave>' + icon('check') + 'Guardar cliente</button></div></div>';
+        el.querySelector('#er-cq').focus();
+      }
+      drawC();
+      el.addEventListener('input', function (e) {
+        if (e.target.id !== 'er-cq') return;
+        var v = e.target.value.trim(); clearTimeout(timer);
+        timer = setTimeout(function () {
+          if (v.length < 2) { el.querySelector('#er-cres').innerHTML = ''; return; }
+          api('customers', { q: v }, null).then(function (res) {
+            results = res.customers || [];
+            var box = el.querySelector('#er-cres');
+            if (box) box.innerHTML = results.map(function (c, i) { return '<button type="button" data-ci="' + i + '"><span class="er-grow"><b>' + esc(c.name) + '</b><br><span class="er-muted er-small">' + esc([c.phone, c.email].filter(Boolean).join(' · ')) + '</span></span></button>'; }).join('') ||
+              '<div class="er-muted er-small" style="padding:10px">No está. Pulsa «Cliente nuevo».</div>';
+          });
+        }, 300);
+      });
+      el.addEventListener('click', function (e) {
+        var t;
+        if ((t = e.target.closest('[data-ci]'))) { st.customer = results[+t.getAttribute('data-ci')]; drawC(); return; }
+        if (e.target.closest('[data-cchg]')) { st.customer = null; drawC(); return; }
+        if (e.target.closest('[data-cnew]')) { el.querySelector('#er-cform').hidden = false; el.querySelector('[data-c="firstname"]').focus(); return; }
+        if (e.target.closest('[data-csave]')) {
+          var body = {};
+          el.querySelectorAll('[data-c]').forEach(function (i) { body[i.getAttribute('data-c')] = i.value.trim(); });
+          api('customerCreate', {}, body).then(function (res) {
+            if (!res.ok) {
+              var er = el.querySelector('#er-cerr');
+              er.textContent = res.error || Object.keys(res.errors || {}).map(function (k) { return res.errors[k]; }).join(' ');
+              er.hidden = false;
+              if (res.existingCustomer) { st.customer = res.existingCustomer; E.toast('Ya existía: se ha elegido ' + res.existingCustomer.name); drawC(); }
+              return;
+            }
+            st.customer = res.customer; drawC(); E.toast('Cliente creado');
+          });
+        }
+      });
+    }
+    nv.addEventListener('click', function (e) {
+      var t;
+      if (e.target.closest('[data-prev]')) { keep(); st.step--; draw(); return; }
+      if ((t = e.target.closest('[data-rmph]'))) { st.photos.splice(+t.getAttribute('data-rmph'), 1); keep(); draw(); return; }
+      if (e.target.closest('#er-ph-add')) { nv.querySelector('#er-ph-file').click(); return; }
+      if (!e.target.closest('[data-next]')) return;
+      keep();
+      if (st.step === 1 && !st.customer) { E.toast('Elige o crea el cliente.', true); return; }
+      if (st.step === 2 && (!st.device || !st.device.id_category)) { E.toast('Elige al menos la categoría.', true); return; }
+      if (st.step === 3 && !st.fault && !(st.device.faults || []).length) { E.toast('Indica la avería.', true); return; }
+      if (st.step < 4) { st.step++; draw(); return; }
+      if (!nv.querySelector('#er-rgpd').checked) { E.toast('Falta aceptar las condiciones y la protección de datos.', true); return; }
+      submit(e.target.closest('[data-next]'));
+    });
+    nv.addEventListener('change', function (e) {
+      if (e.target.id !== 'er-ph-file') return;
+      Array.prototype.slice.call(e.target.files).forEach(function (f) { st.photos.push({ file: f, url: URL.createObjectURL(f) }); });
+      e.target.value = ''; keep(); draw();
+    });
+    function submit(btn) {
+      btn.disabled = true;
+      var p = { id_customer: st.customer.id_customer, id_category: st.device.id_category, id_brand: st.device.id_brand, id_model: st.device.id_model, faults: st.device.faults,
+        serial: st.serial || '', km: st.km || '', color: st.color || '', fault_customer: st.fault || '', accessories: st.accessories || [], damages: st.damages || [],
+        urgent: !!st.urgent, consent_rgpd: true, consent_whatsapp: nv.querySelector('#er-wa').checked };
+      var sig = pad && !pad.isEmpty() ? pad.toDataURL() : '';
+      api('create', {}, { payload: JSON.stringify(p) }).then(function (res) {
+        if (!res.ok) { btn.disabled = false; E.toast(res.error, true); return; }
+        var chain = Promise.resolve();
+        if (sig) chain = chain.then(function () { return api('signature', { id: res.id }, { signature: sig }); });
+        st.photos.forEach(function (ph) {
+          chain = chain.then(function () {
+            return E.shrinkImage(ph.file, 1600).then(function (small) {
+              var fd = new FormData(); fd.append('photo', small, 'foto.jpg'); fd.append('type', 'entry');
+              return api('photo', { id: res.id }, fd);
+            });
+          });
+        });
+        chain.then(function () { done(res); });
+      });
+    }
+    function done(res) {
+      var waText = encodeURIComponent(res.message || '');
+      nv.innerHTML = header('Reparación creada', '#home') +
+        '<div class="er-panel er-done"><div class="er-done-ico">' + icon('check') + '</div><h2 class="er-code">' + esc(res.reference) + '</h2>' +
+        '<p class="er-muted" style="margin:0">Se ha avisado por email si el cliente lo tiene.</p>' +
+        (res.phone ? '<a class="er-btn er-btn-wa er-btn-lg er-btn-block" href="whatsapp://send?phone=' + esc(res.phone) + '&text=' + waText + '">' + icon('whatsapp') + 'Enviar resguardo por WhatsApp</a>' : '') +
+        '<a class="er-btn er-btn-lg er-btn-block" href="#id/' + res.id + '">' + icon('wrench') + 'Abrir la reparación</a>' +
+        '<button type="button" class="er-btn er-btn-ghost er-btn-block" data-again>' + icon('plus') + 'Otra reparación</button></div>';
+      nv.querySelector('[data-again]').addEventListener('click', function () { newView(); });
+    }
+    draw();
+  }
+
+  route();
+});

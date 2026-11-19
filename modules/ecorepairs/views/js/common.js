@@ -47,6 +47,7 @@
       xhr.open(isPost ? 'POST' : 'GET', ajaxUrl(action, params));
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
       xhr.setRequestHeader('Accept', 'application/json');
+      if (boot.csrf) xhr.setRequestHeader('X-Ecor-Csrf', boot.csrf);
       if (onProgress && xhr.upload) {
         xhr.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded / e.total); };
       }

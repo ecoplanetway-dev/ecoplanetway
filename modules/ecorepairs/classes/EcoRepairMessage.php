@@ -19,13 +19,14 @@ class EcoRepairMessage
             'ready' => array('name' => 'Listo para recoger', 'text' => "Hola {nombre}, tu {modelo} ya está listo para recoger en {tienda}.\nTotal: {total}\nReparación {rep}."),
             'reminder' => array('name' => 'Recordatorio sin recoger', 'text' => "Hola {nombre}, te recordamos que tu {modelo} lleva {dias} días listo para recoger en {tienda} (reparación {rep})."),
             'delay' => array('name' => 'Retraso', 'text' => "Hola {nombre}, tu {modelo} ({rep}) va a tardar un poco más de lo previsto. Nueva fecha prevista: {fecha_prevista}. Perdona las molestias."),
+            'review' => array('name' => 'Pedir reseña', 'text' => "Hola {nombre}, gracias por confiar en {tienda} para tu {modelo}. ¿Qué tal ha quedado?\nSi estás contento con el servicio, nos ayudas mucho dejando una reseña aquí: {resena}"),
             'request' => array('name' => 'Encargo llegado', 'text' => "Hola {nombre}, ya ha llegado tu encargo: {encargo}. Puedes pasar a recogerlo por {tienda}."),
         );
     }
 
     public static function variables()
     {
-        return array('{nombre}', '{rep}', '{modelo}', '{averia}', '{lineas}', '{total}', '{enlace}', '{fecha_prevista}', '{dias}', '{estado}', '{seguimiento}', '{tienda}', '{encargo}');
+        return array('{nombre}', '{rep}', '{modelo}', '{averia}', '{lineas}', '{total}', '{enlace}', '{fecha_prevista}', '{dias}', '{estado}', '{seguimiento}', '{tienda}', '{encargo}', '{resena}');
     }
 
     public static function templates()
@@ -100,6 +101,7 @@ class EcoRepairMessage
             '{seguimiento}' => $trackingUrl,
             '{tienda}' => Configuration::get('PS_SHOP_NAME'),
             '{encargo}' => '',
+            '{resena}' => (string) Configuration::get('ECOREPAIRS_REVIEW_URL'),
         );
     }
 

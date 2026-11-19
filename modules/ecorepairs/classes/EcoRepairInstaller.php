@@ -44,6 +44,8 @@ class EcoRepairInstaller
             `cancel_reason` VARCHAR(255) NOT NULL DEFAULT '',
             `id_parent_repair` INT UNSIGNED NOT NULL DEFAULT 0,
             `date_reminder` DATETIME NULL DEFAULT NULL,
+            `repeat_of` INT UNSIGNED NOT NULL DEFAULT 0,
+            `repeat_same` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             `date_status` DATETIME NOT NULL,
             `date_add` DATETIME NOT NULL,
             `date_upd` DATETIME NOT NULL,
@@ -97,6 +99,7 @@ class EcoRepairInstaller
             `type` VARCHAR(16) NOT NULL DEFAULT 'entry',
             `file` VARCHAR(64) NOT NULL,
             `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
+            `public` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             `date_add` DATETIME NOT NULL,
             PRIMARY KEY (`id_ecorepair_photo`),
             KEY `id_ecorepair` (`id_ecorepair`)
@@ -136,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.5.0';
+    const SCHEMA = '1.6.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -153,6 +156,10 @@ class EcoRepairInstaller
             && self::addColumn('ecorepair_quote_line', 'discount', 'DECIMAL(20,6) NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair', 'id_parent_repair', 'INT UNSIGNED NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair', 'date_reminder', 'DATETIME NULL DEFAULT NULL')
+            && self::addColumn('ecorepair', 'repeat_of', 'INT UNSIGNED NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair', 'repeat_same', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair_photo', 'public', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
+            && self::seedKnowledge()
             && self::installConfig()
             && EcoRepairPhoto::ensureStorage();
         if ($ok) {
@@ -165,6 +172,18 @@ class EcoRepairInstaller
         }
 
         return $ok;
+    }
+
+    /** Códigos de error de las marcas principales (solo la primera vez). */
+    public static function seedKnowledge()
+    {
+        if (Configuration::get('ECOREPAIRS_KB_SEEDED')) {
+            return true;
+        }
+        EcoRepairKnowledge::seed();
+        Configuration::updateValue('ECOREPAIRS_KB_SEEDED', 1);
+
+        return true;
     }
 
     /** Añade una columna si no existe (para versiones anteriores). */
@@ -300,6 +319,65 @@ class EcoRepairInstaller
             KEY `id_customer` (`id_customer`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_staff` (
+            `id_ecorepair_staff` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
+            `name` VARCHAR(64) NOT NULL,
+            `pin_hash` VARCHAR(255) NOT NULL,
+            `role_tech` TINYINT(1) UNSIGNED NOT NULL DEFAULT 1,
+            `role_reception` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
+            `active` TINYINT(1) UNSIGNED NOT NULL DEFAULT 1,
+            `session_version` INT UNSIGNED NOT NULL DEFAULT 1,
+            `date_last` DATETIME NULL DEFAULT NULL,
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_staff`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_errcode` (
+            `id_ecorepair_errcode` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `code` VARCHAR(16) NOT NULL,
+            `title` VARCHAR(160) NOT NULL,
+            `causes` TEXT NULL,
+            `parts` VARCHAR(255) NOT NULL DEFAULT '',
+            `verified` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_errcode`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_param` (
+            `id_ecorepair_param` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `code` VARCHAR(16) NOT NULL,
+            `name` VARCHAR(160) NOT NULL,
+            `default_value` VARCHAR(64) NOT NULL DEFAULT '',
+            `notes` TEXT NULL,
+            `position` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_param`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_knowledge` (
+            `id_ecorepair_knowledge` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `kind` VARCHAR(8) NOT NULL DEFAULT 'fault',
+            `title` VARCHAR(160) NOT NULL,
+            `body` TEXT NULL,
+            `id_ecorepair` INT UNSIGNED NOT NULL DEFAULT 0,
+            `author` VARCHAR(64) NOT NULL DEFAULT '',
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_knowledge`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_kit` (
             `id_ecorepair_kit` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `id_ecorepair_category` INT UNSIGNED NOT NULL DEFAULT 0,
@@ -422,6 +500,8 @@ class EcoRepairInstaller
             'ECOREPAIRS_EMAIL_QUOTE' => '1',
             'ECOREPAIRS_REMINDER_AUTO' => '0',
             'ECOREPAIRS_WA_TEMPLATES' => '',
+            'ECOREPAIRS_REPEAT_DAYS' => '30',
+            'ECOREPAIRS_REVIEW_URL' => '',
             'ECOREPAIRS_QUOTE_CONDITIONS' => "Precios con IVA incluido.\nLas líneas marcadas como garantía no tienen coste para el cliente.\nSi al reparar aparece otra avería, se le enviará un presupuesto adicional antes de hacer nada.",
         );
     }

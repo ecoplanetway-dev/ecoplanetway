@@ -53,10 +53,19 @@ window.ECOR.ready(function () {
             '<p class="er-muted er-small" style="margin:0">Revisa este texto con tu gestor o asesor antes de usarlo.</p></div>' +
         '</div>' +
       '</div>' +
+      '<div class="er-panel"><h3>' + icon('user') + 'Personal del taller · app del móvil<span class="er-r">Entran con PIN, sin usar PrestaShop</span></h3>' +
+        '<div class="er-staff-top"><div class="er-qr" id="er-app-qr"></div><div class="er-stack" style="gap:6px;min-width:0">' +
+          '<b>Página del taller: <a href="' + esc(D.appUrl) + '" target="_blank" rel="noopener">' + esc(D.appUrl) + '</a></b>' +
+          '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio. ' +
+          'Después, al escanear el QR de un patinete con la cámara normal del móvil, se abre directamente en la app.</span>' +
+          (canEdit ? '<div><button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button></div>' : '') + '</div></div>' +
+        '<div class="er-mini" id="er-staff-list"></div></div>' +
       '<div class="er-panel"><h3>' + icon('whatsapp') + 'Avisos al cliente<span class="er-r">Variables: ' + esc((D.variables || []).join(' ')) + '</span></h3>' +
         '<div class="er-fg">' +
           '<label class="er-field">Garantía de la reparación (meses)<input class="er-input" data-c="ECOREPAIRS_WARRANTY_MONTHS" inputmode="numeric" maxlength="2"' + dis + '></label>' +
           '<label class="er-field">Seguimiento online visible tras cerrar (días)<input class="er-input" data-c="ECOREPAIRS_TRACKING_DAYS" inputmode="numeric" maxlength="4"' + dis + '></label>' +
+          '<label class="er-field">Marcar como «repetida» si vuelve antes de (días)<input class="er-input" data-c="ECOREPAIRS_REPEAT_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
+          '<label class="er-field">Enlace para dejar reseña en Google ({resena})<input class="er-input" data-c="ECOREPAIRS_REVIEW_URL" maxlength="255" placeholder="https://g.page/r/…/review"' + dis + '></label>' +
         '</div>' +
         '<div><div class="er-sub">Email automático al pasar a…</div><div class="er-opts" id="er-mail-st">' + Object.keys(D.statuses || {}).map(function (k) {
           return '<button type="button" class="er-opt" data-mst="' + k + '" aria-pressed="false"' + dis + '>' + esc(D.statuses[k].name) + '</button>';
@@ -95,6 +104,8 @@ window.ECOR.ready(function () {
     return '<div class="er-pick-row" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid var(--er-line2);' + (selected ? 'background:var(--er-pri-soft);' : '') + (item.active ? '' : 'opacity:.55;') + '">' +
       (selectable ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm" style="flex:1;justify-content:flex-start;min-width:0" data-sel="' + type + '" data-id="' + item.id + '">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></button>'
                   : '<span style="flex:1;min-width:0;padding-left:12px;display:flex;align-items:center;gap:8px">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></span>') +
+      (type === 'model' || type === 'brand' ? '<a class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Ficha: códigos de error, menú y soluciones" aria-label="Ficha técnica" href="' +
+        esc(E.boot.links.model + '&id_brand=' + (type === 'brand' ? item.id : ((brand() || {}).id || 0)) + '&id_model=' + (type === 'model' ? item.id : 0)) + '">' + icon('book', true) + '</a>' : '') +
       (canEdit && type === 'model' ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Subir foto" aria-label="Subir foto de ' + esc(item.name) + '" data-imgup="' + item.id + '">' + icon('camera', true) + '</button>' +
         '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Foto desde una dirección web" aria-label="Foto desde una dirección web" data-imgurl="' + item.id + '">' + icon('link', true) + '</button>' +
         '<a class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Buscar imagen en Google" aria-label="Buscar imagen en Google" target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(((brand() || {}).name || '') + ' ' + item.name) + '">' + icon('search', true) + '</a>' +
@@ -204,6 +215,68 @@ window.ECOR.ready(function () {
       E.toast(res.existed ? '"' + res.name + '" ya existía: se ha vuelto a mostrar' : '"' + res.name + '" añadido');
     });
   }
+
+  /* ---------- Personal del taller ---------- */
+  var staff = D.staff || [];
+  function renderStaff() {
+    var el = $('#er-staff-list');
+    if (!el) return;
+    el.innerHTML = staff.length ? staff.map(function (p) {
+      return '<div><span class="er-av" style="background:' + (p.active ? 'var(--er-pri)' : '#B7BDC8') + '">' + esc(E.initials(p.name)) + '</span>' +
+        '<span class="er-grow"><b>' + esc(p.name) + '</b>' + (p.active ? '' : ' <span class="er-tag er-t-neu">Desactivado</span>') +
+        '<span class="er-muted er-small" style="display:block">' + esc([p.role_tech ? 'Técnico' : '', p.role_reception ? 'Recepción' : ''].filter(Boolean).join(' y ') +
+          ' · empleado: ' + (p.employee || '—') + (p.date_last ? ' · último acceso ' + E.fmtDateTime(p.date_last) : '')) + '</span></span>' +
+        (canEdit ? '<button type="button" class="er-btn er-btn-sm" data-sedit="' + p.id + '">' + icon('pen', true) + 'Editar</button>' +
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-srevoke="' + p.id + '" title="Cierra la sesión en todos sus móviles">Cerrar sesiones</button>' : '') + '</div>';
+    }).join('') : '<div class="er-muted" style="padding:12px">Aún no hay nadie. Añade a los técnicos y a recepción.</div>';
+  }
+  function staffDialog(p) {
+    p = p || { active: 1, role_tech: 1 };
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg"><h2>' + (p.id ? 'Editar persona' : 'Añadir persona') + '</h2>' +
+      '<label class="er-field">Nombre<input class="er-input" id="er-s-name" maxlength="64" value="' + esc(p.name || '') + '"></label>' +
+      '<label class="er-field">Su empleado de PrestaShop (para asignaciones e informes)<select class="er-input" id="er-s-emp"><option value="0">Elige…</option>' +
+        (D.employees || []).map(function (e) { return '<option value="' + e.id + '"' + (e.id === p.id_employee ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="er-field">' + (p.id ? 'PIN nuevo (déjalo vacío para no cambiarlo)' : 'PIN (4 a 6 números)') + '<input class="er-input er-num" id="er-s-pin" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>' +
+      '<label class="er-toggle">Técnico<input type="checkbox" class="er-sw" id="er-s-tech"' + (p.role_tech ? ' checked' : '') + '></label>' +
+      '<label class="er-toggle">Recepción<input type="checkbox" class="er-sw" id="er-s-rec"' + (p.role_reception ? ' checked' : '') + '></label>' +
+      '<label class="er-toggle">Activo<input type="checkbox" class="er-sw" id="er-s-act"' + (p.active ? ' checked' : '') + '></label>' +
+      '<div class="er-err" id="er-s-err" hidden></div>' +
+      '<div class="er-dlg-act">' + (p.id ? '<button type="button" class="er-btn er-btn-ghost er-btn-danger" data-sdel>Borrar</button>' : '') +
+        '<button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar</button></div></div>';
+    app.appendChild(wrap);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if (e.target.closest('[data-sdel]')) {
+        E.dialog({ title: 'Borrar a ' + p.name, text: 'Ya no podrá entrar en la app. Su historial se conserva.', ok: 'Borrar', danger: true }).then(function (y) {
+          if (y) E.api('staffDelete', {}, { id: p.id }).then(function (res) { staff = res.staff; renderStaff(); wrap.remove(); });
+        });
+        return;
+      }
+      if (!e.target.closest('[data-ok]')) return;
+      E.api('staffSave', {}, { id: p.id || 0, name: wrap.querySelector('#er-s-name').value, id_employee: wrap.querySelector('#er-s-emp').value,
+        pin: wrap.querySelector('#er-s-pin').value, role_tech: wrap.querySelector('#er-s-tech').checked, role_reception: wrap.querySelector('#er-s-rec').checked,
+        active: wrap.querySelector('#er-s-act').checked }).then(function (res) {
+        if (!res.ok) { var er = wrap.querySelector('#er-s-err'); er.textContent = res.error; er.hidden = false; return; }
+        staff = res.staff; renderStaff(); wrap.remove(); E.toast('Guardado');
+      });
+    });
+  }
+  app.addEventListener('click', function (e) {
+    var t;
+    if (e.target.closest('#er-staff-add')) { staffDialog(); return; }
+    if ((t = e.target.closest('[data-sedit]'))) { staffDialog(staff.filter(function (p) { return p.id === +t.getAttribute('data-sedit'); })[0]); return; }
+    if ((t = e.target.closest('[data-srevoke]'))) {
+      E.api('staffRevoke', {}, { id: t.getAttribute('data-srevoke') }).then(function () { E.toast('Sesiones cerradas: tendrá que volver a poner su PIN'); });
+    }
+  });
+  (function () {
+    var box = $('#er-app-qr');
+    if (!box || !window.qrcode) return;
+    try { var q = window.qrcode(0, 'M'); q.addData(D.appUrl); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); } catch (er) { }
+  })();
+  renderStaff();
 
   /* ---------- Fotos de los modelos ---------- */
   function countNoPhoto() {

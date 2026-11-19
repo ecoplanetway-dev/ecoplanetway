@@ -32,6 +32,22 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
         }
         $vars = array('state' => 'form', 'code' => $code);
 
+        // Foto pública del trabajo (solo las marcadas «Mostrar al cliente» y con el código correcto)
+        if ((int) Tools::getValue('photo') && $code !== '') {
+            $ph = EcoRepairPhoto::get((int) Tools::getValue('photo'));
+            $ok = $ph && (int) $ph['public'] && (string) Db::getInstance()->getValue('SELECT tracking_code FROM `' . _DB_PREFIX_ . 'ecorepair` WHERE id_ecorepair = ' . (int) $ph['id_ecorepair']) === $code;
+            if (!$ok || !EcoRepairPhoto::output($ph, (bool) Tools::getValue('thumb'))) {
+                header('HTTP/1.1 404 Not Found');
+            }
+            exit;
+        }
+
+        // Un técnico con sesión en su móvil que escanea el QR va directo a la reparación en la app del taller
+        if ($code !== '' && EcoRepairStaff::current()) {
+            $app = Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true);
+            Tools::redirect($app . '#rep/' . rawurlencode($code));
+        }
+
         if ($code !== '') {
             if (EcoRepairRateLimit::blocked('track', self::RATE_LIMIT)) {
                 $vars['state'] = 'limit';
@@ -73,6 +89,20 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
         header('Content-Type: text/html; charset=utf-8');
         echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/tracking.tpl');
         exit;
+    }
+
+    protected function publicPhotos($idRepair, $code)
+    {
+        $base = (Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'seguimiento?' : $this->context->link->getModuleLink('ecorepairs', 'tracking', array(), true) . '&')
+            . 'c=' . rawurlencode($code) . '&photo=';
+        $out = array();
+        foreach (EcoRepairPhoto::forRepair($idRepair) as $ph) {
+            if ((int) $ph['public']) {
+                $out[] = array('thumb' => $base . (int) $ph['id_ecorepair_photo'] . '&thumb=1', 'full' => $base . (int) $ph['id_ecorepair_photo']);
+            }
+        }
+
+        return $out;
     }
 
     protected function repairVars(array $repair)
@@ -119,6 +149,7 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             ),
             'steps' => $steps,
             'quoteLink' => $quoteLink,
+            'photos' => $this->publicPhotos((int) $repair['id_ecorepair'], $repair['tracking_code']),
         );
     }
 }
