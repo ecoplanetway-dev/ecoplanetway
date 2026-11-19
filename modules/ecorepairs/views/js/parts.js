@@ -41,6 +41,7 @@
       }).join('') + '</svg>' +
       sections.filter(function (s) { return polys[s.key]; }).map(function (s) {
         var c = center(polys[s.key]), n = opts.count ? opts.count(s) : 0;
+        if (opts.compact) return n ? '<button type="button" class="er-phb er-phb-n' + (opts.sel === s.key ? ' on' : '') + '" data-sec="' + s.key + '" title="' + esc(s.name) + '" style="left:' + c[0] + '%;top:' + c[1] + '%;--c:' + s.color + '">' + n + '</button>' : '';
         return '<button type="button" class="er-phb' + (opts.sel === s.key ? ' on' : '') + '" data-sec="' + s.key + '" style="left:' + c[0] + '%;top:' + c[1] + '%;--c:' + s.color + '">' +
           esc(s.name) + (n ? ' <b>' + n + '</b>' : '') + '</button>';
       }).join('') + '</div>';
@@ -156,16 +157,21 @@
     function secOf(k) { return sections.filter(function (s) { return s.key === k; })[0] || null; }
     function inSec(s) { return parts.filter(function (p) { return s.cats.indexOf(p.zone) > -1; }); }
     function sugSecs() { return sections.filter(function (s) { return s.cats.some(function (c) { return sug.indexOf(c) > -1; }); }).map(function (s) { return s.key; }); }
+    function secList() {
+      var sugs = sugSecs();
+      function row(attr, on, ico, name, n, tag) {
+        return '<button type="button" class="er-sl' + (on ? ' on' : '') + '" ' + attr + '><span class="er-sl-i">' + ico + '</span><span class="er-sl-n">' + esc(name) + (tag ? '<span class="er-sl-tag">' + tag + '</span>' : '') + '</span><span class="er-sl-c">' + n + '</span></button>';
+      }
+      return '<div class="er-secl">' +
+        (sug.length ? row('data-mode="suggested"', st.mode === 'suggested', icon('alert', true), 'Sugeridas por la avería', parts.filter(function (p) { return sug.indexOf(p.zone) > -1; }).length) : '') +
+        row('data-mode="all"', st.mode === 'all', icon('box', true), 'Todas las piezas', parts.length) +
+        sections.map(function (x) {
+          return row('data-sec="' + x.key + '"', st.mode === 'sec' && st.sec === x.key, secIcon(x.key), x.name, inSec(x).length, sugs.indexOf(x.key) > -1 ? 'Avería' : '');
+        }).join('') + '</div>';
+    }
     function visual() {
       var map = opts.map, photo = opts.photo;
-      if (photo && map && map.polys) {
-        return photoMap(photo, map, sections, { sel: st.sec, sug: sugSecs(), count: function (s) { return inSec(s).length; } });
-      }
-      return '<div class="er-sectiles">' + sections.map(function (s) {
-        var n = inSec(s).length;
-        return '<button type="button" class="er-sectile' + (st.sec === s.key ? ' on' : '') + (sugSecs().indexOf(s.key) > -1 ? ' sug' : '') + '" data-sec="' + s.key + '" style="--c:' + s.color + '">' +
-          '<span class="er-sectile-i">' + secIcon(s.key) + '</span><b>' + esc(s.name) + '</b><span class="er-small er-muted">' + (n ? n + ' pieza' + (n > 1 ? 's' : '') : 'Sin piezas') + '</span></button>';
-      }).join('') + '</div>';
+      return (photo && map && map.polys ? '<div class="er-dw-photo">' + photoMap(photo, map, sections, { compact: true, sel: st.mode === 'sec' ? st.sec : null, sug: sugSecs(), count: function (s) { return inSec(s).length; } }) + '</div>' : '') + secList();
     }
     function list() {
       if (st.mode === 'suggested') return parts.filter(function (p) { return sug.indexOf(p.zone) > -1; });
@@ -176,31 +182,26 @@
     function render() {
       var s = st.mode === 'sec' ? secOf(st.sec) : null, l = list();
       var title = st.mode === 'suggested' ? 'Sugeridas por la avería: ' + sug.map(function (z) { return zones[z]; }).join(', ') : st.mode === 'all' ? 'Todas las piezas' : (st.cat ? zones[st.cat] : 'Todas de ' + s.name);
-      el.innerHTML = '<div class="er-dw-wrap">' + visual() + '</div>' +
-        '<div class="er-row er-dw-chips">' + (sug.length ? '<button type="button" class="er-chip" data-mode="suggested" aria-pressed="' + (st.mode === 'suggested') + '">' + icon('alert', true) + 'Sugeridas</button>' : '') +
-          '<button type="button" class="er-chip" data-mode="all" aria-pressed="' + (st.mode === 'all') + '">Todas <span class="er-n">' + parts.length + '</span></button>' +
-          sections.map(function (x) {
-            var n = inSec(x).length;
-            return '<button type="button" class="er-chip" data-sec="' + x.key + '" aria-pressed="' + (st.mode === 'sec' && st.sec === x.key) + '"><span class="er-dot" style="background:' + x.color + '"></span>' + esc(x.name) + (n ? ' <span class="er-n">' + n + '</span>' : '') + '</button>';
-          }).join('') + '</div>' +
-        (s ? '<div class="er-cats">' + s.cats.map(function (c) {
+      el.innerHTML = '<div class="er-pd"><div class="er-pd-l">' + visual() + '</div><div class="er-pd-r">' +
+        (s ? '<div class="er-cats2"><button type="button" class="er-c2' + (!st.cat ? ' on' : '') + '" data-cat="">Todo <b>' + inSec(s).length + '</b></button>' + s.cats.map(function (c) {
           var n = parts.filter(function (p) { return p.zone === c; }).length;
-          return '<button type="button" class="er-cat' + (st.cat === c ? ' on' : '') + (sug.indexOf(c) > -1 ? ' sug' : '') + '" data-cat="' + c + '" style="--c:' + s.color + '"><b>' + n + '</b><span>' + esc(zones[c] || c) + '</span></button>';
+          return '<button type="button" class="er-c2' + (st.cat === c ? ' on' : '') + (sug.indexOf(c) > -1 ? ' sug' : '') + '" data-cat="' + c + '">' + esc(zones[c] || c) + ' <b>' + n + '</b></button>';
         }).join('') + '</div>' : '') +
         incompatList(opts.incompat || [], opts) +
         '<div class="er-sub" style="margin:4px 0 0">' + esc(title) + '</div>' +
         '<div class="er-parts">' + (l.length ? l.map(function (p) { return partCard(p, opts, parts.indexOf(p)); }).join('')
           : '<div class="er-empty">' + (st.mode === 'sec' ? 'Sin piezas apuntadas aquí.' : 'Aún no hay piezas apuntadas para este modelo.') + '</div>') + '</div>' +
-        (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm" data-pnew>' + icon('plus', true) + 'Añadir pieza' + (st.cat ? ' en ' + esc(zones[st.cat]) : s ? ' en ' + esc(s.name) : '') + '</button>' : '');
+        (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm" data-pnew>' + icon('plus', true) + 'Añadir pieza' + (st.cat ? ' en ' + esc(zones[st.cat]) : s ? ' en ' + esc(s.name) : '') + '</button>' : '') +
+        '</div></div>';
     }
     el.addEventListener('click', function (e) {
       var t;
       if ((t = e.target.closest('[data-sec]'))) {
         var k = t.getAttribute('data-sec');
-        if (st.mode === 'sec' && st.sec === k && !t.closest('.er-dw-chips')) { st.cat = null; }
-        st.mode = 'sec'; if (st.sec !== k) st.cat = null; st.sec = k; render(); return;
+        if (st.sec !== k || st.mode !== 'sec') st.cat = null;
+        st.mode = 'sec'; st.sec = k; render(); return;
       }
-      if ((t = e.target.closest('[data-cat]'))) { var c = t.getAttribute('data-cat'); st.cat = st.cat === c ? null : c; render(); return; }
+      if ((t = e.target.closest('[data-cat]'))) { var c = t.getAttribute('data-cat') || null; st.cat = st.cat === c ? null : c; render(); return; }
       if ((t = e.target.closest('[data-mode]'))) { st.mode = t.getAttribute('data-mode'); st.sec = null; st.cat = null; render(); return; }
       if ((t = e.target.closest('[data-padd]'))) { opts.onAdd(parts[+t.getAttribute('data-padd')], t); return; }
       if ((t = e.target.closest('[data-pedit]'))) { opts.onEdit(parts[+t.getAttribute('data-pedit')], null); return; }
@@ -472,6 +473,19 @@
   }
 
   /* ---------- Deslimitación ---------- */
+  /** Botón llamativo con velocímetro: la aguja sube de 0 a tope al aparecer. */
+  function unlockButton(list, attrs) {
+    var from = 25, to = 100;
+    (list || []).forEach(function (u) { if (u.speed_from) from = Math.min(from, u.speed_from); });
+    var tops = (list || []).map(function (u) { return u.speed_to || 0; }).filter(Boolean);
+    if (tops.length) to = Math.max.apply(null, tops);
+    return '<button type="button" class="er-unlock" ' + (attrs || '') + '>' +
+      '<svg class="er-gauge" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 23a11 11 0 1 1 22 0" class="er-g-arc"/>' +
+      '<path d="M8.5 15.5l1.6 1.2M16 8.5v2M23.5 15.5l-1.6 1.2M11.8 10.6l.9 1.6M20.2 10.6l-.9 1.6" class="er-g-tick"/>' +
+      '<g class="er-g-ndl"><path d="M16 23 16 11.5"/></g><circle cx="16" cy="23" r="2.2"/></svg>' +
+      '<span>Deslimitar</span><small>' + from + ' → ' + to + ' km/h</small>' + ((list || []).length ? '' : '') + '</button>';
+  }
+
   var DIFF = { 1: 'Fácil', 2: 'Media', 3: 'Difícil' };
   /** opts: list, admin, methods, onAdd(u, btn), onEdit(u|null), onDelete(id) */
   function UnlockPanel(el, opts) {
@@ -635,6 +649,7 @@
 
   E.PartsDiagram = PartsDiagram;
   E.UnlockPanel = UnlockPanel;
+  E.unlockButton = unlockButton;
   E.unlockDialog = unlockDialog;
   E.FixedPanel = FixedPanel;
   E.fixedDialog = fixedDialog;

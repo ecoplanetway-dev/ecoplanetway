@@ -12,84 +12,98 @@ window.ECOR.ready(function () {
   var dis = canEdit ? '' : ' disabled';
   var sel = { cat: catalog[0] ? catalog[0].id : 0, brand: 0 };
 
+  function sg(title, help, controls, wide) {
+    return '<div class="er-sg' + (wide ? ' er-sg-wide' : '') + '"><div class="er-sg-t"><b>' + title + '</b>' + (help ? '<p>' + help + '</p>' : '') + '</div><div class="er-sg-c">' + controls + '</div></div>';
+  }
+  function ta(key, rows) { return '<textarea class="er-input" data-c="' + key + '" rows="' + (rows || 5) + '"' + dis + '></textarea>'; }
+  function num(key, max) { return '<input class="er-input" data-c="' + key + '" inputmode="numeric" maxlength="' + (max || 3) + '"' + dis + ' style="max-width:160px">'; }
+  var SECS = [
+    { k: 'catalog', i: 'device', t: 'Catálogo', s: 'Categorías, marcas, modelos y fotos', w: 'marca modelo foto categoria averia frecuente importar',
+      h: '<p class="er-sg-intro">Lo que se oculta deja de salir al crear reparaciones, pero no se borra. Con <b>📖</b> abres la ficha del modelo (piezas, deslimitar, precios, códigos).</p>' +
+        '<div id="er-cat-grid" class="er-wide-2 er-catgrid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
+        (canEdit ? '<div class="er-row" style="margin-top:12px"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
+          '<div class="er-row"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
+    { k: 'reception', i: 'plus', t: 'Recepción', s: 'Datos del cliente, accesorios y daños', w: 'telefono email obligatorio accesorios cargador daños condiciones resguardo firma',
+      h: sg('Datos del cliente', 'Qué es obligatorio al crear un cliente nuevo. Nombre y apellidos siempre lo son.', '<div class="er-fg">' + fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') + '</div>') +
+        sg('Entregado con el equipo', 'Salen como botones en «Nueva reparación». Uno por línea.', ta('ECOREPAIRS_ACCESSORIES')) +
+        sg('Daños previos', 'Para dejar constancia de cómo llega el equipo. Uno por línea.', ta('ECOREPAIRS_DAMAGES')) +
+        sg('Condiciones del resguardo', 'Salen impresas y el cliente las acepta al firmar. Revísalas con tu gestor.', ta('ECOREPAIRS_CONDITIONS', 6)) },
+    { k: 'check', i: 'check', t: 'Revisión de salida', s: 'Puntos a revisar al terminar', w: 'revision checklist frenos presion tornillos plegado',
+      h: sg('Puntos de la revisión', 'Botones que el técnico marca al terminar. No son obligatorios. Uno por línea.', ta('ECOREPAIRS_CHECKLIST', 7)) },
+    { k: 'quote', i: 'doc', t: 'Presupuestos y cobro', s: 'Mano de obra, validez y condiciones', w: 'mano de obra hora precio validez enlace condiciones presupuesto transportista cobro pedido',
+      h: sg('Mano de obra', 'Precio por hora con IVA incluido.', '<input class="er-input" data-c="ECOREPAIRS_LABOUR_RATE" inputmode="decimal" maxlength="8"' + dis + ' style="max-width:160px">') +
+        sg('Validez del presupuesto', 'Días que el cliente tiene para aceptarlo desde el enlace.', num('ECOREPAIRS_QUOTE_DAYS')) +
+        sg('Condiciones del presupuesto', 'Salen al final del presupuesto.', ta('ECOREPAIRS_QUOTE_CONDITIONS')) +
+        sg('Transportista de los pedidos', 'Solo para pedidos con piezas. Tiene que ser gratuito.', '<select class="er-input" data-c="ECOREPAIRS_CARRIER"' + dis + '><option value="0">Automático (el primero gratuito, «Recogida en tienda» si existe)</option>' +
+          (D.carriers || []).map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + (c.free ? ' · gratuito' : ' · ¡cobra envío!') + '</option>'; }).join('') + '</select>') },
+    { k: 'notify', i: 'whatsapp', t: 'Avisos al cliente', s: 'WhatsApp, emails y reseñas', w: 'whatsapp plantilla email aviso recordatorio reseña google',
+      h: sg('Email automático al pasar a…', 'Solo a clientes con email. Queda en los mensajes del cliente.', '<div class="er-opts" id="er-mail-st">' + Object.keys(D.statuses || {}).map(function (k) {
+          return '<button type="button" class="er-opt" data-mst="' + k + '" aria-pressed="false"' + dis + '>' + esc(D.statuses[k].name) + '</button>'; }).join('') + '</div>') +
+        sg('Presupuesto por email', '', '<label class="er-toggle">Enviar el enlace del presupuesto al pulsar «Enviar al cliente»<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_EMAIL_QUOTE"' + dis + '></label>') +
+        sg('Recordatorio de «sin recoger»', 'Email automático, una vez al día.', '<label class="er-toggle">Activado<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_REMINDER_AUTO"' + dis + '></label>') +
+        sg('Enlace de reseñas', 'Se usa en {resena} de las plantillas.', '<input class="er-input" data-c="ECOREPAIRS_REVIEW_URL" maxlength="255" placeholder="https://g.page/r/…/review"' + dis + '>') +
+        sg('Plantillas de WhatsApp', 'Variables: ' + esc((D.variables || []).join(' ')), '<div class="er-tpls">' + Object.keys(D.templates || {}).map(function (k) {
+          return '<label class="er-field">' + esc(D.templates[k].name) + '<textarea class="er-input" data-tpl="' + k + '" rows="5"' + dis + '>' + esc(D.templates[k].text) + '</textarea></label>'; }).join('') + '</div>', true) },
+    { k: 'times', i: 'clock', t: 'Plazos', s: 'Retrasos, sin recoger y garantía', w: 'dias retraso rojo sin recoger llamar garantia meses seguimiento repetida',
+      h: sg('Retraso en el taller', 'Se marca en rojo si lleva más de estos días.', num('ECOREPAIRS_LATE_DAYS')) +
+        sg('«Sin recoger»', 'Se marca si está listo desde hace estos días.', num('ECOREPAIRS_PICKUP_DAYS')) +
+        sg('Volver a avisar', 'Sale arriba del tablero para llamar otra vez al cliente.', num('ECOREPAIRS_RECALL_DAYS')) +
+        sg('Reparación repetida', 'Se marca si vuelve antes de estos días.', num('ECOREPAIRS_REPEAT_DAYS')) +
+        sg('Garantía de la reparación', 'Meses desde la entrega.', num('ECOREPAIRS_WARRANTY_MONTHS', 2)) +
+        sg('Seguimiento online', 'Días que se puede consultar tras cerrar.', num('ECOREPAIRS_TRACKING_DAYS', 4)) },
+    { k: 'print', i: 'print', t: 'Impresión', s: 'Resguardo, etiquetas y pegatina', w: 'imprimir resguardo ticket 80mm a4 etiqueta pegatina tamaño',
+      h: sg('Resguardo', '', '<select class="er-input" data-c="ECOREPAIRS_PRINT_FORMAT"' + dis + ' style="max-width:260px"><option value="80mm">Ticket de 80 mm</option><option value="a4">A4</option></select>') +
+        sg('Etiqueta y pegatina', 'Tamaño del rollo de la impresora de etiquetas. La pegatina también se puede imprimir en hoja A4.', '<select class="er-input" data-c="ECOREPAIRS_LABEL_SIZE"' + dis + ' style="max-width:260px"><option value="62x29">62 × 29 mm</option><option value="50x25">50 × 25 mm</option><option value="62x100">62 × 100 mm</option></select>') },
+    { k: 'staff', i: 'user', t: 'Personal y app', s: 'PIN, roles y QR del taller', w: 'personal tecnico recepcion pin app movil qr empleado',
+      h: '<div class="er-staff-top"><div class="er-qr" id="er-app-qr"></div><div class="er-stack" style="gap:6px;min-width:0">' +
+          '<b>Página del taller: <a href="' + esc(D.appUrl) + '" target="_blank" rel="noopener">' + esc(D.appUrl) + '</a></b>' +
+          '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio.</span>' +
+          '<div class="er-row">' + (canEdit ? '<button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button>' : '') +
+          '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div><div class="er-mini" id="er-staff-list" style="margin-top:12px"></div>' },
+    { k: 'unlock', i: 'bolt', t: 'Deslimitación', s: 'Aviso legal', w: 'deslimitar velocidad aviso legal',
+      h: sg('Aviso legal', 'Sale en las observaciones del presupuesto al añadir una deslimitación.', ta('ECOREPAIRS_UNLOCK_NOTICE', 6)) }
+  ];
+  if (D.isAdmin) SECS.push({ k: 'perm', i: 'pin', t: 'Permisos', s: 'Quién ve el informe de técnicos', w: 'permisos tecnicos informe ver',
+    h: sg('Informe de técnicos', 'Tú siempre lo ves. Marca a quién más le sale el botón «Técnicos».', '<div class="er-opts" id="er-tv">' + (D.employees || []).map(function (e) {
+      return '<button type="button" class="er-opt" data-tv="' + e.id + '" aria-pressed="' + (String(cfg.ECOREPAIRS_TECHS_VIEWERS || '').split(',').indexOf(String(e.id)) > -1) + '">' + esc(e.name) + '</button>';
+    }).join('') + '</div>') });
+  var curSec = 'catalog';
+  try { curSec = localStorage.getItem('ecor-settings-sec') || 'catalog'; } catch (e) {}
+  if (!SECS.filter(function (s) { return s.k === curSec; }).length) curSec = 'catalog';
+
   app.innerHTML =
     '<header class="er-head"><div class="er-brand"><div class="er-ico">' + icon('settings') + '</div><div><h1>Ajustes del taller</h1>' +
-      '<p>Catálogo de equipos, datos del cliente, recepción e impresión</p></div></div>' +
+      '<p>Elige una sección a la izquierda o busca un ajuste</p></div></div>' +
       '<a class="er-btn" href="' + esc(E.boot.links.board) + '">' + icon('back') + 'Volver al tablero</a></header>' +
     (canEdit ? '' : '<div class="er-banner er-bad">Tu perfil solo puede ver los ajustes.</div>') +
-    '<div class="er-stack">' +
-      '<div class="er-panel"><h3>Categorías, marcas, modelos y averías<span class="er-r">Lo que se oculta deja de salir al crear reparaciones, pero no se borra</span></h3>' +
-        '<div id="er-cat-grid" class="er-wide-2 er-catgrid"></div>' +
-        '<input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
-        (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button>' +
-          '<span class="er-muted er-small" id="er-nophoto"></span></div>' : '') +
-        (canEdit ? '<div class="er-row"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button>' +
-          '<span class="er-muted er-small">Añade solo los que falten. No vuelve a mostrar lo que hayas ocultado.</span></div>' : '') + '</div>' +
-      '<div class="er-grid2">' +
-        '<div class="er-stack">' +
-          '<div class="er-panel"><h3>Datos del cliente</h3>' +
-            fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') +
-            '<p class="er-muted er-small" style="margin:0">Nombre y apellidos son siempre obligatorios. Si el cliente quiere factura se piden NIF, dirección, código postal y ciudad.</p></div>' +
-          '<div class="er-panel"><h3>Recepción</h3>' +
-            '<label class="er-field">Lo que puede entregar con el equipo (uno por línea)<textarea class="er-input" data-c="ECOREPAIRS_ACCESSORIES" rows="5"' + dis + '></textarea></label>' +
-            '<label class="er-field">Daños previos habituales (uno por línea)<textarea class="er-input" data-c="ECOREPAIRS_DAMAGES" rows="5"' + dis + '></textarea></label></div>' +
-        '</div>' +
-        '<div class="er-stack">' +
-          '<div class="er-panel"><h3>Tablero</h3>' +
-            '<label class="er-field">Avisar en rojo si lleva en el taller (días)<input class="er-input" data-c="ECOREPAIRS_LATE_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
-            '<label class="er-field">Marcar «sin recoger» si está listo desde hace (días)<input class="er-input" data-c="ECOREPAIRS_PICKUP_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label></div>' +
-          '<div class="er-panel"><h3>Presupuestos</h3>' +
-            '<label class="er-field">Precio de la mano de obra (€/hora, IVA incluido)<input class="er-input" data-c="ECOREPAIRS_LABOUR_RATE" inputmode="decimal" maxlength="8"' + dis + '></label>' +
-            '<label class="er-field">Validez del enlace de aceptación (días)<input class="er-input" data-c="ECOREPAIRS_QUOTE_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
-            '<label class="er-field">Condiciones del presupuesto<textarea class="er-input" data-c="ECOREPAIRS_QUOTE_CONDITIONS" rows="5"' + dis + '></textarea></label></div>' +
-          '<div class="er-panel"><h3>Cobro</h3>' +
-            '<label class="er-field">Transportista de los pedidos del taller (tiene que ser gratuito)<select class="er-input" data-c="ECOREPAIRS_CARRIER"' + dis + '><option value="0">Automático (el primero gratuito, «Recogida en tienda» si existe)</option>' +
-              (D.carriers || []).map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + (c.free ? ' · gratuito' : ' · ¡cobra envío!') + '</option>'; }).join('') + '</select></label>' +
-            '<p class="er-muted er-small" style="margin:0">Solo se usa en los pedidos que lleven piezas. La mano de obra va en el producto oculto «Servicio de taller».</p></div>' +
-          '<div class="er-panel"><h3>Impresión</h3>' +
-            '<label class="er-field">Resguardo<select class="er-input" data-c="ECOREPAIRS_PRINT_FORMAT"' + dis + '><option value="80mm">Ticket de 80 mm</option><option value="a4">A4</option></select></label>' +
-            '<label class="er-field">Etiqueta del equipo<select class="er-input" data-c="ECOREPAIRS_LABEL_SIZE"' + dis + '><option value="62x29">62 × 29 mm</option><option value="50x25">50 × 25 mm</option><option value="62x100">62 × 100 mm</option></select></label>' +
-            '<label class="er-field">Condiciones del resguardo<textarea class="er-input" data-c="ECOREPAIRS_CONDITIONS" rows="6"' + dis + '></textarea></label>' +
-            '<p class="er-muted er-small" style="margin:0">Revisa este texto con tu gestor o asesor antes de usarlo.</p></div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="er-panel"><h3>' + icon('user') + 'Personal del taller · app del móvil<span class="er-r">Entran con PIN, sin usar PrestaShop</span></h3>' +
-        '<div class="er-staff-top"><div class="er-qr" id="er-app-qr"></div><div class="er-stack" style="gap:6px;min-width:0">' +
-          '<b>Página del taller: <a href="' + esc(D.appUrl) + '" target="_blank" rel="noopener">' + esc(D.appUrl) + '</a></b>' +
-          '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio. ' +
-          'Después, al escanear el QR de un patinete con la cámara normal del móvil, se abre directamente en la app.</span>' +
-          '<div class="er-row">' + (canEdit ? '<button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button>' : '') +
-          '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div>' +
-        '<div class="er-mini" id="er-staff-list"></div></div>' +
-      '<div class="er-panel"><h3>' + icon('whatsapp') + 'Avisos al cliente<span class="er-r">Variables: ' + esc((D.variables || []).join(' ')) + '</span></h3>' +
-        '<div class="er-fg">' +
-          '<label class="er-field">Garantía de la reparación (meses)<input class="er-input" data-c="ECOREPAIRS_WARRANTY_MONTHS" inputmode="numeric" maxlength="2"' + dis + '></label>' +
-          '<label class="er-field">Seguimiento online visible tras cerrar (días)<input class="er-input" data-c="ECOREPAIRS_TRACKING_DAYS" inputmode="numeric" maxlength="4"' + dis + '></label>' +
-          '<label class="er-field">Marcar como «repetida» si vuelve antes de (días)<input class="er-input" data-c="ECOREPAIRS_REPEAT_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
-          '<label class="er-field">Enlace para dejar reseña en Google ({resena})<input class="er-input" data-c="ECOREPAIRS_REVIEW_URL" maxlength="255" placeholder="https://g.page/r/…/review"' + dis + '></label>' +
-        '</div>' +
-        '<div><div class="er-sub">Email automático al pasar a…</div><div class="er-opts" id="er-mail-st">' + Object.keys(D.statuses || {}).map(function (k) {
-          return '<button type="button" class="er-opt" data-mst="' + k + '" aria-pressed="false"' + dis + '>' + esc(D.statuses[k].name) + '</button>';
-        }).join('') + '</div><p class="er-muted er-small" style="margin:6px 0 0">Solo a clientes con email. Se envía con el diseño de la tienda y queda en los mensajes del cliente.</p></div>' +
-        '<label class="er-toggle">Enviar por email el enlace del presupuesto al pulsar «Enviar al cliente»<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_EMAIL_QUOTE"' + dis + '></label>' +
-        '<label class="er-toggle">Recordatorio automático por email de «sin recoger» (una vez al día)<input type="checkbox" class="er-sw" data-cb="ECOREPAIRS_REMINDER_AUTO"' + dis + '></label>' +
-        '<div class="er-sub" style="margin:8px 0 0">Plantillas de WhatsApp</div>' +
-        '<div class="er-tpls">' + Object.keys(D.templates || {}).map(function (k) {
-          return '<label class="er-field">' + esc(D.templates[k].name) + '<textarea class="er-input" data-tpl="' + k + '" rows="5"' + dis + '>' + esc(D.templates[k].text) + '</textarea></label>';
-        }).join('') + '</div>' +
-      '</div>' +
-      '<div class="er-panel"><h3>' + icon('check') + 'Revisión, avisos y deslimitación</h3>' +
-        '<div class="er-fg">' +
-          '<label class="er-field">Puntos de la revisión de salida (uno por línea, no obligatorios)<textarea class="er-input" data-c="ECOREPAIRS_CHECKLIST" rows="6"' + dis + '></textarea></label>' +
-          '<label class="er-field">Aviso legal al deslimitar (sale en las observaciones del presupuesto)<textarea class="er-input" data-c="ECOREPAIRS_UNLOCK_NOTICE" rows="6"' + dis + '></textarea></label>' +
-          '<label class="er-field">Avisarnos de volver a llamar si lleva lista sin recoger (días)<input class="er-input" data-c="ECOREPAIRS_RECALL_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
-        '</div>' +
-        (D.isAdmin ? '<div><div class="er-sub">Pueden ver el informe de Técnicos (además de ti)</div><div class="er-opts" id="er-tv">' + (D.employees || []).map(function (e) {
-          return '<button type="button" class="er-opt" data-tv="' + e.id + '" aria-pressed="' + (String(cfg.ECOREPAIRS_TECHS_VIEWERS || '').split(',').indexOf(String(e.id)) > -1) + '">' + esc(e.name) + '</button>';
-        }).join('') + '</div></div>' : '') +
-      '</div>' +
-      (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri er-btn-lg" id="er-save-cfg">' + icon('check') + 'Guardar ajustes</button><span class="er-err" id="er-cfg-err" hidden></span></div>' : '') +
-    '</div>';
+    '<div class="er-set">' +
+      '<nav class="er-set-nav"><label class="er-search">' + icon('search') + '<input class="er-input" id="er-set-q" type="search" placeholder="Buscar un ajuste…" autocomplete="off" data-novoice></label>' +
+        SECS.map(function (s) { return '<button type="button" class="er-set-l" data-sec="' + s.k + '"><span class="er-set-i">' + icon(s.i, true) + '</span><span><b>' + esc(s.t) + '</b><small>' + esc(s.s) + '</small></span></button>'; }).join('') + '</nav>' +
+      '<div class="er-set-main">' + SECS.map(function (s) {
+        return '<section class="er-set-sec" data-secc="' + s.k + '"><h2>' + esc(s.t) + '</h2><p class="er-muted" style="margin:2px 0 14px">' + esc(s.s) + '</p>' + s.h + '</section>';
+      }).join('') +
+      (canEdit ? '<div class="er-set-bar"><span class="er-err" id="er-cfg-err" hidden></span><button type="button" class="er-btn er-btn-pri er-btn-lg" id="er-save-cfg">' + icon('check') + 'Guardar ajustes</button></div>' : '') +
+      '</div></div>';
+
+  function showSec(k) {
+    curSec = k;
+    try { localStorage.setItem('ecor-settings-sec', k); } catch (e) {}
+    app.querySelectorAll('[data-sec]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-sec') === k); });
+    app.querySelectorAll('[data-secc]').forEach(function (s) { s.hidden = s.getAttribute('data-secc') !== k; });
+    var bar = app.querySelector('.er-set-bar'); if (bar) bar.hidden = k === 'catalog' || k === 'staff';
+  }
+  app.querySelector('.er-set-nav').addEventListener('click', function (e) { var b = e.target.closest('[data-sec]'); if (b) showSec(b.getAttribute('data-sec')); });
+  app.querySelector('#er-set-q').addEventListener('input', function (e) {
+    var q = E.fold(e.target.value.trim());
+    app.querySelectorAll('[data-sec]').forEach(function (b) {
+      var s = SECS.filter(function (x) { return x.k === b.getAttribute('data-sec'); })[0];
+      var hay = E.fold(s.t + ' ' + s.s + ' ' + s.w + ' ' + app.querySelector('[data-secc="' + s.k + '"]').textContent);
+      b.hidden = !!q && hay.indexOf(q) < 0;
+    });
+    var first = app.querySelector('[data-sec]:not([hidden])');
+    if (q && first) showSec(first.getAttribute('data-sec'));
+  });
+  showSec(curSec);
 
   var $ = function (s) { return app.querySelector(s); };
 

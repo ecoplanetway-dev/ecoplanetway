@@ -339,6 +339,11 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
 
         return array(
             'settings' => $s . '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+            'device' => $s . '<circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/><path d="M8 18h8M15 4h3l1 14"/></svg>',
+            'doc' => $s . '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',
+            'clock' => $s . '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+            'pin' => $s . '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+            'bolt' => $s . '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
             'back' => $s . '<path d="M15 18l-6-6 6-6"/></svg>',
             'plus' => $s . '<path d="M12 5v14M5 12h14"/></svg>',
             'check' => $s . '<path d="M20 6 9 17l-5-5"/></svg>',

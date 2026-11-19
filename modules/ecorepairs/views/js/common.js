@@ -445,6 +445,7 @@
 
   /** Buscador rápido de modelos. opts: models, link(m) o onPick(m), placeholder */
   function ModelSearch(el, opts) {
+    opts.models = (opts.models || []).filter(function (m) { return m.id_model && m.icon !== 'battery'; });
     el.innerHTML = '<label class="er-search er-ms">' + icon('search') + '<input class="er-input" type="search" autocomplete="off" placeholder="' + esc(opts.placeholder || 'Buscar modelo: «pro 2», «max g2»…') + '" aria-label="Buscar modelo"></label><div class="er-ms-res" hidden></div>';
     var inp = el.querySelector('input'), res = el.querySelector('.er-ms-res'), found = [];
     function draw() {
@@ -454,7 +455,7 @@
       res.innerHTML = found.length ? found.map(function (m, i) {
         var src = m.image || '';
         return '<a href="' + esc(opts.link ? opts.link(m) : '#') + '" data-msi="' + i + '">' + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '<span class="er-ms-ph">' + icon(m.icon || 'other', true) + '</span>') +
-          '<span><b>' + esc(m.brand + (m.model ? ' ' + m.model : '')) + '</b><small>' + esc(m.model ? m.category : m.category + ' · toda la marca') + '</small></span></a>';
+          '<span><b>' + esc(m.brand + ' ' + m.model) + '</b><small>' + esc(m.category) + '</small></span></a>';
       }).join('') : '<div class="er-muted er-small" style="padding:10px">Ningún modelo con «' + esc(q) + '».</div>';
     }
     inp.addEventListener('input', draw);
@@ -510,15 +511,14 @@
   var micBtn = null, micField = null, micOn = false;
   function micTarget(el) {
     if (!el || !el.closest || !el.closest('.ecor') || el.hasAttribute('data-novoice') || el.readOnly || el.disabled) return false;
-    if (el.tagName === 'TEXTAREA') return true;
-    if (el.tagName !== 'INPUT') return false;
-    var t = (el.getAttribute('type') || 'text').toLowerCase(), im = el.getAttribute('inputmode') || '';
-    return (t === 'text' || t === 'search') && im !== 'numeric' && im !== 'decimal' && im !== 'tel' && !el.classList.contains('er-num');
+    // Solo en campos para escribir texto largo (notas, avería, diagnóstico, pasos) o marcados con data-voice
+    return el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.hasAttribute('data-voice'));
   }
   function placeMic() {
     if (!micBtn || !micField) return;
     var r = micField.getBoundingClientRect();
-    if (!r.width) { micBtn.hidden = true; return; }
+    if (!micField.isConnected || !r.width || r.bottom < 0 || r.top > window.innerHeight || (document.activeElement !== micField && !micOn)) { micBtn.hidden = true; return; }
+    micBtn.hidden = false;
     micBtn.style.top = (r.top + (micField.tagName === 'TEXTAREA' ? r.height - 40 : (r.height - 34) / 2)) + 'px';
     micBtn.style.left = (r.right - 40) + 'px';
   }
@@ -558,6 +558,7 @@
       setTimeout(function () { if (micBtn && !micOn && !micTarget(document.activeElement)) micBtn.hidden = true; }, 150);
     });
     window.addEventListener('scroll', placeMic, true);
+    setInterval(function () { if (micBtn && !micBtn.hidden) placeMic(); }, 400);
     window.addEventListener('resize', placeMic);
   }
 

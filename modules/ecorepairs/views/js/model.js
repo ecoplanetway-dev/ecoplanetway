@@ -19,11 +19,12 @@ window.ECOR.ready(function () {
         '<a class="er-btn er-btn-ghost er-icon-btn" href="javascript:history.back()" aria-label="Volver">' + icon('back') + '</a>' +
         (D.image ? '<span class="er-f-cover"><img src="' + esc(D.image) + '" alt=""></span>' : '') +
         '<div class="er-f-title"><h1>' + esc(title) + '</h1><span class="er-st-chip">' + (D.model ? 'Ficha del modelo' : 'Ficha de la marca · vale para todos sus modelos') + '</span></div>' +
+        E.unlockButton(B.unlock || [], 'data-tab="unlock"' + (tab === 'unlock' ? ' aria-pressed="true"' : '')) +
         '<div class="er-msearch" id="er-ms"></div>' +
         '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
       '</div>' +
-      '<div class="er-filters">' + [['parts', 'Piezas', parts.length], ['unlock', 'Deslimitar', (B.unlock || []).length], ['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
+      '<div class="er-filters">' + [['parts', 'Piezas', parts.length], ['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]].map(function (t) {
         return '<button type="button" class="er-chip" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
       }).join('') + '</div>' +
       '<div class="er-panel" id="er-kb"></div>';

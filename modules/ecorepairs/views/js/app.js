@@ -242,10 +242,11 @@ window.ECOR.ready(function () {
     var el = main.querySelector('#er-tab');
     if (tab === 'parts') {
       var sub = R._sub || 'parts';
-      el.innerHTML = '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')], ['unlock', 'Deslimitar' + ((R.unlock || []).length ? ' ' + R.unlock.length : '')]].map(function (t) {
+      el.innerHTML = E.unlockButton(R.unlock || [], 'data-sub="unlock" style="width:100%;justify-content:center"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
+        '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')]].map(function (t) {
         return '<button type="button" data-sub="' + t[0] + '" aria-pressed="' + (sub === t[0]) + '">' + t[1] + '</button>';
       }).join('') + '</div><div id="er-sub"></div>';
-      el.querySelector('.er-seg').addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b) { R._sub = b.getAttribute('data-sub'); drawRepair('parts'); } });
+      el.addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b && !e.target.closest('#er-sub')) { R._sub = b.getAttribute('data-sub'); drawRepair('parts'); } });
       var host = el.querySelector('#er-sub');
       function quoteAdd(action, id, btn, msg) {
         btn.disabled = true;
@@ -285,7 +286,7 @@ window.ECOR.ready(function () {
       (me.tech ? '<div class="er-panel"><h3>Estado</h3><div class="er-app-states">' + btn('diagnosis', 'Diagnóstico') + btn('repair', 'En reparación') +
         '<button type="button" class="er-btn er-btn-lg' + (r.waiting_part ? ' er-btn-warn' : '') + '" data-st="wait"' + (canWork && r.status !== 'ready' ? '' : ' disabled') + '><span class="er-dot" style="background:#E0A100"></span>' + (r.waiting_part ? 'Pieza recibida' : 'Esperando pieza') + '</button>' +
         btn('ready', 'Listo') + '</div>' + (!canWork && R.mineOrFree === false ? '<p class="er-muted er-small" style="margin:0">Es de otro técnico: solo puedes consultarla.</p>' : '') + '</div>' : '') +
-      '<div class="er-panel"><h3>' + icon('pen') + 'Nota interna</h3><div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-app-note" maxlength="2000" placeholder="Qué has visto o hecho"><button type="button" class="er-btn er-btn-pri" id="er-app-note-add">' + icon('check') + '</button></div></div>' +
+      '<div class="er-panel"><h3>' + icon('pen') + 'Nota interna</h3><div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-app-note" data-voice maxlength="2000" placeholder="Qué has visto o hecho"><button type="button" class="er-btn er-btn-pri" id="er-app-note-add">' + icon('check') + '</button></div></div>' +
       '<div class="er-panel"><h3>' + icon('camera') + 'Fotos<span class="er-r">' + R.photos.length + '</span></h3>' +
         '<div class="er-photos">' + R.photos.map(function (p, i) { return '<button type="button" class="er-ph" data-ph="' + i + '"><img src="' + esc(p.thumb) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' +
         '<div class="er-row"><button type="button" class="er-btn" data-shot="work">' + icon('camera', true) + 'Foto del trabajo</button><button type="button" class="er-btn er-btn-ghost" data-shot="gallery">' + icon('box', true) + 'Galería</button><button type="button" class="er-btn er-btn-ghost" data-shot="device">' + icon('camera', true) + 'Foto del equipo</button></div>' +

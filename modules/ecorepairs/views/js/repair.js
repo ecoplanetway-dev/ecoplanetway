@@ -437,7 +437,7 @@ window.ECOR.ready(function () {
   function renderLog() {
     var notes = log.filter(function (l) { return l.action === 'note'; });
     $('#er-p-log').innerHTML = '<h3>' + icon('pen') + 'Notas internas<span class="er-r">' + notes.length + '</span></h3>' +
-      (D.canEdit ? '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-note" maxlength="2000" placeholder="Escribe una nota interna para el equipo" aria-label="Nota interna"><button type="button" class="er-btn" id="er-note-add">Añadir</button></div>' : '') +
+      (D.canEdit ? '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-note" data-voice maxlength="2000" placeholder="Escribe una nota interna para el equipo" aria-label="Nota interna"><button type="button" class="er-btn" id="er-note-add">Añadir</button></div>' : '') +
       (notes.length ? timeline(notes) : '<p class="er-muted" style="margin:0">Sin notas.</p>');
     var hn = $('#er-hist-n'); if (hn) hn.textContent = log.length;
   }
@@ -511,15 +511,29 @@ window.ECOR.ready(function () {
     D.quotes = res.quotes; log = res.log; renderQuote(); renderLog(); renderHead();
     E.toast(msg);
   }
+  var partsOpen = false;
   function renderParts() {
     var box = $('#er-p-parts');
     if (!box) return;
-    box.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(r.device_name) + '<span class="er-r">' +
-      (D.modelUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.modelUrl + '&tab=' + partsTab) + '" target="_blank" rel="noopener">' + icon('book', true) + 'Ficha del modelo</a> ' : '') +
-      '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></span></h3>' +
-      '<div class="er-filters" style="margin:0 0 10px">' + [['parts', 'Piezas', (D.modelParts || []).length], ['fixed', 'Precio cerrado', (D.fixed || []).length], ['unlock', 'Deslimitar', (D.unlock || []).length]].map(function (t) {
-        return '<button type="button" class="er-chip" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
-      }).join('') + '</div><div id="er-dwr"></div>';
+    var nParts = (D.modelParts || []).length, nFix = (D.fixed || []).length, nInc = (D.incompat || []).length, sz = D.suggestedZones || [];
+    box.classList.toggle('er-open', partsOpen);
+    box.innerHTML = '<div class="er-fold">' +
+      '<span class="er-fold-ico">' + icon('box') + '</span>' +
+      '<div class="er-fold-t"><b>Piezas de ' + esc(r.device_name) + '</b><div class="er-fold-meta">' +
+        '<span>' + nParts + ' pieza' + (nParts === 1 ? '' : 's') + '</span>' +
+        (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
+        (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
+        (nInc ? '<span class="er-fm-bad">' + nInc + ' no compatible' + (nInc === 1 ? '' : 's') + '</span>' : '') +
+        (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts') + '" target="_blank" rel="noopener">Ficha del modelo</a>' : '') +
+      '</div></div>' +
+      E.unlockButton(D.unlock, 'data-unl') +
+      '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
+      '</div>' +
+      (partsOpen ? '<div class="er-fold-body"><div class="er-seg2">' + [['parts', 'Piezas', nParts], ['fixed', 'Precio cerrado', nFix]].map(function (t) {
+          return '<button type="button" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>';
+        }).join('') + (partsTab === 'unlock' ? '<button type="button" aria-pressed="true">' + icon('bolt', true) + ' Deslimitar</button>' : '') +
+        '<a class="er-seg2-a" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></div><div id="er-dwr"></div></div>' : '');
+    if (!partsOpen) return;
     var host = box.querySelector('#er-dwr');
     if (partsTab !== 'parts') host.classList.add('er-plain');
     if (partsTab === 'fixed') {
@@ -572,7 +586,9 @@ window.ECOR.ready(function () {
 
   app.addEventListener('click', function (e) {
     var t = e.target.closest('[data-ptab]');
-    if (t) { partsTab = t.getAttribute('data-ptab'); renderParts(); }
+    if (t) { partsTab = t.getAttribute('data-ptab'); renderParts(); return; }
+    if (e.target.closest('[data-fold]')) { partsOpen = !partsOpen; if (!partsOpen && partsTab === 'unlock') partsTab = 'parts'; renderParts(); return; }
+    if (e.target.closest('[data-unl]')) { partsOpen = true; partsTab = 'unlock'; renderParts(); var b = $('#er-p-parts'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
 
   /* ---------- Revisión de salida ---------- */

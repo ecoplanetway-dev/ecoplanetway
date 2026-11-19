@@ -20,22 +20,28 @@ window.ECOR.ready(function () {
   var state = { filter: 'all', q: '', cat: '' };
   try { var saved = JSON.parse(localStorage.getItem('ecor-board') || '{}'); if (saved.filter) state.filter = saved.filter; if (saved.cat) state.cat = saved.cat; } catch (e) {}
 
+  function nav(href, ico, color, label, extra) {
+    return '<a class="er-btn er-navb" href="' + esc(href) + '" style="--c:' + color + '"><span class="er-nico">' + icon(ico, true) + '</span><span>' + label + '</span>' + (extra || '') + '</a>';
+  }
   app.innerHTML =
-    '<header class="er-head">' +
-      '<div class="er-brand"><div class="er-ico">' + icon('logo') + '</div><div><h1>Reparaciones</h1><p id="er-sub" class="er-num"></p></div></div>' +
-      '<label class="er-search">' + icon('search') + '<input id="er-q" class="er-input" type="search" autocomplete="off" placeholder="Cliente, teléfono, nº de serie o REP-" aria-label="Buscar reparación"></label>' +
-      (function () {
-        var rc = D.requestCounts || {}, open = (rc.pending || 0) + (rc.ordered || 0) + (rc.arrived || 0) + (rc.notified || 0);
-        return '<a class="er-btn" href="' + esc(E.boot.links.requests) + '" title="' + (rc.arrived ? rc.arrived + ' encargos han llegado y hay que avisar' : 'Encargos abiertos') + '">' + icon('package') + '<span>Encargos</span>' +
-          (open ? '<span class="er-badge' + (rc.arrived ? ' er-badge-hot' : '') + '">' + (rc.arrived || open) + '</span>' : '') + '</a>';
-      })() +
-      '<a class="er-btn" href="' + esc(E.boot.links.cash) + '">' + icon('tag') + '<span>Caja</span></a>' +
-      '<a class="er-btn" href="' + esc(E.boot.links.parts) + '">' + icon('box') + '<span>Piezas</span></a>' +
-      (E.boot.links.techs ? '<a class="er-btn" href="' + esc(E.boot.links.techs) + '">' + icon('assign') + '<span>Técnicos</span></a>' : '') +
-      '<a class="er-btn" href="' + esc(E.boot.links.stats) + '">' + icon('chart') + '<span>Indicadores</span></a>' +
-      '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +
+    '<header class="er-head er-head2">' +
+      '<div class="er-hrow">' +
+        '<div class="er-brand"><div class="er-ico">' + icon('logo') + '</div><div><h1>Reparaciones</h1><p id="er-sub" class="er-num"></p></div></div>' +
+        '<label class="er-search">' + icon('search') + '<input id="er-q" class="er-input" type="search" autocomplete="off" placeholder="Cliente, teléfono, nº de serie o REP-" aria-label="Buscar reparación" data-novoice></label>' +
+        '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +
+      '</div>' +
+      '<div class="er-hrow2">' +
+        (function () {
+          var rc = D.requestCounts || {}, open = (rc.pending || 0) + (rc.ordered || 0) + (rc.arrived || 0) + (rc.notified || 0);
+          return nav(E.boot.links.requests, 'package', '#EA580C', 'Encargos', open ? '<span class="er-badge' + (rc.arrived ? ' er-badge-hot' : '') + '">' + (rc.arrived || open) + '</span>' : '');
+        })() +
+        nav(E.boot.links.cash, 'tag', '#0B6E4B', 'Caja') +
+        nav(E.boot.links.parts, 'box', '#2F6FE0', 'Piezas') +
+        (E.boot.links.techs ? nav(E.boot.links.techs, 'assign', '#8B5CF6', 'Técnicos') : '') +
+        nav(E.boot.links.stats, 'chart', '#DB2777', 'Indicadores') +
+        '<span class="er-hsp"></span><div id="er-msearch" class="er-msearch"></div>' +
+      '</div>' +
     '</header>' +
-    '<div class="er-board-tools"><div id="er-msearch"></div></div>' +
     '<div id="er-recall"></div>' +
     '<div class="er-filters" id="er-filters"></div>' +
     '<div class="er-results" id="er-results" hidden></div>' +
