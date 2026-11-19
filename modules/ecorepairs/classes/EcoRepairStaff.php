@@ -49,6 +49,11 @@ class EcoRepairStaff
         if ($name === '' || Tools::strlen($name) > 64) {
             return array('ok' => false, 'error' => 'Escribe el nombre.');
         }
+        $dup = (int) Db::getInstance()->getValue('SELECT id_ecorepair_staff FROM `' . _DB_PREFIX_ . 'ecorepair_staff`
+            WHERE LOWER(name) = \'' . pSQL(Tools::strtolower($name)) . '\' AND id_ecorepair_staff != ' . (int) $id);
+        if ($dup) {
+            return array('ok' => false, 'error' => 'Ya hay una persona con ese nombre. Edítala en vez de crear otra.');
+        }
         $idEmployee = (int) $d['id_employee'];
         if ($idEmployee === -1) {
             $idEmployee = self::createEmployee($name);

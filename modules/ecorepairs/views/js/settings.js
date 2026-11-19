@@ -227,7 +227,8 @@ window.ECOR.ready(function () {
         '<span class="er-muted er-small" style="display:block">' + esc([p.role_tech ? 'Técnico' : '', p.role_reception ? 'Recepción' : ''].filter(Boolean).join(' y ') +
           ' · empleado: ' + (p.employee || '—') + (p.date_last ? ' · último acceso ' + E.fmtDateTime(p.date_last) : '')) + '</span></span>' +
         (canEdit ? '<button type="button" class="er-btn er-btn-sm" data-sedit="' + p.id + '">' + icon('pen', true) + 'Editar</button>' +
-          '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-srevoke="' + p.id + '" title="Cierra la sesión en todos sus móviles">Cerrar sesiones</button>' : '') + '</div>';
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-srevoke="' + p.id + '" title="Cierra la sesión en todos sus móviles">Cerrar sesiones</button>' +
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-btn-danger er-icon-btn" data-sdel2="' + p.id + '" title="Borrar" aria-label="Borrar a ' + esc(p.name) + '">' + icon('x', true) + '</button>' : '') + '</div>';
     }).join('') : '<div class="er-muted" style="padding:12px">Aún no hay nadie. Añade a los técnicos y a recepción.</div>';
   }
   function staffDialog(p) {
@@ -255,12 +256,18 @@ window.ECOR.ready(function () {
         });
         return;
       }
-      if (!e.target.closest('[data-ok]')) return;
+      var okBtn = e.target.closest('[data-ok]');
+      if (!okBtn || okBtn.disabled) return;
+      okBtn.disabled = true;
+      okBtn.textContent = 'Guardando…';
       E.api('staffSave', {}, { id: p.id || 0, name: wrap.querySelector('#er-s-name').value, id_employee: wrap.querySelector('#er-s-emp').value,
         pin: wrap.querySelector('#er-s-pin').value, role_tech: wrap.querySelector('#er-s-tech').checked, role_reception: wrap.querySelector('#er-s-rec').checked,
         active: wrap.querySelector('#er-s-act').checked }).then(function (res) {
-        if (!res.ok) { var er = wrap.querySelector('#er-s-err'); er.textContent = res.error; er.hidden = false; return; }
-        staff = res.staff; renderStaff(); wrap.remove(); E.toast('Guardado');
+        okBtn.disabled = false;
+        okBtn.textContent = 'Guardar';
+        if (res.staff) { staff = res.staff; renderStaff(); }
+        if (!res.ok) { var er = wrap.querySelector('#er-s-err'); er.textContent = res.error; er.hidden = false; E.toast(res.error, true); return; }
+        wrap.remove(); E.toast('Guardado');
       });
     });
   }
@@ -268,6 +275,13 @@ window.ECOR.ready(function () {
     var t;
     if (e.target.closest('#er-staff-add')) { staffDialog(); return; }
     if ((t = e.target.closest('[data-sedit]'))) { staffDialog(staff.filter(function (p) { return p.id === +t.getAttribute('data-sedit'); })[0]); return; }
+    if ((t = e.target.closest('[data-sdel2]'))) {
+      var sp = staff.filter(function (x) { return x.id === +t.getAttribute('data-sdel2'); })[0];
+      E.dialog({ title: 'Borrar a ' + sp.name, text: 'Ya no podrá entrar en la app. Su historial se conserva.', ok: 'Borrar', danger: true }).then(function (y) {
+        if (y) E.api('staffDelete', {}, { id: sp.id }).then(function (res) { if (res.staff) { staff = res.staff; renderStaff(); } E.toast('Borrado'); });
+      });
+      return;
+    }
     if ((t = e.target.closest('[data-srevoke]'))) {
       E.api('staffRevoke', {}, { id: t.getAttribute('data-srevoke') }).then(function () { E.toast('Sesiones cerradas: tendrá que volver a poner su PIN'); });
     }

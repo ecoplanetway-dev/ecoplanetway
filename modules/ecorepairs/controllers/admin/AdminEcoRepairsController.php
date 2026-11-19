@@ -1498,6 +1498,10 @@ class AdminEcoRepairsController extends ModuleAdminController
 
     protected function jsonOut($data, $code = 200)
     {
+        // Avisos de PHP u otros módulos impresos antes romperían la respuesta: se descartan
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
             header('Cache-Control: no-store');
@@ -1505,7 +1509,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 http_response_code($code);
             }
         }
-        echo json_encode($data);
+        echo json_encode($data, JSON_PARTIAL_OUTPUT_ON_ERROR);
         exit;
     }
 
