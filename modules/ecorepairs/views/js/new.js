@@ -260,7 +260,8 @@ window.ECOR.ready(function () {
   function renderPhotos() {
     $('#er-photos').innerHTML = st.photos.map(function (p, i) {
       return '<div class="er-ph"><img src="' + esc(p.url) + '" alt="Foto ' + (i + 1) + '"><button type="button" class="er-del" data-del="' + i + '" aria-label="Quitar foto">' + icon('x', true) + '</button></div>';
-    }).join('') + '<button type="button" class="er-ph er-add" id="er-add-photo">' + icon('camera') + 'Añadir foto</button>';
+    }).join('') + '<button type="button" class="er-ph er-add" id="er-add-photo">' + icon('camera') + 'Hacer foto</button>' +
+      '<button type="button" class="er-ph er-add" id="er-add-gal">' + icon('plus') + 'Desde galería o archivo</button>';
   }
   $('#er-photos').addEventListener('click', function (e) {
     var d = e.target.closest('[data-del]');
@@ -271,7 +272,8 @@ window.ECOR.ready(function () {
       renderPhotos();
       return;
     }
-    if (e.target.closest('#er-add-photo')) $('#er-file').click();
+    if (e.target.closest('#er-add-photo')) E.pickPhoto($('#er-file'), false);
+    if (e.target.closest('#er-add-gal')) E.pickPhoto($('#er-file'), true);
   });
   $('#er-file').addEventListener('change', function (e) {
     Array.prototype.forEach.call(e.target.files, function (f) {

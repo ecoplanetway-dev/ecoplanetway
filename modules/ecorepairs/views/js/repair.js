@@ -67,7 +67,7 @@ window.ECOR.ready(function () {
   }
   $('#er-cover').addEventListener('click', function () {
     if (coverSrc()) E.viewer(allPhotos(), 0);
-    else if (canEdit) $('#er-dev-file').click();
+    else if (canEdit) E.pickPhoto($('#er-dev-file'), false);
   });
 
   function renderHead() {
@@ -306,13 +306,15 @@ window.ECOR.ready(function () {
           (D.canDelete ? '<button type="button" class="er-del" data-del="' + p.id + '" aria-label="Borrar foto">' + icon('trash', true) + '</button>' : '') +
           (canEdit ? '<button type="button" class="er-pub' + (p.public ? ' on' : '') + '" data-pub="' + p.id + '" title="' + (p.public ? 'El cliente la ve en el seguimiento' : 'Mostrar al cliente en el seguimiento') + '">' + icon('eye', true) + '</button>' : (p.public ? '<span class="er-pub on">' + icon('eye', true) + '</span>' : '')) + '</div>';
       }).join('') +
-      (canEdit ? '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('plus') + 'Añadir foto</button>' : '') +
+      (canEdit ? '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('camera') + 'Hacer foto</button>' +
+        '<button type="button" class="er-ph er-add" id="er-ph-gal">' + icon('plus') + 'Desde galería o archivo</button>' : '') +
       (!photos.length && !canEdit ? '<div class="er-muted">Sin fotos</div>' : '') + '</div>' +
       '<input type="file" id="er-file" accept="image/*" multiple hidden>';
   }
   $('#er-p-photos').addEventListener('click', function (e) {
     var t;
-    if (e.target.closest('#er-ph-add')) { $('#er-file').click(); return; }
+    if (e.target.closest('#er-ph-add')) { E.pickPhoto($('#er-file'), false); return; }
+    if (e.target.closest('#er-ph-gal')) { E.pickPhoto($('#er-file'), true); return; }
     if ((t = e.target.closest('[data-ph]'))) {
       e.preventDefault();
       var idx = 0, list = allPhotos(), id = t.getAttribute('data-ph');
@@ -320,8 +322,8 @@ window.ECOR.ready(function () {
       E.viewer(list, idx);
       return;
     }
-    if (e.target.closest('[data-view]')) { if (coverSrc()) E.viewer(allPhotos(), 0); else if (canEdit) $('#er-dev-file').click(); return; }
-    if (e.target.closest('#er-dev-shot')) { $('#er-dev-file').click(); return; }
+    if (e.target.closest('[data-view]')) { if (coverSrc()) E.viewer(allPhotos(), 0); else if (canEdit) E.pickPhoto($('#er-dev-file'), false); return; }
+    if (e.target.closest('#er-dev-shot')) { E.pickPhoto($('#er-dev-file'), false); return; }
     var pub = e.target.closest('[data-pub]');
     if (pub) {
       var ph = photos.filter(function (x) { return String(x.id) === pub.getAttribute('data-pub'); })[0];

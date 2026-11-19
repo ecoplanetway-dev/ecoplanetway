@@ -661,3 +661,5 @@
   @keyframes er-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
   .ecor .er-rq-grid, .ecor .er-arch-grid { grid-template-columns: 1fr; }
 }
+/* Campo de archivo invisible pero «visible» para el móvil (con display:none algunos móviles no abren la cámara) */
+.er-vh { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none; }

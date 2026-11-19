@@ -384,6 +384,20 @@
     show(i);
   }
 
+  /**
+   * Abre la cámara del móvil (o la galería si fromGallery). En el ordenador abre el selector de archivos.
+   * El campo no puede estar oculto con display:none: algunos móviles no lo abren.
+   */
+  function pickPhoto(input, fromGallery) {
+    if (!input) return;
+    input.hidden = false;
+    input.classList.add('er-vh');
+    if (fromGallery) input.removeAttribute('capture');
+    else input.setAttribute('capture', 'environment');
+    input.value = '';
+    input.click();
+  }
+
   /* Efecto al pulsar: el brillo sale desde donde se toca */
   document.addEventListener('pointerdown', function (e) {
     var b = e.target.closest && e.target.closest('.ecor .er-btn, .ecor .er-chip, .ecor .er-opt, .ecor .er-tile');
@@ -418,6 +432,7 @@
     signaturePad: signaturePad,
     root: root,
     modelImg: modelImg,
-    viewer: viewer
+    viewer: viewer,
+    pickPhoto: pickPhoto
   };
 })();

@@ -257,7 +257,7 @@ window.ECOR.ready(function () {
       '<div class="er-panel"><h3>' + icon('pen') + 'Nota interna</h3><div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-app-note" maxlength="2000" placeholder="Qué has visto o hecho"><button type="button" class="er-btn er-btn-pri" id="er-app-note-add">' + icon('check') + '</button></div></div>' +
       '<div class="er-panel"><h3>' + icon('camera') + 'Fotos<span class="er-r">' + R.photos.length + '</span></h3>' +
         '<div class="er-photos">' + R.photos.map(function (p, i) { return '<button type="button" class="er-ph" data-ph="' + i + '"><img src="' + esc(p.thumb) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' +
-        '<div class="er-row"><button type="button" class="er-btn" data-shot="work">' + icon('camera', true) + 'Foto del trabajo</button><button type="button" class="er-btn er-btn-ghost" data-shot="device">' + icon('camera', true) + 'Foto del equipo</button></div>' +
+        '<div class="er-row"><button type="button" class="er-btn" data-shot="work">' + icon('camera', true) + 'Foto del trabajo</button><button type="button" class="er-btn er-btn-ghost" data-shot="gallery">' + icon('box', true) + 'Galería</button><button type="button" class="er-btn er-btn-ghost" data-shot="device">' + icon('camera', true) + 'Foto del equipo</button></div>' +
         '<input type="file" id="er-app-file" accept="image/*" hidden></div>' +
       '<div class="er-panel"><h3>' + icon('clock') + 'Últimos movimientos</h3><ul class="er-timeline">' + R.log.slice(0, 8).map(function (l) {
         return '<li><span class="er-tdot"></span><div>' + esc(l.detail) + '<div class="er-when">' + esc(E.fmtDateTime(l.date) + (l.employee ? ' · ' + l.employee : '')) + '</div></div></li>';
@@ -275,7 +275,12 @@ window.ECOR.ready(function () {
         return;
       }
       if ((t = e.target.closest('[data-ph]'))) { E.viewer(R.photos.map(function (p) { return { src: p.full }; }), +t.getAttribute('data-ph')); return; }
-      if ((t = e.target.closest('[data-shot]'))) { shotType = t.getAttribute('data-shot'); el.querySelector('#er-app-file').click(); return; }
+      if ((t = e.target.closest('[data-shot]'))) {
+        var k = t.getAttribute('data-shot');
+        shotType = k === 'gallery' ? 'work' : k;
+        E.pickPhoto(el.querySelector('#er-app-file'), k === 'gallery');
+        return;
+      }
       if (e.target.closest('#er-app-note-add')) {
         var inp = el.querySelector('#er-app-note'), v = inp.value.trim();
         if (!v) { inp.focus(); return; }
@@ -503,7 +508,8 @@ window.ECOR.ready(function () {
           '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" id="er-urg"' + (st.urgent ? ' checked' : '') + '></label></div>' +
           '<div class="er-panel"><h3>' + icon('camera') + 'Fotos de entrada<span class="er-r">' + st.photos.length + '</span></h3><div class="er-photos">' +
           st.photos.map(function (p, i) { return '<div class="er-ph"><img src="' + esc(p.url) + '" alt=""><button type="button" class="er-del" data-rmph="' + i + '">' + icon('x', true) + '</button></div>'; }).join('') +
-          '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('camera') + 'Añadir foto</button></div><input type="file" id="er-ph-file" accept="image/*" multiple hidden></div>';
+          '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('camera') + 'Hacer foto</button>' +
+          '<button type="button" class="er-ph er-add" id="er-ph-gal">' + icon('box') + 'Galería</button></div><input type="file" id="er-ph-file" accept="image/*" multiple hidden></div>';
         acc = E.ChipSet(el.querySelector('#er-acc'), { options: D.accessories, selected: st.accessories || [], allowOther: true });
         dmg = E.ChipSet(el.querySelector('#er-dmg'), { options: D.damages, selected: st.damages || [], warn: true, allowOther: true });
       }
@@ -584,7 +590,8 @@ window.ECOR.ready(function () {
       var t;
       if (e.target.closest('[data-prev]')) { keep(); st.step--; draw(); return; }
       if ((t = e.target.closest('[data-rmph]'))) { st.photos.splice(+t.getAttribute('data-rmph'), 1); keep(); draw(); return; }
-      if (e.target.closest('#er-ph-add')) { nv.querySelector('#er-ph-file').click(); return; }
+      if (e.target.closest('#er-ph-add')) { E.pickPhoto(nv.querySelector('#er-ph-file'), false); return; }
+      if (e.target.closest('#er-ph-gal')) { E.pickPhoto(nv.querySelector('#er-ph-file'), true); return; }
       if (!e.target.closest('[data-next]')) return;
       keep();
       if (st.step === 1 && !st.customer) { E.toast('Elige o crea el cliente.', true); return; }
