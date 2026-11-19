@@ -1072,3 +1072,6 @@
 .ecor #er-acc .er-opt[aria-pressed="true"] { color: #3F5200; border-color: #A6E000; background: radial-gradient(120% 140% at 30% 20%, #FAFFE0 0%, #EAFF9A 55%, #D4FF2A 100%);
   box-shadow: 0 0 0 1px rgba(166,224,0,.25), 0 0 14px rgba(212,255,42,.6); }
 .ecor #er-acc .er-opt[aria-pressed="true"] .er-i { color: #4D6B00; }
+/* Con una ventana abierta, la rueda del ratón no mueve la página de detrás */
+.ecor .er-modal, .ecor .er-modal .er-dlg, .ecor .er-kbd-list { overscroll-behavior: contain; }
+html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !important; }
