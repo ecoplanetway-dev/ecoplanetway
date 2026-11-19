@@ -57,7 +57,7 @@ class EcoRepairPhoto
             return array('ok' => false, 'error' => 'No se recibió la foto.');
         }
         if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
-            return array('ok' => false, 'error' => 'La foto es demasiado grande.');
+            return array('ok' => false, 'error' => 'La foto es demasiado grande para el servidor (máximo ' . ini_get('upload_max_filesize') . ').');
         }
         if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
             return array('ok' => false, 'error' => 'No se pudo subir la foto.');

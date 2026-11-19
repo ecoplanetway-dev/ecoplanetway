@@ -35,7 +35,7 @@ window.ECOR.ready(function () {
           '<div><div class="er-sub">Entregado con el equipo</div><div id="er-acc"></div></div>' +
           '<div><div class="er-sub">Daños previos</div><div id="er-dmg"></div></div>' +
           '<div><div class="er-sub">Fotos de entrada</div><div class="er-photos" id="er-photos"></div>' +
-            '<input type="file" id="er-file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple hidden></div>' +
+            '<input type="file" id="er-file" accept="image/*" multiple hidden></div>' +
         '</div>' +
       '</div>' +
       '<div class="er-stack">' +
@@ -275,7 +275,7 @@ window.ECOR.ready(function () {
   });
   $('#er-file').addEventListener('change', function (e) {
     Array.prototype.forEach.call(e.target.files, function (f) {
-      if (!/^image\//.test(f.type)) return;
+      if (f.type && !/^image\//.test(f.type)) return;
       st.photos.push({ file: f, url: URL.createObjectURL(f) });
     });
     e.target.value = '';

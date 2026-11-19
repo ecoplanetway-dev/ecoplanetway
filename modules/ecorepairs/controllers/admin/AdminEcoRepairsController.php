@@ -325,6 +325,10 @@ class AdminEcoRepairsController extends ModuleAdminController
         if (!$this->ajax) {
             return parent::postProcess();
         }
+        // Si la subida supera el límite del servidor, PHP descarta todo el formulario (también el token)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && (int) $_SERVER['CONTENT_LENGTH'] > 0) {
+            $this->jsonOut(array('ok' => false, 'error' => 'La foto es demasiado grande para el servidor (máximo ' . ini_get('post_max_size') . '). Vuelve a intentarlo: se reduce sola.'), 413);
+        }
         $action = (string) Tools::getValue('action');
         $map = array(
             // acción => array(método, permiso, solo POST)

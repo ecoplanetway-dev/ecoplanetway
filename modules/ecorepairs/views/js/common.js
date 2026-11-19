@@ -187,22 +187,37 @@
 
   /** Reduce una foto en el navegador antes de subirla (menos datos y orientación correcta). */
   function shrinkImage(file, maxSide) {
+    // Las fotos del móvil pesan 3-10 MB (y en iPhone pueden ser HEIC): se reducen siempre a JPEG de ~1600 px
+    // para que el servidor las acepte (muchos hostings limitan la subida a 2 MB).
     return new Promise(function (resolve) {
-      if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') {
-        resolve(file);
-        return;
-      }
-      createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
-        var scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
-        if (scale === 1 && file.size < 2500000) { resolve(file); return; }
+      if (file.type && !/^image\//.test(file.type)) { resolve(file); return; }
+      function encode(src, w, h) {
+        var scale = Math.min(1, maxSide / Math.max(w, h));
+        if (scale === 1 && file.size < 1000000 && /^image\/(jpeg|png|webp)$/.test(file.type)) { resolve(file); return; }
         var c = document.createElement('canvas');
-        c.width = Math.round(bmp.width * scale);
-        c.height = Math.round(bmp.height * scale);
-        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+        c.width = Math.max(1, Math.round(w * scale));
+        c.height = Math.max(1, Math.round(h * scale));
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(src, 0, 0, c.width, c.height);
         c.toBlob(function (blob) {
-          resolve(blob ? new File([blob], 'foto.jpg', { type: 'image/jpeg' }) : file);
-        }, 'image/jpeg', 0.85);
-      }).catch(function () { resolve(file); });
+          if (!blob) { resolve(file); return; }
+          try { resolve(new File([blob], 'foto.jpg', { type: 'image/jpeg' })); } catch (e) { blob.name = 'foto.jpg'; resolve(blob); }
+        }, 'image/jpeg', 0.82);
+      }
+      function viaImg() {
+        var url = URL.createObjectURL(file), img = new Image();
+        img.onload = function () { encode(img, img.naturalWidth, img.naturalHeight); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+      }
+      if (typeof createImageBitmap === 'function') {
+        var p;
+        try { p = createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { p = null; }
+        if (!p) { viaImg(); return; }
+        p.then(function (bmp) { encode(bmp, bmp.width, bmp.height); }).catch(viaImg);
+      } else viaImg();
     });
   }
 

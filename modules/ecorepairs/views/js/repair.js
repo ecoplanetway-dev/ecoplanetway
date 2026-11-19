@@ -271,7 +271,7 @@ window.ECOR.ready(function () {
             (devicePhoto ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" id="er-dev-reset">Volver a la del modelo</button>' : '') +
             (devicePhoto && r.id_model ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" id="er-dev-model">' + icon('layers', true) + 'Usar como foto del modelo</button>' : '') + '</div>' : '') +
         '</div>' +
-        '<input type="file" id="er-dev-file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>' +
+        '<input type="file" id="er-dev-file" accept="image/*" hidden>' +
       '</div>' +
       '<div class="er-sub" style="margin:4px 0 0">Fotos de entrada (estado y daños)</div>' +
       '<div class="er-photos" id="er-ph">' + photos.map(function (p) {
@@ -280,7 +280,7 @@ window.ECOR.ready(function () {
       }).join('') +
       (canEdit ? '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('plus') + 'Añadir foto</button>' : '') +
       (!photos.length && !canEdit ? '<div class="er-muted">Sin fotos</div>' : '') + '</div>' +
-      '<input type="file" id="er-file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple hidden>';
+      '<input type="file" id="er-file" accept="image/*" multiple hidden>';
   }
   $('#er-p-photos').addEventListener('click', function (e) {
     var t;
