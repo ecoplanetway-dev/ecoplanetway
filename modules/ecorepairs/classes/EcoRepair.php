@@ -222,8 +222,9 @@ class EcoRepair
                 ec.phone, ec.no_email,
                 cat.name AS category_name, cat.icon AS category_icon,
                 b.name AS brand_name, m.name AS model_name, m.image AS model_image,
-                (SELECT ph.id_ecorepair_photo FROM `{$p}ecorepair_photo` ph WHERE ph.id_ecorepair = r.id_ecorepair AND ph.type = 'entry'
-                    ORDER BY ph.date_add ASC, ph.id_ecorepair_photo ASC LIMIT 1) AS id_photo_cover,
+                (SELECT ph.id_ecorepair_photo FROM `{$p}ecorepair_photo` ph WHERE ph.id_ecorepair = r.id_ecorepair AND ph.type = 'device'
+                    ORDER BY ph.id_ecorepair_photo DESC LIMIT 1) AS id_photo_cover,
+                (SELECT COUNT(*) FROM `{$p}ecorepair_quote` q WHERE q.id_ecorepair = r.id_ecorepair AND q.status = 'accepted') AS quotes_accepted,
                 e.firstname AS tech_firstname, e.lastname AS tech_lastname
             FROM `{$p}ecorepair` r
             LEFT JOIN `{$p}customer` c ON c.id_customer = r.id_customer
@@ -279,6 +280,35 @@ class EcoRepair
         $rows = Db::getInstance()->executeS(self::baseSelect()
             . 'WHERE r.id_shop = ' . (int) $idShop . ' AND (' . implode(' OR ', $where) . ')
                ORDER BY r.date_add DESC LIMIT ' . (int) $limit);
+
+        return array_map(array('EcoRepair', 'decorate'), $rows ?: array());
+    }
+
+    /**
+     * Archivo: canceladas o entregadas, por fechas (del último cambio de estado) y búsqueda.
+     */
+    public static function archive($idShop, $status, $from, $to, $q)
+    {
+        $status = in_array($status, array(EcoRepairStatus::CANCELLED, EcoRepairStatus::DELIVERED), true) ? $status : EcoRepairStatus::CANCELLED;
+        $where = 'r.id_shop = ' . (int) $idShop . " AND r.status = '" . pSQL($status) . "'";
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+            $where .= " AND r.date_status >= '" . pSQL($from) . " 00:00:00'";
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+            $where .= " AND r.date_status <= '" . pSQL($to) . " 23:59:59'";
+        }
+        $q = trim((string) $q);
+        if (Tools::strlen($q) >= 2) {
+            $like = pSQL(str_replace(array('%', '_'), array('\\%', '\\_'), $q));
+            $digits = preg_replace('/[^0-9]/', '', $q);
+            $or = array("r.reference LIKE '%{$like}%'", "r.serial LIKE '%{$like}%'", "r.device_name LIKE '%{$like}%'",
+                "CONCAT(c.firstname, ' ', c.lastname) LIKE '%{$like}%'", "r.cancel_reason LIKE '%{$like}%'");
+            if (strlen($digits) >= 3) {
+                $or[] = "ec.phone_norm LIKE '%" . pSQL($digits) . "%'";
+            }
+            $where .= ' AND (' . implode(' OR ', $or) . ')';
+        }
+        $rows = Db::getInstance()->executeS(self::baseSelect() . 'WHERE ' . $where . ' ORDER BY r.date_status DESC LIMIT 200');
 
         return array_map(array('EcoRepair', 'decorate'), $rows ?: array());
     }
@@ -370,6 +400,31 @@ class EcoRepair
         return array('ok' => true);
     }
 
+    /**
+     * Reglas para cerrar una reparación:
+     * - «Listo» y «Entregado» necesitan un presupuesto aceptado, salvo si está en garantía.
+     * - «Entregado» necesita además estar cobrada si hay algo que cobrar.
+     * Devuelve true o el motivo.
+     */
+    public static function canMoveTo(array $repair, $status)
+    {
+        if (!in_array($status, array(EcoRepairStatus::READY, EcoRepairStatus::DELIVERED), true)) {
+            return true;
+        }
+        $accepted = (int) $repair['quotes_accepted'] > 0;
+        if (!$accepted && !(int) $repair['warranty']) {
+            return 'Falta un presupuesto aceptado (o marcar la reparación «En garantía»).';
+        }
+        if ($status === EcoRepairStatus::DELIVERED && $accepted && !(int) $repair['id_order']) {
+            $s = EcoRepairPayment::summary((int) $repair['id_ecorepair']);
+            if ($s['due'] > 0 || $s['lines_count'] > 0) {
+                return 'Cobra la reparación antes de marcarla como entregada (botón «Cobrar»).';
+            }
+        }
+
+        return true;
+    }
+
     public static function setStatus($id, $status, $idEmployee, $reason = '')
     {
         if (!EcoRepairStatus::isValid($status)) {
@@ -385,6 +440,10 @@ class EcoRepair
         $reason = trim(strip_tags((string) $reason));
         if ($status === EcoRepairStatus::CANCELLED && $reason === '') {
             return array('ok' => false, 'error' => 'Indica el motivo de la cancelación.');
+        }
+        $check = self::canMoveTo($repair, $status);
+        if ($check !== true) {
+            return array('ok' => false, 'error' => $check);
         }
 
         $data = array(

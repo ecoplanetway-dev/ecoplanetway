@@ -20,14 +20,21 @@ require_once __DIR__ . '/classes/EcoRepairQuote.php';
 require_once __DIR__ . '/classes/EcoRepairKit.php';
 require_once __DIR__ . '/classes/EcoRepairCatalogSeed.php';
 require_once __DIR__ . '/classes/EcoRepairStats.php';
+require_once __DIR__ . '/classes/EcoRepairPayment.php';
 
-class EcoRepairs extends Module
+/**
+ * También es un módulo de pago (Taller · Efectivo / Tarjeta / Transferencia) para crear los pedidos del taller.
+ * No se engancha a la tienda online: no aparece como forma de pago a los clientes.
+ */
+class EcoRepairs extends PaymentModule
 {
     public function __construct()
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.3.1';
+        $this->version = '1.4.0';
+        $this->currencies = true;
+        $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -36,7 +43,7 @@ class EcoRepairs extends Module
         parent::__construct();
 
         $this->displayName = $this->l('Reparaciones del taller');
-        $this->description = $this->l('Recepción, estados, técnicos, fotos, firma, resguardos y presupuestos de las reparaciones.');
+        $this->description = $this->l('Recepción, presupuestos y cobro de las reparaciones del taller.');
         $this->confirmUninstall = $this->l('Se quitará el menú del taller. Las reparaciones y las fotos se conservan. ¿Continuar?');
     }
 

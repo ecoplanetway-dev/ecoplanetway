@@ -197,6 +197,55 @@ class EcoRepairCatalog
         return array('ok' => true);
     }
 
+    /**
+     * Propone fotos para los modelos sin foto usando los productos de la tienda:
+     * el producto cuyo nombre contiene la marca y todas las palabras del modelo.
+     */
+    public static function shopImageProposals($idLang, $idShop)
+    {
+        $p = _DB_PREFIX_;
+        $db = Db::getInstance();
+        $models = $db->executeS("SELECT m.id_ecorepair_model, m.name AS model, b.name AS brand, c.name AS category
+            FROM `{$p}ecorepair_model` m
+            INNER JOIN `{$p}ecorepair_brand` b ON b.id_ecorepair_brand = m.id_ecorepair_brand AND b.active = 1
+            INNER JOIN `{$p}ecorepair_category` c ON c.id_ecorepair_category = b.id_ecorepair_category
+            WHERE m.active = 1 AND m.image = '' ORDER BY b.name, m.name") ?: array();
+        $link = Context::getContext()->link;
+        $type = ImageType::getFormattedName('home');
+        $out = array();
+        foreach ($models as $m) {
+            $words = EcoRepairQuote::searchWords($m['brand'] . ' ' . $m['model']);
+            if (count($words) < 2) {
+                continue;
+            }
+            $conds = array();
+            foreach ($words as $w) {
+                $conds[] = "pl.name LIKE '%" . pSQL(str_replace(array('%', '_'), array('\\%', '\\_'), $w)) . "%'";
+            }
+            $row = $db->getRow("SELECT p.id_product, pl.name, pl.link_rewrite, i.id_image
+                FROM `{$p}product` p
+                INNER JOIN `{$p}product_shop` ps ON ps.id_product = p.id_product AND ps.id_shop = " . (int) $idShop . "
+                INNER JOIN `{$p}product_lang` pl ON pl.id_product = p.id_product AND pl.id_lang = " . (int) $idLang . ' AND pl.id_shop = ' . (int) $idShop . "
+                INNER JOIN `{$p}image_shop` i ON i.id_product = p.id_product AND i.id_shop = " . (int) $idShop . ' AND i.cover = 1
+                WHERE ' . implode(' AND ', $conds) . '
+                ORDER BY ps.active DESC, CHAR_LENGTH(pl.name) ASC');
+            if (!$row) {
+                continue;
+            }
+            $url = $link->getImageLink($row['link_rewrite'], (int) $row['id_product'] . '-' . (int) $row['id_image'], $type);
+            $url = preg_replace('#^(//|http://)#i', 'https://', $url);
+            $out[] = array(
+                'id_model' => (int) $m['id_ecorepair_model'],
+                'model' => trim($m['brand'] . ' ' . $m['model']),
+                'category' => $m['category'],
+                'product' => $row['name'],
+                'image' => $url,
+            );
+        }
+
+        return $out;
+    }
+
     public static function setIcon($id, $icon)
     {
         $icons = self::icons();

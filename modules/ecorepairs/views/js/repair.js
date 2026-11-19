@@ -10,7 +10,10 @@ window.ECOR.ready(function () {
   var log = D.log || [];
   var photos = D.photos || [];
   var signature = D.signature;
-  var canEdit = !!D.canEdit;
+  var locked = r.status === 'delivered' && !D.isAdmin;
+  var canEdit = !!D.canEdit && !locked;
+  var devicePhoto = D.devicePhoto, modelImage = D.modelImage || '';
+  var pay = D.payment || {};
   var dis = canEdit ? '' : ' disabled';
   var printUrl = E.ajaxUrl('printReceipt', { id_ecorepair: r.id });
   var labelUrl = E.ajaxUrl('printLabel', { id_ecorepair: r.id });
@@ -18,9 +21,10 @@ window.ECOR.ready(function () {
   app.innerHTML =
     '<div class="er-f-head">' +
       '<a class="er-btn er-btn-ghost er-icon-btn" href="' + esc(E.boot.links.board) + '" aria-label="Volver al tablero">' + icon('back') + '</a>' +
-      (r.cover ? '<a class="er-f-cover" href="#er-p-photos"><img src="' + esc(r.cover) + '" alt="Foto del equipo"></a>' : '') +
+      '<button type="button" class="er-f-cover" id="er-cover" aria-label="Ver la foto del equipo en grande"></button>' +
       '<div class="er-f-title"><h1>' + esc(r.reference) + '</h1><span id="er-st"></span><span id="er-tags" class="er-row"></span></div>' +
       '<div class="er-f-actions">' +
+        '<button type="button" class="er-btn er-btn-hist" id="er-hist">' + icon('clock') + 'Historial<span class="er-hist-n" id="er-hist-n"></span></button>' +
         '<a class="er-btn" href="' + esc(printUrl) + '" target="_blank" rel="noopener">' + icon('print') + 'Imprimir resguardo</a>' +
         '<a class="er-btn" href="' + esc(labelUrl) + '" target="_blank" rel="noopener">' + icon('tag') + 'Etiqueta</a>' +
         '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '&id_customer=' + r.id_customer + '">' + icon('plus') + 'Otra reparación del cliente</a>' +
@@ -29,7 +33,7 @@ window.ECOR.ready(function () {
     '<div id="er-banners"></div>' +
     '<div class="er-steps" id="er-steps"></div>' +
     '<div class="er-grid2">' +
-      '<div class="er-stack er-wide-2">' +
+      '<div class="er-stack er-rgrid">' +
         '<div class="er-panel" id="er-p-cust"></div>' +
         '<div class="er-panel" id="er-p-dev"></div>' +
         '<div class="er-panel" id="er-p-photos"></div>' +
@@ -37,6 +41,7 @@ window.ECOR.ready(function () {
       '</div>' +
       '<div class="er-stack">' +
         '<div class="er-panel" id="er-p-quote"></div>' +
+        '<div class="er-panel er-p-pay" id="er-p-pay"></div>' +
         '<div class="er-panel" id="er-p-assign"></div>' +
         '<div class="er-panel" id="er-p-move"></div>' +
         '<div class="er-panel" id="er-p-sig"></div>' +
@@ -47,7 +52,26 @@ window.ECOR.ready(function () {
   var $ = function (s) { return app.querySelector(s); };
 
   /* ---------- Cabecera, aviso y pasos ---------- */
+  function coverSrc() { return devicePhoto ? devicePhoto.full : modelImage; }
+  function renderCover() {
+    var src = coverSrc(), el = $('#er-cover');
+    el.innerHTML = src ? '<img src="' + esc(src) + '" alt="">' : icon(r.category_icon || 'device');
+    el.classList.toggle('er-f-cover-empty', !src);
+  }
+  function allPhotos() {
+    var list = [];
+    if (coverSrc()) list.push({ src: coverSrc(), caption: devicePhoto ? 'Foto del equipo' : 'Foto del modelo (catálogo)' });
+    photos.forEach(function (p) { list.push({ src: p.full, caption: 'Foto de entrada · ' + E.fmtDateTime(p.date) }); });
+    return list;
+  }
+  $('#er-cover').addEventListener('click', function () {
+    if (coverSrc()) E.viewer(allPhotos(), 0);
+    else if (canEdit) $('#er-dev-file').click();
+  });
+
   function renderHead() {
+    renderCover();
+    var hn = $('#er-hist-n'); if (hn) hn.textContent = log.length;
     $('#er-st').innerHTML = E.statusChip(D.statuses, r.status);
     $('#er-tags').innerHTML = (r.warranty ? '<span class="er-tag er-t-gar">En garantía</span>' : '') +
       (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') +
@@ -60,6 +84,10 @@ window.ECOR.ready(function () {
       return '<div class="er-step' + cls + '"><div class="er-bar"' + (i === idx ? ' style="background:' + esc(curColor) + '"' : '') + '></div><span>' + esc(D.statuses[s].name) + '</span></div>';
     }).join('');
     var b = '';
+    if (r.status === 'delivered') {
+      b += '<div class="er-banner ' + (D.isAdmin ? 'er-warn' : 'er-lock') + '">' + icon('lock') + '<div><b>Reparación entregada' + (D.isAdmin ? ': estás editando como administrador.' : ' y bloqueada.') + '</b> ' +
+        (D.isAdmin ? 'Todo lo que cambies queda en el historial con tu nombre.' : 'Solo el administrador puede cambiarla. Puedes añadir notas.') + '</div></div>';
+    }
     if (r.status === 'cancelled') {
       b += '<div class="er-banner er-bad">' + icon('x') + '<div><b>Reparación cancelada.</b> ' + esc(r.cancel_reason) + '</div></div>';
     }
@@ -103,7 +131,9 @@ window.ECOR.ready(function () {
       return '<a href="' + esc(E.boot.links.repair + h.id) + '"><b class="er-num">' + esc(h.reference) + '</b><span class="er-grow er-muted">' +
         esc(E.fmtDate(h.date_add) + ' · ' + h.device_name + (h.fault_customer ? ' · ' + h.fault_customer : '')) + '</span>' + E.statusChip(D.statuses, h.status) + '</a>';
     }).join('');
-    $('#er-p-cust').innerHTML = '<h3>' + icon('user') + 'Cliente<span class="er-r"><a href="' + esc(D.customerAdminUrl) + '" target="_blank" rel="noopener">Ver en PrestaShop</a></span></h3>' +
+    $('#er-p-cust').innerHTML = '<h3>' + icon('user') + 'Cliente<span class="er-r">' +
+        (D.canEdit ? '<button type="button" class="er-btn er-btn-sm" id="er-cust-edit">' + icon('pen', true) + 'Editar</button> ' : '') +
+        '<a href="' + esc(D.customerAdminUrl) + '" target="_blank" rel="noopener" class="er-small">PrestaShop</a></span></h3>' +
       '<div class="er-person"><span class="er-av">' + esc(E.initials(c.name)) + '</span><div><b>' + esc(c.name || r.customer_name) + '</b>' +
       '<div class="er-muted er-num">' + esc([c.phone, c.email].filter(Boolean).join(' · ') || 'Sin teléfono ni email') + '</div></div></div>' +
       '<div class="er-kv">' +
@@ -147,7 +177,16 @@ window.ECOR.ready(function () {
       });
     });
   }
-  $('#er-p-cust').addEventListener('click', function (e) { if (e.target.closest('#er-inv')) invoiceDialog(); });
+  $('#er-p-cust').addEventListener('click', function (e) {
+    if (e.target.closest('#er-inv')) invoiceDialog();
+    if (e.target.closest('#er-cust-edit')) E.customerDialog(c, { id_ecorepair: r.id }).then(function (res) {
+      if (!res) return;
+      c = res.customer; r.customer_name = c.name;
+      renderCustomer();
+      if (res.log) { log = res.log; renderLog(); renderHead(); }
+      E.toast('Datos del cliente guardados');
+    });
+  });
 
   /* ---------- Equipo y avería ---------- */
   function renderDevice() {
@@ -203,9 +242,21 @@ window.ECOR.ready(function () {
 
   /* ---------- Fotos ---------- */
   function renderPhotos() {
-    $('#er-p-photos').innerHTML = '<h3>' + icon('camera') + 'Fotos<span class="er-r">' + photos.length + '</span></h3>' +
+    var src = coverSrc();
+    $('#er-p-photos').innerHTML = '<h3>' + icon('camera') + 'Fotos<span class="er-r">' + photos.length + ' de entrada</span></h3>' +
+      '<div class="er-devph">' +
+        '<button type="button" class="er-devph-img" data-view="0" aria-label="Ver en grande">' + (src ? '<img src="' + esc(src) + '" alt="">' : icon(r.category_icon || 'device')) + '</button>' +
+        '<div class="er-stack" style="gap:8px;min-width:0">' +
+          '<div><b>Foto del equipo</b><div class="er-muted er-small">' + (devicePhoto ? 'Foto de este equipo. Sale en el tablero.' : modelImage ? 'Foto del modelo del catálogo. Haz una foto para usar la de este equipo.' : 'Sin foto: haz una al equipo o añade la del modelo en Ajustes.') + '</div></div>' +
+          (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-sm" id="er-dev-shot">' + icon('camera', true) + (devicePhoto ? 'Repetir foto' : 'Hacer foto de este equipo') + '</button>' +
+            (devicePhoto ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" id="er-dev-reset">Volver a la del modelo</button>' : '') +
+            (devicePhoto && r.id_model ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" id="er-dev-model">' + icon('layers', true) + 'Usar como foto del modelo</button>' : '') + '</div>' : '') +
+        '</div>' +
+        '<input type="file" id="er-dev-file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>' +
+      '</div>' +
+      '<div class="er-sub" style="margin:4px 0 0">Fotos de entrada (estado y daños)</div>' +
       '<div class="er-photos" id="er-ph">' + photos.map(function (p) {
-        return '<div class="er-ph"><a href="' + esc(p.full) + '" target="_blank" rel="noopener"><img src="' + esc(p.thumb) + '" alt="Foto de la reparación" loading="lazy"></a>' +
+        return '<div class="er-ph"><a href="' + esc(p.full) + '" data-ph="' + p.id + '"><img src="' + esc(p.thumb) + '" alt="Foto de la reparación" loading="lazy"></a>' +
           (D.canDelete ? '<button type="button" class="er-del" data-del="' + p.id + '" aria-label="Borrar foto">' + icon('trash', true) + '</button>' : '') + '</div>';
       }).join('') +
       (canEdit ? '<button type="button" class="er-ph er-add" id="er-ph-add">' + icon('plus') + 'Añadir foto</button>' : '') +
@@ -213,7 +264,30 @@ window.ECOR.ready(function () {
       '<input type="file" id="er-file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple hidden>';
   }
   $('#er-p-photos').addEventListener('click', function (e) {
+    var t;
     if (e.target.closest('#er-ph-add')) { $('#er-file').click(); return; }
+    if ((t = e.target.closest('[data-ph]'))) {
+      e.preventDefault();
+      var idx = 0, list = allPhotos(), id = t.getAttribute('data-ph');
+      photos.forEach(function (p, k) { if (String(p.id) === id) idx = k + (coverSrc() ? 1 : 0); });
+      E.viewer(list, idx);
+      return;
+    }
+    if (e.target.closest('[data-view]')) { if (coverSrc()) E.viewer(allPhotos(), 0); else if (canEdit) $('#er-dev-file').click(); return; }
+    if (e.target.closest('#er-dev-shot')) { $('#er-dev-file').click(); return; }
+    if (e.target.closest('#er-dev-reset')) {
+      E.api('deviceReset', { id_ecorepair: r.id }, {}).then(function (res) {
+        if (!res.ok) { E.toast(res.error, true); return; }
+        devicePhoto = null; log = res.log; renderPhotos(); renderHead(); renderLog();
+      });
+      return;
+    }
+    if (e.target.closest('#er-dev-model')) {
+      E.dialog({ title: 'Usar como foto del modelo', text: 'Todas las reparaciones de ' + r.device_name + ' sin foto propia mostrarán esta foto.', ok: 'Usar esta foto' }).then(function (yes) {
+        if (yes) useAsModel();
+      });
+      return;
+    }
     var d = e.target.closest('[data-del]');
     if (!d) return;
     E.dialog({ title: 'Borrar foto', text: 'La foto se borrará definitivamente.', ok: 'Borrar', danger: true }).then(function (yes) {
@@ -226,6 +300,26 @@ window.ECOR.ready(function () {
     });
   });
   $('#er-p-photos').addEventListener('change', function (e) {
+    if (e.target.id === 'er-dev-file' && e.target.files.length) {
+      var f = e.target.files[0];
+      e.target.value = '';
+      E.toast('Subiendo foto del equipo…');
+      E.shrinkImage(f, 1600).then(function (small) {
+        var fd = new FormData();
+        fd.append('photo', small, small.name || 'foto.jpg');
+        E.api('devicePhoto', { id_ecorepair: r.id }, fd).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          devicePhoto = res.devicePhoto; log = res.log;
+          renderPhotos(); renderHead(); renderLog();
+          if (!res.modelHasImage && r.id_model) {
+            E.dialog({ title: 'El modelo no tiene foto', text: '¿Usar esta foto también como foto de ' + r.device_name + ' para las próximas reparaciones?', ok: 'Sí, usarla' }).then(function (yes) {
+              if (yes) useAsModel();
+            });
+          } else E.toast('Foto del equipo guardada');
+        });
+      });
+      return;
+    }
     if (e.target.id !== 'er-file') return;
     var files = Array.prototype.slice.call(e.target.files);
     e.target.value = '';
@@ -252,22 +346,66 @@ window.ECOR.ready(function () {
     chain.then(function () { renderPhotos(); renderLog(); });
   });
 
-  /* ---------- Historial ---------- */
-  function renderLog() {
-    var colors = { status: null, note: '#5B6170', create: '#8B93A3', photo: '#D5D8DE', field: '#D5D8DE', customer: '#0A4F7A' };
-    $('#er-p-log').innerHTML = '<h3>' + icon('clock') + 'Notas internas e historial</h3>' +
-      (canEdit ? '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-note" maxlength="2000" placeholder="Escribe una nota interna para el equipo" aria-label="Nota interna"><button type="button" class="er-btn" id="er-note-add">Añadir</button></div>' : '') +
-      '<ul class="er-timeline">' + log.map(function (l) {
-        var color = colors[l.action] || '#D5D8DE';
-        if (l.action === 'status') {
-          var to = String(l.detail).split('→').pop().split('·')[0].trim();
-          Object.keys(D.statuses).forEach(function (k) { if (D.statuses[k].name === to) color = D.statuses[k].color; });
-        }
-        var text = l.action === 'note' ? '<div class="er-note">' + esc(l.detail) + '</div>' : esc(l.action === 'status' ? 'Estado: ' + l.detail : l.detail);
-        return '<li><span class="er-tdot" style="background:' + esc(color) + '"></span><div>' + text +
-          '<div class="er-when er-num">' + esc(E.fmtDateTime(l.date)) + (l.employee ? ' · ' + esc(l.employee) : '') + '</div></div></li>';
-      }).join('') + '</ul>';
+  function useAsModel() {
+    E.api('deviceToModel', { id_ecorepair: r.id }, {}).then(function (res) {
+      if (!res.ok) { E.toast(res.error, true); return; }
+      modelImage = res.modelImage; log = res.log; renderLog(); renderHead();
+      E.toast('Guardada como foto del modelo');
+    });
   }
+
+  /* ---------- Historial ---------- */
+  var LOGCOL = { note: '#5B6170', create: '#8B93A3', photo: '#B7BDC8', field: '#B7BDC8', customer: '#0A4F7A', quote: '#D2601A', payment: '#0B6E4B' };
+  function logColor(l) {
+    var color = LOGCOL[l.action] || '#B7BDC8';
+    if (l.action === 'status') {
+      var to = String(l.detail).split('→').pop().split('·')[0].trim();
+      Object.keys(D.statuses).forEach(function (k) { if (D.statuses[k].name === to) color = D.statuses[k].color; });
+    }
+    return color;
+  }
+  function timeline(list) {
+    return '<ul class="er-timeline">' + list.map(function (l) {
+      var text = l.action === 'note' ? '<div class="er-note">' + esc(l.detail) + '</div>' : esc(l.action === 'status' ? 'Estado: ' + l.detail : l.detail);
+      return '<li><span class="er-tdot" style="background:' + esc(logColor(l)) + '"></span><div>' + text +
+        '<div class="er-when er-num">' + esc(E.fmtDateTime(l.date)) + ' · ' + esc(l.employee || 'Cliente / sistema') + '</div></div></li>';
+    }).join('') + '</ul>';
+  }
+  /** Bloque de notas internas (el historial completo va en el botón de arriba). */
+  function renderLog() {
+    var notes = log.filter(function (l) { return l.action === 'note'; });
+    $('#er-p-log').innerHTML = '<h3>' + icon('pen') + 'Notas internas<span class="er-r">' + notes.length + '</span></h3>' +
+      (D.canEdit ? '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" id="er-note" maxlength="2000" placeholder="Escribe una nota interna para el equipo" aria-label="Nota interna"><button type="button" class="er-btn" id="er-note-add">Añadir</button></div>' : '') +
+      (notes.length ? timeline(notes) : '<p class="er-muted" style="margin:0">Sin notas.</p>');
+    var hn = $('#er-hist-n'); if (hn) hn.textContent = log.length;
+  }
+
+  var HFILTERS = [['all', 'Todo'], ['status', 'Estados'], ['quote', 'Presupuestos'], ['payment', 'Cobros'], ['note', 'Notas'], ['field', 'Cambios'], ['photo', 'Fotos']];
+  function historyDialog() {
+    var wrap = document.createElement('div'), f = 'all';
+    wrap.className = 'er-modal er-drawer';
+    function body() {
+      var list = log.filter(function (l) { return f === 'all' || l.action === f || (f === 'field' && (l.action === 'customer' || l.action === 'create')); });
+      return '<div class="er-dlg"><div class="er-row"><h2 style="margin-right:auto">' + icon('clock') + ' Historial de ' + esc(r.reference) + '</h2>' +
+        '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+        '<div class="er-filters" style="margin:0">' + HFILTERS.map(function (h) {
+          var n = h[0] === 'all' ? log.length : log.filter(function (l) { return l.action === h[0] || (h[0] === 'field' && (l.action === 'customer' || l.action === 'create')); }).length;
+          return '<button type="button" class="er-chip er-btn-sm" data-hf="' + h[0] + '" aria-pressed="' + (f === h[0]) + '">' + h[1] + ' <span class="er-n">' + n + '</span></button>';
+        }).join('') + '</div>' +
+        (list.length ? timeline(list) : '<div class="er-empty">Nada en este apartado.</div>') + '</div>';
+    }
+    wrap.innerHTML = body();
+    app.appendChild(wrap);
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    function close() { document.removeEventListener('keydown', onKey); wrap.classList.add('er-out'); setTimeout(function () { wrap.remove(); }, 180); }
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', function (e) {
+      var b;
+      if (e.target === wrap || e.target.closest('[data-x]')) { close(); return; }
+      if ((b = e.target.closest('[data-hf]'))) { f = b.getAttribute('data-hf'); wrap.innerHTML = body(); }
+    });
+  }
+  $('#er-hist').addEventListener('click', historyDialog);
   $('#er-p-log').addEventListener('click', function (e) {
     if (!e.target.closest('#er-note-add')) return;
     addNote();
@@ -298,6 +436,135 @@ window.ECOR.ready(function () {
       '<a class="er-btn er-btn-block' + (pri ? ' er-btn-pri' : '') + '" href="' + esc(D.quoteUrl) + '">' + icon(qs.length ? 'doc' : 'plus') + (qs.length ? 'Abrir presupuesto' : (canEdit ? 'Crear presupuesto' : 'Ver presupuesto')) + '</a>';
   }
 
+  /* ---------- Cobro ---------- */
+  function renderPay() {
+    var el = $('#er-p-pay'), rows = '', btns = '';
+    var accepted = r.quotes_accepted > 0, cancelled = r.status === 'cancelled';
+    (pay.payments || []).forEach(function (p) {
+      rows += '<div><span class="er-grow">' + esc(p.type_name + ' · ' + p.method_name) + '<span class="er-muted er-small" style="display:block">' + esc(E.fmtDateTime(p.date) + (p.employee ? ' · ' + p.employee : '')) + '</span></span><b class="er-num">' + esc(E.fmtMoney(p.amount)) + '</b></div>';
+    });
+    var head;
+    if (pay.id_order) {
+      head = '<div class="er-banner er-ok" style="margin:0">' + icon('check') + '<div><b>Cobrada.</b> Pedido de PrestaShop creado con su factura.</div></div>' +
+        '<div class="er-row"><a class="er-btn er-btn-sm" href="' + esc(pay.invoiceUrl) + '" target="_blank" rel="noopener">' + icon('doc', true) + 'Factura PDF</a>' +
+        '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(pay.orderUrl) + '" target="_blank" rel="noopener">Ver pedido</a></div>';
+    } else if (!accepted && !cancelled) {
+      head = '<p class="er-muted" style="margin:0">' + (r.warranty ? 'En garantía y sin presupuesto: se entrega sin cargo.' : 'Se podrá cobrar cuando el cliente acepte el presupuesto.') + '</p>';
+    } else {
+      head = '<div class="er-qt"><span class="er-muted">Total aceptado</span><b class="er-num">' + esc(E.fmtMoney(pay.due)) + '</b></div>' +
+        (pay.paid > 0 ? '<div class="er-qt"><span class="er-muted">Ya pagado</span><b class="er-num">' + esc(E.fmtMoney(pay.paid)) + '</b></div>' : '') +
+        '<div class="er-qt er-qt-big"><span>Pendiente</span><span class="er-num">' + esc(E.fmtMoney(cancelled && !accepted ? 0 : pay.pending)) + '</span></div>';
+    }
+    if (canEdit && !pay.id_order) {
+      if (cancelled) btns += '<button type="button" class="er-btn er-btn-lg" data-pay="diagnosis">' + icon('doc') + 'Cobrar diagnóstico</button>';
+      else if (accepted) {
+        btns += '<button type="button" class="er-btn er-btn-pri er-btn-lg" data-pay="checkout">' + icon('check') + 'Cobrar ' + esc(E.fmtMoney(pay.pending)) + '</button>';
+        if (pay.pending > 0) btns += '<button type="button" class="er-btn er-btn-lg" data-pay="deposit">Cobrar señal</button>';
+      }
+    }
+    el.innerHTML = '<h3>' + icon('tag') + 'Cobro</h3>' + head + (rows ? '<div class="er-mini">' + rows + '</div>' : '') + (btns ? '<div class="er-move">' + btns + '</div>' : '');
+  }
+  $('#er-p-pay').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-pay]');
+    if (!b) return;
+    var k = b.getAttribute('data-pay');
+    if (k === 'checkout') checkoutDialog(r.status === 'ready');
+    if (k === 'deposit') depositDialog();
+    if (k === 'diagnosis') checkoutDialog(false, true);
+  });
+
+  function methodTiles() {
+    return '<div class="er-paym">' + Object.keys(D.methods).map(function (k, i) {
+      return '<button type="button" class="er-tile" data-m="' + k + '" aria-pressed="' + (i === 0) + '">' + icon(k === 'cash' ? 'tag' : k === 'card' ? 'layers' : 'send') + esc(D.methods[k].replace('Taller · ', '')) + '</button>';
+    }).join('') + '</div>';
+  }
+  function bindTiles(wrap, onPick) {
+    wrap.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-m]');
+      if (!t) return;
+      wrap.querySelectorAll('[data-m]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === t)); });
+      if (onPick) onPick(t.getAttribute('data-m'));
+    });
+  }
+  function picked(wrap) { var t = wrap.querySelector('[data-m][aria-pressed="true"]'); return t ? t.getAttribute('data-m') : ''; }
+  function num(v) { var n = parseFloat(String(v || '').replace(',', '.')); return isFinite(n) ? n : 0; }
+
+  function checkoutDialog(deliver, diagnosis) {
+    var amount = diagnosis ? 0 : pay.pending;
+    var free = !diagnosis && pay.due <= 0;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg"><h2>' + (diagnosis ? 'Cobrar diagnóstico' : free ? 'Entregar sin cargo (garantía)' : 'Cobrar la reparación') + '</h2>' +
+      (diagnosis ? '<label class="er-field">Importe del diagnóstico (IVA incluido)<input class="er-input er-num" id="er-co-diag" inputmode="decimal" placeholder="0,00"></label>'
+        : '<div class="er-co-total"><span class="er-muted">' + (free ? 'Todo en garantía' : 'A cobrar ahora') + '</span><b class="er-num">' + esc(E.fmtMoney(amount)) + '</b>' +
+          (pay.paid > 0 ? '<span class="er-muted er-small">Total ' + esc(E.fmtMoney(pay.due)) + ' · señal ' + esc(E.fmtMoney(pay.paid)) + '</span>' : '') + '</div>') +
+      (free ? '<p class="er-muted" style="margin:0">Se crea un pedido a 0 € para descontar del stock las piezas usadas.</p>' : methodTiles() +
+        '<div id="er-co-cash" class="er-fg"><label class="er-field">Entrega el cliente<input class="er-input er-num" id="er-co-given" inputmode="decimal" placeholder="0,00"></label>' +
+        '<div class="er-field">Cambio<div class="er-co-change er-num" id="er-co-change">—</div></div></div>') +
+      (diagnosis ? '' : '<label class="er-toggle">Marcar como entregado<input type="checkbox" class="er-sw" id="er-co-deliver"' + (deliver ? ' checked' : '') + '></label>') +
+      '<p class="er-muted er-small" style="margin:0">Se crea un pedido de PrestaShop con su factura y se descuentan las piezas del stock.</p>' +
+      '<div class="er-err" id="er-co-err" hidden></div>' +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri er-btn-lg" data-ok>' + icon('check') + (free ? 'Confirmar' : 'Cobrar') + '</button></div></div>';
+    app.appendChild(wrap);
+    function due() { return diagnosis ? num((wrap.querySelector('#er-co-diag') || {}).value) : amount; }
+    function change() {
+      var g = wrap.querySelector('#er-co-given'), out = wrap.querySelector('#er-co-change');
+      if (!g) return;
+      var v = num(g.value);
+      out.textContent = g.value ? E.fmtMoney(Math.max(0, v - due())) : '—';
+      out.classList.toggle('er-err', !!g.value && v < due());
+    }
+    bindTiles(wrap, function (m) { var cash = wrap.querySelector('#er-co-cash'); if (cash) cash.hidden = m !== 'cash'; });
+    wrap.addEventListener('input', change);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      var ok = e.target.closest('[data-ok]');
+      if (!ok) return;
+      var err = wrap.querySelector('#er-co-err');
+      if (diagnosis && due() <= 0) { err.textContent = 'Escribe el importe.'; err.hidden = false; return; }
+      ok.disabled = true;
+      var dl = wrap.querySelector('#er-co-deliver');
+      E.api('checkout', { id_ecorepair: r.id }, { method: picked(wrap) || 'cash', deliver: dl && dl.checked ? 1 : 0, diagnosis: diagnosis ? due() : '' }).then(function (res) {
+        ok.disabled = false;
+        if (!res.ok) { err.textContent = res.error; err.hidden = false; return; }
+        pay = res.payment; if (res.repair) r = res.repair; if (res.log) log = res.log;
+        wrap.remove();
+        renderPay(); renderHead(); renderMove(); renderLog();
+        if (res.warning) E.toast(res.warning, true);
+        if (res.id_order) {
+          E.dialog({ title: 'Cobrado · pedido ' + res.reference, text: 'Total ' + E.fmtMoney(res.total) + '. La factura ya está creada.', ok: 'Abrir factura' }).then(function (yes) {
+            if (yes) window.open(pay.invoiceUrl, '_blank', 'noopener');
+          });
+        } else E.toast('Entregada sin cargo');
+        if (res.delivered) setTimeout(function () { location.reload(); }, 1500);
+      });
+    });
+  }
+
+  function depositDialog() {
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg"><h2>Cobrar señal</h2>' +
+      '<p class="er-muted" style="margin:0">Pendiente: <b class="er-num">' + esc(E.fmtMoney(pay.pending)) + '</b>. La señal se descuenta al cobrar el resto.</p>' +
+      methodTiles() +
+      '<label class="er-field">Importe de la señal<input class="er-input er-num" id="er-dep" inputmode="decimal" placeholder="0,00"></label>' +
+      '<div class="er-err" id="er-dep-err" hidden></div>' +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Cobrar señal</button></div></div>';
+    app.appendChild(wrap);
+    wrap.querySelector('#er-dep').focus();
+    bindTiles(wrap);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if (!e.target.closest('[data-ok]')) return;
+      E.api('deposit', { id_ecorepair: r.id }, { method: picked(wrap), amount: wrap.querySelector('#er-dep').value }).then(function (res) {
+        if (!res.ok) { var er = wrap.querySelector('#er-dep-err'); er.textContent = res.error; er.hidden = false; return; }
+        pay = res.payment; log = res.log;
+        wrap.remove(); renderPay(); renderLog(); renderHead();
+        E.toast('Señal cobrada');
+      });
+    });
+  }
+
   /* ---------- Asignación ---------- */
   function renderAssign() {
     $('#er-p-assign').innerHTML = '<h3>' + icon('assign') + 'Asignación<span class="er-saved">Guardado</span></h3>' +
@@ -312,18 +579,31 @@ window.ECOR.ready(function () {
     if (f && String(r[f] || '') === String(e.target.value || '')) return;
     if (f === 'eta_date' && !r[f] && !e.target.value) return;
     if (f) save(f, e.target.value, e.target).then(function (ok) { if (ok && f === 'id_employee_tech') r.id_employee_tech = +e.target.value; });
-    if (b) save(b, e.target.checked, e.target).then(function (ok) { if (ok) renderHead(); });
+    if (b) save(b, e.target.checked, e.target).then(function (ok) { if (ok) { renderHead(); renderMove(); renderPay(); } });
   });
 
   /* ---------- Mover a ---------- */
+  /** Mismas reglas que el servidor: Listo/Entregado necesitan presupuesto aceptado (o garantía) y Entregado, estar cobrada. */
+  function blockReason(to) {
+    if (to !== 'ready' && to !== 'delivered') return '';
+    var accepted = r.quotes_accepted > 0;
+    if (!accepted && !r.warranty) return 'Falta un presupuesto aceptado';
+    if (to === 'delivered' && accepted && !pay.id_order && (pay.due > 0 || pay.lines_count > 0)) return 'cobrar';
+    return '';
+  }
   function renderMove() {
     var idx = D.flow.indexOf(r.status);
     var next = idx > -1 && idx < D.flow.length - 1 ? D.flow[idx + 1] : null;
     var btns = '';
     if (canEdit) {
       btns = Object.keys(D.statuses).filter(function (s) { return s !== r.status && s !== 'cancelled'; }).map(function (s) {
-        var st = D.statuses[s], isNext = s === next;
-        return '<button type="button" class="er-btn er-btn-lg' + (isNext ? ' er-btn-pri' : '') + '" data-mv="' + s + '"><span class="er-dot" style="background:' + (isNext ? 'currentColor' : esc(st.color)) + '"></span>' + esc(st.name) + '</button>';
+        var st = D.statuses[s], isNext = s === next, why = blockReason(s);
+        if (why === 'cobrar') {
+          return '<button type="button" class="er-btn er-btn-lg' + (isNext ? ' er-btn-pri' : '') + '" data-pay="checkout">' + icon('check') + 'Cobrar y entregar</button>';
+        }
+        return '<button type="button" class="er-btn er-btn-lg' + (isNext && !why ? ' er-btn-pri' : '') + '" data-mv="' + s + '"' + (why ? ' disabled title="' + esc(why) + '"' : '') + '>' +
+          '<span class="er-dot" style="background:' + (isNext && !why ? 'currentColor' : esc(st.color)) + '"></span>' + esc(st.name) +
+          (why ? '<span class="er-why">' + icon('lock', true) + esc(why) + '</span>' : '') + '</button>';
       }).join('');
       if (r.status === 'repair' || r.status === 'quote' || r.status === 'diagnosis') {
         btns += '<button type="button" class="er-btn er-btn-lg" data-mv="wait"><span class="er-dot" style="background:#E0A100"></span>' + (r.waiting_part ? 'Pieza recibida' : 'Esperando pieza') + '</button>';
@@ -337,6 +617,7 @@ window.ECOR.ready(function () {
     $('#er-p-move').innerHTML = '<h3>Mover a…</h3><div class="er-move">' + btns + '</div>';
   }
   $('#er-p-move').addEventListener('click', function (e) {
+    if (e.target.closest('[data-pay]')) { checkoutDialog(true); return; }
     var b = e.target.closest('[data-mv]');
     if (!b) return;
     var to = b.getAttribute('data-mv');
@@ -426,6 +707,7 @@ window.ECOR.ready(function () {
   renderPhotos();
   renderLog();
   renderQuote();
+  renderPay();
   renderAssign();
   renderMove();
   renderSig();

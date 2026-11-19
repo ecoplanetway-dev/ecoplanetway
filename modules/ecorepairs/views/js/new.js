@@ -22,7 +22,7 @@ window.ECOR.ready(function () {
     '</div>' +
     '<div class="er-banner er-bad" id="er-errors" hidden></div>' +
     '<div class="er-grid2">' +
-      '<div class="er-stack er-wide-2 er-new-grid">' +
+      '<div class="er-stack er-new-grid">' +
         '<div class="er-panel" id="er-p-customer"><h3>' + icon('user') + 'Cliente <span class="er-req">*</span><span class="er-r">Busca por nombre, teléfono, email o NIF</span></h3><div id="er-cust"></div></div>' +
         '<div class="er-panel er-p-device"><h3>' + icon('device') + 'Equipo</h3><div id="er-device" class="er-stack" style="gap:14px"></div>' +
           '<div class="er-fg">' +
@@ -88,6 +88,7 @@ window.ECOR.ready(function () {
       custEl.innerHTML = '<div class="er-chosen"><span class="er-av" style="background:#5B6170">' + esc(E.initials(c.name)) + '</span>' +
         '<div class="er-grow"><b>' + esc(c.name) + '</b><div class="er-muted er-small er-num">' + esc([c.phone, c.email].filter(Boolean).join(' · ') || 'Sin teléfono ni email') +
         ' · ' + c.repairs_count + ' reparaciones · ' + c.orders_count + ' pedidos</div></div>' +
+        '<button type="button" class="er-btn er-btn-sm" id="er-cust-edit">' + icon('pen', true) + 'Editar</button>' +
         '<button type="button" class="er-btn er-btn-sm" id="er-cust-change">Cambiar</button></div>' +
         (!c.phone ? '<label class="er-field" style="margin-top:12px">Teléfono para avisos<input class="er-input" id="er-cust-phone" inputmode="tel" maxlength="32" value="' + esc(st.phone) + '"></label>' : '') +
         '<div style="margin-top:12px">' + inv + '</div>' +
@@ -125,7 +126,8 @@ window.ECOR.ready(function () {
       '<span class="er-grow"><b>' + esc(c.name) + '</b><br><span class="er-muted er-small er-num">' +
       esc([c.phone, c.email, 'Cliente nº ' + c.id_customer].filter(Boolean).join(' · ')) + '</span></span>' +
       (c.orders_count ? '<span class="er-tag er-t-gar">Compró aquí</span>' : '') +
-      (c.repairs_count ? '<span class="er-tag er-t-neu">' + c.repairs_count + ' rep.</span>' : '') + '</button>';
+      (c.repairs_count ? '<span class="er-tag er-t-neu">' + c.repairs_count + ' rep.</span>' : '') +
+      '<span class="er-btn er-btn-sm er-btn-ghost" role="button" tabindex="0" data-cedit="' + c.id_customer + '" aria-label="Editar a ' + esc(c.name) + '">' + icon('pen', true) + 'Editar</span></button>';
   }
 
   var lastResults = [];
@@ -171,6 +173,22 @@ window.ECOR.ready(function () {
   });
   custEl.addEventListener('click', function (e) {
     var t;
+    if ((t = e.target.closest('[data-cedit]')) || e.target.closest('#er-cust-edit')) {
+      e.stopPropagation();
+      var cid = t ? +t.getAttribute('data-cedit') : st.customer.id_customer;
+      E.api('customerInfo', { id_customer: cid }).then(function (info) {
+        if (!info.ok) { E.toast(info.error, true); return; }
+        E.customerDialog(info.customer).then(function (res) {
+          if (!res) return;
+          if (t) {
+            lastResults = lastResults.map(function (x) { return x.id_customer === cid ? res.customer : x; });
+            var q = custEl.querySelector('#er-cq'); if (q) doSearch(q.value.trim());
+          } else { st.customer = res.customer; renderCustomer(); }
+          E.toast('Datos del cliente guardados');
+        });
+      });
+      return;
+    }
     if ((t = e.target.closest('[data-cid]'))) {
       var id = +t.getAttribute('data-cid');
       st.customer = lastResults.filter(function (c) { return c.id_customer === id; })[0] || null;

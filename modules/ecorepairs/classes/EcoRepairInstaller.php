@@ -134,7 +134,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.3.1';
+    const SCHEMA = '1.4.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -223,6 +223,21 @@ class EcoRepairInstaller
             `warranty` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             PRIMARY KEY (`id_ecorepair_quote_line`),
             KEY `id_ecorepair_quote` (`id_ecorepair_quote`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_payment` (
+            `id_ecorepair_payment` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair` INT UNSIGNED NOT NULL,
+            `id_shop` INT UNSIGNED NOT NULL DEFAULT 1,
+            `type` VARCHAR(12) NOT NULL DEFAULT 'final',
+            `method` VARCHAR(12) NOT NULL DEFAULT 'cash',
+            `amount` DECIMAL(20,6) NOT NULL DEFAULT 0,
+            `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_order` INT UNSIGNED NOT NULL DEFAULT 0,
+            `date_add` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_payment`),
+            KEY `id_ecorepair` (`id_ecorepair`),
+            KEY `date_add` (`date_add`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_kit` (
@@ -340,6 +355,7 @@ class EcoRepairInstaller
             'ECOREPAIRS_CONDITIONS' => "El cliente deja el equipo para su diagnóstico. No se hará ninguna reparación con coste sin que acepte antes el presupuesto.\nConserve este resguardo: se pedirá al recoger el equipo.\nSus datos se usan solo para gestionar esta reparación y avisarle de su estado.",
             'ECOREPAIRS_LABOUR_RATE' => '35',
             'ECOREPAIRS_QUOTE_DAYS' => '15',
+            'ECOREPAIRS_CARRIER' => '0',
             'ECOREPAIRS_QUOTE_CONDITIONS' => "Precios con IVA incluido.\nLas líneas marcadas como garantía no tienen coste para el cliente.\nSi al reparar aparece otra avería, se le enviará un presupuesto adicional antes de hacer nada.",
         );
     }

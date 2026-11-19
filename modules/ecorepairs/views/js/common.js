@@ -275,6 +275,99 @@
   function ready(fn) {
     if (isReady) fn(); else readyQueue.push(fn);
   }
+  /**
+   * Visor de fotos a pantalla completa: flechas o deslizar para pasar, doble toque o rueda para ampliar,
+   * arrastrar para moverse por la foto ampliada. items: [{src, caption}]
+   */
+  function viewer(items, index) {
+    items = (items || []).filter(function (i) { return i && i.src; });
+    if (!items.length) return;
+    var i = Math.max(0, Math.min(items.length - 1, index || 0)), zoom = 1, tx = 0, ty = 0;
+    var w = document.createElement('div');
+    w.className = 'er-viewer';
+    w.setAttribute('role', 'dialog');
+    w.setAttribute('aria-modal', 'true');
+    w.innerHTML = '<div class="er-v-stage"><img alt="" draggable="false"></div>' +
+      '<div class="er-v-cap"></div>' +
+      '<button type="button" class="er-v-btn er-v-x" aria-label="Cerrar">' + icon('x') + '</button>' +
+      (items.length > 1 ? '<button type="button" class="er-v-btn er-v-prev" aria-label="Anterior">' + icon('back') + '</button>' +
+        '<button type="button" class="er-v-btn er-v-next" aria-label="Siguiente">' + icon('back') + '</button>' : '');
+    document.body.appendChild(w);
+    var img = w.querySelector('img'), stage = w.querySelector('.er-v-stage');
+    function apply() { img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + zoom + ')'; w.classList.toggle('er-zoomed', zoom > 1); }
+    function show(n) {
+      i = (n + items.length) % items.length; zoom = 1; tx = ty = 0; apply();
+      img.classList.remove('er-v-in'); void img.offsetWidth; img.classList.add('er-v-in');
+      img.src = items[i].src;
+      w.querySelector('.er-v-cap').textContent = (items[i].caption || '') + (items.length > 1 ? '  ·  ' + (i + 1) + ' / ' + items.length : '');
+    }
+    function close() { document.removeEventListener('keydown', onKey); w.classList.add('er-v-out'); setTimeout(function () { w.remove(); }, 160); }
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowRight') show(i + 1);
+      if (e.key === 'ArrowLeft') show(i - 1);
+    }
+    document.addEventListener('keydown', onKey);
+    w.addEventListener('click', function (e) {
+      if (e.target.closest('.er-v-x') || (e.target === stage && zoom === 1) || e.target === w) { close(); return; }
+      if (e.target.closest('.er-v-next')) show(i + 1);
+      if (e.target.closest('.er-v-prev')) show(i - 1);
+    });
+    img.addEventListener('dblclick', function (e) {
+      if (zoom > 1) { zoom = 1; tx = ty = 0; } else {
+        zoom = 2.5;
+        var r = img.getBoundingClientRect();
+        tx = (r.left + r.width / 2 - e.clientX) * 1.5; ty = (r.top + r.height / 2 - e.clientY) * 1.5;
+      }
+      apply();
+    });
+    w.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      zoom = Math.max(1, Math.min(5, zoom * (e.deltaY < 0 ? 1.15 : 0.87)));
+      if (zoom === 1) { tx = ty = 0; }
+      apply();
+    }, { passive: false });
+    // Arrastrar (mover la foto ampliada) o deslizar (cambiar de foto); dos dedos = pellizcar
+    var pts = {}, start = null, pinch = null, lastTap = 0;
+    stage.addEventListener('pointerdown', function (e) {
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      stage.setPointerCapture(e.pointerId);
+      var ids = Object.keys(pts);
+      if (ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom };
+      } else {
+        start = { x: e.clientX, y: e.clientY, tx: tx, ty: ty, t: Date.now() };
+        if (Date.now() - lastTap < 280 && e.pointerType === 'touch') { img.dispatchEvent(new MouseEvent('dblclick', { clientX: e.clientX, clientY: e.clientY })); }
+        lastTap = Date.now();
+      }
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return;
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pts);
+      if (pinch && ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        zoom = Math.max(1, Math.min(5, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+        apply();
+        return;
+      }
+      if (start && zoom > 1) { tx = start.tx + e.clientX - start.x; ty = start.ty + e.clientY - start.y; apply(); }
+    });
+    function up(e) {
+      if (start && zoom === 1 && !pinch && items.length > 1) {
+        var dx = e.clientX - start.x;
+        if (Math.abs(dx) > 60 && Date.now() - start.t < 600) show(i + (dx < 0 ? 1 : -1));
+      }
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinch = null;
+      if (!Object.keys(pts).length) start = null;
+    }
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', up);
+    show(i);
+  }
+
   /* Efecto al pulsar: el brillo sale desde donde se toca */
   document.addEventListener('pointerdown', function (e) {
     var b = e.target.closest && e.target.closest('.ecor .er-btn, .ecor .er-chip, .ecor .er-opt, .ecor .er-tile');
@@ -308,6 +401,7 @@
     shrinkImage: shrinkImage,
     signaturePad: signaturePad,
     root: root,
-    modelImg: modelImg
+    modelImg: modelImg,
+    viewer: viewer
   };
 })();

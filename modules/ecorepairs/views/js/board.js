@@ -24,12 +24,14 @@ window.ECOR.ready(function () {
     '<header class="er-head">' +
       '<div class="er-brand"><div class="er-ico">' + icon('logo') + '</div><div><h1>Reparaciones</h1><p id="er-sub" class="er-num"></p></div></div>' +
       '<label class="er-search">' + icon('search') + '<input id="er-q" class="er-input" type="search" autocomplete="off" placeholder="Cliente, teléfono, nº de serie o REP-" aria-label="Buscar reparación"></label>' +
+      '<a class="er-btn" href="' + esc(E.boot.links.cash) + '">' + icon('tag') + '<span>Caja</span></a>' +
       '<a class="er-btn" href="' + esc(E.boot.links.stats) + '">' + icon('chart') + '<span>Indicadores</span></a>' +
       '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '">' + icon('plus') + '<span>Nueva reparación</span></a>' +
     '</header>' +
     '<div class="er-filters" id="er-filters"></div>' +
     '<div class="er-results" id="er-results" hidden></div>' +
-    '<div class="er-board" id="er-board"></div>';
+    '<div class="er-board" id="er-board"></div>' +
+    '<div id="er-archive" hidden></div>';
 
   var $ = function (s) { return app.querySelector(s); };
   var nf = /[?&]notfound=(\d+)/.exec(location.search);
@@ -81,7 +83,13 @@ window.ECOR.ready(function () {
     $('#er-filters').innerHTML = FILTERS.map(function (f) {
       return '<button type="button" class="er-chip" data-f="' + f.id + '" aria-pressed="' + (f.id === state.filter) + '">' + esc(f.name) +
         '<span class="er-n">' + repairs.filter(f.f).length + '</span></button>';
-    }).join('') + '<select class="er-input" id="er-cat" aria-label="Categoría">' + catOpts + '</select>';
+    }).join('') + '<select class="er-input" id="er-cat" aria-label="Categoría">' + catOpts + '</select>' +
+      '<span class="er-sep"></span>' +
+      '<button type="button" class="er-chip er-chip-arch" data-arch="delivered" aria-pressed="' + (arch === 'delivered') + '">' + icon('check', true) + 'Entregadas</button>' +
+      '<button type="button" class="er-chip er-chip-arch er-chip-bad" data-arch="cancelled" aria-pressed="' + (arch === 'cancelled') + '">' + icon('x', true) + 'Canceladas</button>';
+    $('#er-board').hidden = !!arch;
+    $('#er-archive').hidden = !arch;
+    if (arch) return;
 
     var list = repairs.filter(match);
     $('#er-board').innerHTML = D.board.map(function (st) {
@@ -121,9 +129,51 @@ window.ECOR.ready(function () {
     });
   }
 
+  /* Archivo: entregadas y canceladas, aparte del tablero */
+  var arch = '', archQ = { from: '', to: '', q: '' }, archSeq = 0;
+  function archiveLoad() {
+    var my = ++archSeq, box = $('#er-archive');
+    box.querySelector('#er-arch-list').classList.add('er-loading');
+    E.api('archive', { status: arch, from: archQ.from, to: archQ.to, q: archQ.q }).then(function (res) {
+      if (my !== archSeq) return;
+      var list = res.ok ? res.repairs : [];
+      var el = box.querySelector('#er-arch-list');
+      el.classList.remove('er-loading');
+      el.innerHTML = list.length ? list.map(function (r) {
+        return card(r).replace('</article>', (r.status === 'cancelled' && r.cancel_reason ? '<div class="er-arch-why">' + icon('x', true) + esc(r.cancel_reason) + '</div>' : '') +
+          '<div class="er-muted er-small er-num">' + esc((r.status === 'cancelled' ? 'Cancelada el ' : 'Entregada el ') + E.fmtDate(r.date_status)) + '</div></article>');
+      }).join('') : '<div class="er-empty" style="grid-column:1/-1">No hay reparaciones ' + (arch === 'cancelled' ? 'canceladas' : 'entregadas') + ' con estos filtros.</div>';
+      box.querySelector('#er-arch-n').textContent = list.length + (list.length === 200 ? '+' : '');
+    });
+  }
+  function archiveOpen(kind) {
+    arch = kind;
+    render();
+    if (!arch) return;
+    $('#er-archive').innerHTML = '<div class="er-panel"><h3>' + icon(arch === 'cancelled' ? 'x' : 'check') + (arch === 'cancelled' ? 'Reparaciones canceladas' : 'Reparaciones entregadas') +
+      '<span class="er-r"><span id="er-arch-n"></span> · <button type="button" class="er-link" data-arch="">Volver al tablero</button></span></h3>' +
+      '<div class="er-row"><label class="er-search" style="flex:1 1 260px;max-width:none">' + icon('search') + '<input class="er-input" id="er-arch-q" type="search" placeholder="Cliente, teléfono, nº de serie, REP- o motivo" value="' + esc(archQ.q) + '"></label>' +
+      '<span class="er-st-dates"><input type="date" class="er-input" id="er-arch-from" value="' + esc(archQ.from) + '" aria-label="Desde"><span class="er-muted">a</span><input type="date" class="er-input" id="er-arch-to" value="' + esc(archQ.to) + '" aria-label="Hasta"></span></div>' +
+      '<div class="er-arch-grid" id="er-arch-list"></div></div>';
+    archiveLoad();
+  }
+  var archTimer;
+  app.addEventListener('input', function (e) {
+    if (e.target.id === 'er-arch-q') { archQ.q = e.target.value.trim(); clearTimeout(archTimer); archTimer = setTimeout(archiveLoad, 300); }
+  });
+  app.addEventListener('change', function (e) {
+    if (e.target.id === 'er-arch-from' || e.target.id === 'er-arch-to') { archQ[e.target.id === 'er-arch-from' ? 'from' : 'to'] = e.target.value; archiveLoad(); }
+  });
+  app.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-arch]');
+    if (a) { var k = a.getAttribute('data-arch'); archiveOpen(k === arch ? '' : k); return; }
+    var c = e.target.closest('#er-arch-list .er-card');
+    if (c) open(+c.getAttribute('data-id'));
+  });
+
   $('#er-filters').addEventListener('click', function (e) {
     var b = e.target.closest('[data-f]');
-    if (b) { state.filter = b.getAttribute('data-f'); render(); }
+    if (b) { state.filter = b.getAttribute('data-f'); if (arch) { arch = ''; } render(); }
   });
   $('#er-filters').addEventListener('change', function (e) {
     if (e.target.id === 'er-cat') { state.cat = e.target.value; render(); }

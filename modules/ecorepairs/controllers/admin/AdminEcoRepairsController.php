@@ -51,6 +51,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/repair.js' . $v, false);
         } elseif ($view === 'stats') {
             $this->addJS($base . 'views/js/stats.js' . $v, false);
+        } elseif ($view === 'cash') {
+            $this->addJS($base . 'views/js/cash.js' . $v, false);
         } elseif ($view === 'quote') {
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
             $this->addJS($base . 'views/js/quote.js' . $v, false);
@@ -64,6 +66,9 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         if (Tools::getValue('view') === 'stats') {
             return 'stats';
+        }
+        if (Tools::getValue('view') === 'cash') {
+            return 'cash';
         }
         if ((int) Tools::getValue('id_ecorepair')) {
             return Tools::getValue('view') === 'quote' ? 'quote' : 'repair';
@@ -94,7 +99,17 @@ class AdminEcoRepairsController extends ModuleAdminController
             'ecor_data' => '{}',
         ));
 
-        if ($view === 'stats') {
+        if ($view === 'cash') {
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array(
+                    'close' => EcoRepairPayment::dayClose((int) $this->context->shop->id, date('Y-m-d')),
+                    'year' => (int) date('Y'),
+                    'quarter' => (int) ceil(date('n') / 3),
+                )),
+                'ecor_view' => 'cash',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'stats') {
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array(
                     'categories' => $this->categoriesLite(),
@@ -171,7 +186,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         $customer = EcoRepairCustomer::info((int) $repair['id_customer']);
         $photos = array();
         $signature = null;
+        $devicePhoto = null;
         foreach (EcoRepairPhoto::forRepair($id) as $ph) {
+            if ($ph['type'] === 'device') {
+                $devicePhoto = array('id' => (int) $ph['id_ecorepair_photo'], 'full' => $this->photoUrl((int) $ph['id_ecorepair_photo'], false));
+                continue;
+            }
             $item = array(
                 'id' => (int) $ph['id_ecorepair_photo'],
                 'type' => $ph['type'],
@@ -214,6 +234,15 @@ class AdminEcoRepairsController extends ModuleAdminController
             'justCreated' => (bool) Tools::getValue('created'),
             'quotes' => EcoRepairQuote::summary($id),
             'quoteUrl' => $this->repairUrl($id) . '&view=quote',
+            'devicePhoto' => $devicePhoto,
+            'modelImage' => $this->modelImageUrl((string) $repair['model_image']),
+            'payment' => $this->paymentData($repair),
+            'methods' => EcoRepairPayment::methods(),
+            'isAdmin' => $this->isAdmin(),
+            'canMove' => array(
+                'ready' => EcoRepair::canMoveTo($repair, EcoRepairStatus::READY),
+                'delivered' => EcoRepair::canMoveTo($repair, EcoRepairStatus::DELIVERED),
+            ),
         );
         $this->context->smarty->assign(array(
             'ecor_data' => $this->json($data),
@@ -296,6 +325,16 @@ class AdminEcoRepairsController extends ModuleAdminController
             'listOption' => array('ajaxListOption', 'edit', true),
             'modelImage' => array('ajaxModelImage', 'view', false),
             'stats' => array('ajaxStats', 'view', false),
+            'updateCustomer' => array('ajaxUpdateCustomer', 'edit', true),
+            'deposit' => array('ajaxDeposit', 'edit', true),
+            'checkout' => array('ajaxCheckout', 'edit', true),
+            'devicePhoto' => array('ajaxDevicePhoto', 'edit', true),
+            'deviceReset' => array('ajaxDeviceReset', 'edit', true),
+            'deviceToModel' => array('ajaxDeviceToModel', 'edit', true),
+            'archive' => array('ajaxArchive', 'view', false),
+            'dayClose' => array('ajaxDayClose', 'view', false),
+            'printCash' => array('ajaxPrintCash', 'view', false),
+            'exportQuarter' => array('ajaxExportQuarter', 'view', false),
         );
         if (!isset($map[$action])) {
             $this->jsonOut(array('ok' => false, 'error' => 'Acción desconocida.'), 400);
@@ -311,6 +350,8 @@ class AdminEcoRepairsController extends ModuleAdminController
         if (!$this->access($perm)) {
             $this->jsonOut(array('ok' => false, 'error' => 'Tu perfil no tiene permiso para esta acción.'), 403);
         }
+
+        $this->checkLocked($action);
 
         try {
             $this->{$method}();
@@ -420,6 +461,203 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->jsonOut(array('ok' => true, 'options' => $items));
     }
 
+    public function isAdmin()
+    {
+        return (int) $this->context->employee->id_profile === (int) _PS_ADMIN_PROFILE_;
+    }
+
+    /**
+     * Las reparaciones entregadas no se pueden cambiar, salvo el administrador. Las notas sí se pueden añadir.
+     */
+    protected function checkLocked($action)
+    {
+        $locked = array('updateField', 'updateDevice', 'setStatus', 'uploadPhoto', 'saveSignature', 'deletePhoto', 'addInvoiceAddress',
+            'quoteCreate', 'quoteSave', 'quoteSend', 'quoteNewVersion', 'quoteDiscard', 'quoteAccept', 'quoteReject',
+            'deposit', 'checkout', 'devicePhoto', 'deviceReset', 'deviceToModel');
+        if (!in_array($action, $locked, true) || $this->isAdmin()) {
+            return;
+        }
+        $id = (int) Tools::getValue('id_ecorepair');
+        if (!$id && (int) Tools::getValue('id_quote')) {
+            $q = EcoRepairQuote::get((int) Tools::getValue('id_quote'));
+            $id = $q ? (int) $q['id_ecorepair'] : 0;
+        }
+        if (!$id && (int) Tools::getValue('id_photo')) {
+            $ph = EcoRepairPhoto::get((int) Tools::getValue('id_photo'));
+            $id = $ph ? (int) $ph['id_ecorepair'] : 0;
+        }
+        $status = $id ? (string) Db::getInstance()->getValue('SELECT status FROM `' . _DB_PREFIX_ . 'ecorepair` WHERE id_ecorepair = ' . $id) : '';
+        if ($status === EcoRepairStatus::DELIVERED) {
+            $this->jsonOut(array('ok' => false, 'error' => 'La reparación está entregada y bloqueada. Solo el administrador puede cambiarla.'), 403);
+        }
+    }
+
+    protected function paymentData(array $repair)
+    {
+        $s = EcoRepairPayment::summary((int) $repair['id_ecorepair']);
+        $s['orderUrl'] = $s['id_order'] ? $this->context->link->getAdminLink('AdminOrders', true, array(), array('id_order' => $s['id_order'], 'vieworder' => 1)) : '';
+        $s['invoiceUrl'] = $s['id_order'] ? $this->context->link->getAdminLink('AdminPdf') . '&submitAction=generateInvoicePDF&id_order=' . $s['id_order'] : '';
+
+        return $s;
+    }
+
+    protected function ajaxUpdateCustomer()
+    {
+        $idCustomer = (int) Tools::getValue('id_customer');
+        $res = EcoRepairCustomer::update($idCustomer, array(
+            'firstname' => (string) Tools::getValue('firstname'),
+            'lastname' => (string) Tools::getValue('lastname'),
+            'phone' => (string) Tools::getValue('phone'),
+            'email' => (string) Tools::getValue('email'),
+            'consent_whatsapp' => (bool) Tools::getValue('consent_whatsapp'),
+            'invoice' => (bool) Tools::getValue('invoice'),
+            'nif' => (string) Tools::getValue('nif'),
+            'company' => (string) Tools::getValue('company'),
+            'address' => (string) Tools::getValue('address'),
+            'postcode' => (string) Tools::getValue('postcode'),
+            'city' => (string) Tools::getValue('city'),
+        ));
+        if ($res['ok']) {
+            $idRepair = (int) Tools::getValue('id_ecorepair');
+            if ($idRepair) {
+                $repair = EcoRepair::get($idRepair);
+                if ($repair && (int) $repair['id_customer'] === $idCustomer) {
+                    if ($res['id_address']) {
+                        Db::getInstance()->update('ecorepair', array('id_address_invoice' => (int) $res['id_address']), 'id_ecorepair = ' . $idRepair);
+                    }
+                    EcoRepairLog::add($idRepair, (int) $this->context->employee->id, 'customer', 'Datos del cliente corregidos');
+                }
+            }
+            $res['customer'] = EcoRepairCustomer::info($idCustomer);
+        }
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxDeposit()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepairPayment::addDeposit($repair, (string) Tools::getValue('method'), Tools::getValue('amount'), (int) $this->context->employee->id);
+        $res['payment'] = $this->paymentData(EcoRepair::get((int) $repair['id_ecorepair']));
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxCheckout()
+    {
+        $repair = $this->loadRepairOr404();
+        $res = EcoRepairPayment::checkout($repair, (string) Tools::getValue('method'), (int) $this->context->employee->id, Tools::getValue('diagnosis'));
+        $idRepair = (int) $repair['id_ecorepair'];
+        if ($res['ok'] && Tools::getValue('deliver')) {
+            $st = EcoRepair::setStatus($idRepair, EcoRepairStatus::DELIVERED, (int) $this->context->employee->id);
+            $res['delivered'] = $st['ok'];
+            if (!$st['ok']) {
+                $res['warning'] = $st['error'];
+            }
+        }
+        $fresh = EcoRepair::get($idRepair);
+        $res['payment'] = $this->paymentData($fresh);
+        $res['repair'] = $this->publicRepair($fresh);
+        $this->jsonOut($this->withLog($res, $idRepair));
+    }
+
+    protected function ajaxDevicePhoto()
+    {
+        $repair = $this->loadRepairOr404();
+        $idRepair = (int) $repair['id_ecorepair'];
+        if (empty($_FILES['photo'])) {
+            $this->jsonOut(array('ok' => false, 'error' => 'No se recibió la foto.'));
+        }
+        $res = EcoRepairPhoto::saveUpload($idRepair, $_FILES['photo'], 'device', (int) $this->context->employee->id);
+        if ($res['ok']) {
+            foreach (EcoRepairPhoto::forRepair($idRepair) as $ph) {
+                if ($ph['type'] === 'device' && (int) $ph['id_ecorepair_photo'] !== (int) $res['id']) {
+                    EcoRepairPhoto::delete((int) $ph['id_ecorepair_photo'], (int) $this->context->employee->id);
+                }
+            }
+            $res['devicePhoto'] = array('id' => (int) $res['id'], 'full' => $this->photoUrl((int) $res['id'], false));
+            $res['modelHasImage'] = (string) $repair['model_image'] !== '';
+        }
+        $this->jsonOut($this->withLog($res, $idRepair));
+    }
+
+    protected function ajaxDeviceReset()
+    {
+        $repair = $this->loadRepairOr404();
+        foreach (EcoRepairPhoto::forRepair((int) $repair['id_ecorepair']) as $ph) {
+            if ($ph['type'] === 'device') {
+                EcoRepairPhoto::delete((int) $ph['id_ecorepair_photo'], (int) $this->context->employee->id);
+            }
+        }
+        $this->jsonOut($this->withLog(array('ok' => true), (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxDeviceToModel()
+    {
+        $repair = $this->loadRepairOr404();
+        if (!(int) $repair['id_model']) {
+            $this->jsonOut(array('ok' => false, 'error' => 'La reparación no tiene modelo elegido.'));
+        }
+        $photo = null;
+        foreach (EcoRepairPhoto::forRepair((int) $repair['id_ecorepair']) as $ph) {
+            if ($ph['type'] === 'device') {
+                $photo = $ph;
+            }
+        }
+        if (!$photo) {
+            $this->jsonOut(array('ok' => false, 'error' => 'Primero haz la foto del equipo.'));
+        }
+        $copy = EcoRepairPhoto::copyToModel($photo);
+        if (!$copy['ok']) {
+            $this->jsonOut($copy);
+        }
+        $res = EcoRepairCatalog::setModelImage((int) $repair['id_model'], $copy['file']);
+        if ($res['ok']) {
+            EcoRepairLog::add((int) $repair['id_ecorepair'], (int) $this->context->employee->id, 'photo', 'Foto guardada también como foto del modelo ' . $repair['device_name']);
+            $res['modelImage'] = $this->modelImageUrl($copy['file']);
+        }
+        $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxArchive()
+    {
+        $rows = EcoRepair::archive(
+            (int) $this->context->shop->id,
+            (string) Tools::getValue('status'),
+            (string) Tools::getValue('from'),
+            (string) Tools::getValue('to'),
+            (string) Tools::getValue('q')
+        );
+        $this->jsonOut(array('ok' => true, 'repairs' => $this->publicRepairs($rows)));
+    }
+
+    protected function ajaxDayClose()
+    {
+        $this->jsonOut(array('ok' => true, 'close' => EcoRepairPayment::dayClose((int) $this->context->shop->id, (string) Tools::getValue('date'))));
+    }
+
+    protected function ajaxPrintCash()
+    {
+        $close = EcoRepairPayment::dayClose((int) $this->context->shop->id, (string) Tools::getValue('date'));
+        $this->context->smarty->assign(array(
+            'close' => $close,
+            'shopName' => Configuration::get('PS_SHOP_NAME'),
+            'employee' => trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname),
+            'printDate' => date('d/m/Y H:i'),
+        ));
+        header('Content-Type: text/html; charset=utf-8');
+        echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/admin/print_cash.tpl');
+        exit;
+    }
+
+    protected function ajaxExportQuarter()
+    {
+        $res = EcoRepairPayment::quarterCsv((int) $this->context->shop->id, (int) Tools::getValue('year'), (int) Tools::getValue('quarter'), (int) $this->context->language->id);
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $res['filename'] . '"');
+        header('Cache-Control: no-store');
+        echo $res['csv'];
+        exit;
+    }
+
     protected function ajaxStats()
     {
         $this->jsonOut(array('ok' => true, 'stats' => EcoRepairStats::get(
@@ -446,6 +684,14 @@ class AdminEcoRepairsController extends ModuleAdminController
             (string) Tools::getValue('name'),
             (string) Tools::getValue('icon', 'other')
         );
+        $image = trim((string) Tools::getValue('image'));
+        if ($res['ok'] && Tools::getValue('type') === 'model' && $image !== '') {
+            $img = EcoRepairCatalog::setModelImage((int) $res['id'], $image);
+            $res['image'] = $img['ok'] ? $image : '';
+            if (!$img['ok']) {
+                $res['warning'] = $img['error'];
+            }
+        }
         $this->jsonOut($res);
     }
 
@@ -944,6 +1190,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'board' => $this->baseUrl(),
             'new' => $this->baseUrl() . '&view=new',
             'stats' => $this->baseUrl() . '&view=stats',
+            'cash' => $this->baseUrl() . '&view=cash',
             'repair' => $this->baseUrl() . '&id_ecorepair=',
             'ajax' => $this->baseUrl() . '&ajax=1',
             'settings' => $this->context->link->getAdminLink('AdminEcoRepairsSettings'),
@@ -1015,6 +1262,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             'days_in_status' => $r['days_in_status'],
             'id_address_invoice' => (int) $r['id_address_invoice'],
             'cover' => $this->coverUrl($r),
+            'quotes_accepted' => isset($r['quotes_accepted']) ? (int) $r['quotes_accepted'] : 0,
+            'id_order' => (int) $r['id_order'],
+            'date_upd' => $r['date_upd'],
         );
     }
 

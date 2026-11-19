@@ -55,6 +55,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'catalog' => EcoRepairCatalog::tree(false),
             'icons' => EcoRepairCatalog::icons(),
             'config' => $this->currentConfig(),
+            'carriers' => $this->carriers(),
             'canEdit' => (bool) $this->access('edit'),
         );
         $this->context->smarty->assign(array(
@@ -70,6 +71,16 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'ecor_data' => $this->json($data),
         ));
         $this->setTemplate('app.tpl');
+    }
+
+    protected function carriers()
+    {
+        $out = array();
+        foreach (Carrier::getCarriers((int) $this->context->language->id, true, false, false, null, Carrier::ALL_CARRIERS) as $c) {
+            $out[] = array('id' => (int) $c['id_carrier'], 'name' => $c['name'], 'free' => (int) $c['is_free']);
+        }
+
+        return $out;
     }
 
     protected function currentConfig()
@@ -123,6 +134,19 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 } else {
                     $res = EcoRepairCatalog::setModelImage($id, (string) Tools::getValue('url'));
                 }
+                break;
+            case 'shopImages':
+                $res = array('ok' => true, 'proposals' => EcoRepairCatalog::shopImageProposals((int) $this->context->language->id, (int) $this->context->shop->id));
+                break;
+            case 'applyShopImages':
+                $items = json_decode((string) Tools::getValue('items'), true);
+                $n = 0;
+                foreach (is_array($items) ? $items : array() as $it) {
+                    if (isset($it['id_model'], $it['image']) && EcoRepairCatalog::setModelImage((int) $it['id_model'], (string) $it['image'])['ok']) {
+                        ++$n;
+                    }
+                }
+                $res = array('ok' => true, 'saved' => $n);
                 break;
             case 'importCatalog':
                 $added = EcoRepairCatalogSeed::importMissing();
@@ -183,6 +207,9 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 case 'ECOREPAIRS_CONDITIONS':
                 case 'ECOREPAIRS_QUOTE_CONDITIONS':
                     $v = Tools::substr(strip_tags($v), 0, 3000);
+                    break;
+                case 'ECOREPAIRS_CARRIER':
+                    $v = (string) (int) $v;
                     break;
                 case 'ECOREPAIRS_QUOTE_DAYS':
                     if (!ctype_digit($v) || (int) $v < 1 || (int) $v > 365) {

@@ -377,6 +377,193 @@ class EcoRepairCustomer
         return array('ok' => true, 'id_address' => (int) $address->id);
     }
 
+    /**
+     * Corrige los datos del cliente desde el taller (también en PrestaShop).
+     * $d: firstname, lastname, phone, email, consent_whatsapp, invoice (bool) + nif, company, address, postcode, city.
+     */
+    public static function update($idCustomer, array $d)
+    {
+        $customer = new Customer((int) $idCustomer);
+        if (!Validate::isLoadedObject($customer) || $customer->deleted) {
+            return array('ok' => false, 'errors' => array('general' => 'El cliente no existe.'));
+        }
+        $d = array_map(function ($v) {
+            return is_string($v) ? trim($v) : $v;
+        }, $d);
+        $errors = array();
+        if ($d['firstname'] === '' || !Validate::isCustomerName($d['firstname'])) {
+            $errors['firstname'] = 'Escribe un nombre válido.';
+        }
+        if ($d['lastname'] === '' || !Validate::isCustomerName($d['lastname'])) {
+            $errors['lastname'] = 'Escribe los apellidos.';
+        }
+        $phoneNorm = self::normalizePhone($d['phone']);
+        if ($d['phone'] === '') {
+            if (self::fieldRule('phone') === 'req') {
+                $errors['phone'] = 'El teléfono es obligatorio.';
+            }
+        } elseif (!Validate::isPhoneNumber($d['phone']) || strlen($phoneNorm) < 9) {
+            $errors['phone'] = 'El teléfono no es válido.';
+        }
+        if ($d['email'] === '') {
+            if (self::fieldRule('email') === 'req') {
+                $errors['email'] = 'El email es obligatorio.';
+            }
+        } elseif (!Validate::isEmail($d['email'])) {
+            $errors['email'] = 'El email no es válido.';
+        }
+        if (!empty($d['invoice'])) {
+            $errors = array_merge($errors, self::validateInvoice($d));
+        }
+        if ($errors) {
+            return array('ok' => false, 'errors' => $errors);
+        }
+
+        // Duplicados con otros clientes
+        if ($d['email'] !== '' && Tools::strtolower($d['email']) !== Tools::strtolower($customer->email)) {
+            $other = (int) Customer::customerExists($d['email'], true, true);
+            if ($other && $other !== (int) $customer->id) {
+                return array('ok' => false, 'errors' => array('email' => 'Ese email ya es de otro cliente.'));
+            }
+        }
+        if ($phoneNorm !== '') {
+            $other = (int) Db::getInstance()->getValue('SELECT ec.id_customer FROM `' . _DB_PREFIX_ . 'ecorepair_customer` ec
+                INNER JOIN `' . _DB_PREFIX_ . 'customer` c ON c.id_customer = ec.id_customer AND c.deleted = 0
+                WHERE ec.phone_norm = \'' . pSQL($phoneNorm) . '\' AND ec.id_customer != ' . (int) $customer->id);
+            if ($other) {
+                return array('ok' => false, 'errors' => array('phone' => 'Ese teléfono ya es de otro cliente.'));
+            }
+        }
+
+        $customer->firstname = $d['firstname'];
+        $customer->lastname = $d['lastname'];
+        $noEmail = $d['email'] === '';
+        if (!$noEmail) {
+            $customer->email = $d['email'];
+        } elseif (!self::isPlaceholderEmail($customer->email)) {
+            // Se borra el email: PrestaShop necesita uno, se pone uno interno
+            $customer->email = 'taller.' . Tools::strtolower(Tools::passwdGen(12, 'ALPHANUMERIC')) . '@' . self::NO_EMAIL_DOMAIN;
+        }
+        if (!empty($d['invoice'])) {
+            $customer->company = $d['company'];
+        }
+        try {
+            if (!$customer->update()) {
+                return array('ok' => false, 'errors' => array('general' => 'PrestaShop no pudo guardar el cliente.'));
+            }
+        } catch (Exception $e) {
+            return array('ok' => false, 'errors' => array('general' => 'PrestaShop no pudo guardar el cliente: ' . $e->getMessage()));
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $exists = (int) Db::getInstance()->getValue('SELECT 1 FROM `' . _DB_PREFIX_ . 'ecorepair_customer` WHERE id_customer = ' . (int) $customer->id);
+        $row = array(
+            'phone' => pSQL($d['phone']),
+            'phone_norm' => pSQL($phoneNorm),
+            'no_email' => $noEmail ? 1 : 0,
+            'consent_whatsapp' => !empty($d['consent_whatsapp']) ? 1 : 0,
+            'date_upd' => $now,
+        );
+        if ($exists) {
+            Db::getInstance()->update('ecorepair_customer', $row, 'id_customer = ' . (int) $customer->id);
+        } else {
+            $row['id_customer'] = (int) $customer->id;
+            $row['date_add'] = $now;
+            $row['consent_rgpd_date'] = array('type' => 'sql', 'value' => 'NULL');
+            Db::getInstance()->insert('ecorepair_customer', $row);
+        }
+
+        $idAddress = 0;
+        if (!empty($d['invoice'])) {
+            $current = self::invoiceAddress((int) $customer->id);
+            if ($current) {
+                $res = self::updateInvoiceAddress((int) $current['id_address'], $customer, $d);
+            } else {
+                $res = self::addInvoiceAddress((int) $customer->id, $d);
+            }
+            if (!$res['ok']) {
+                return $res;
+            }
+            $idAddress = (int) $res['id_address'];
+        }
+
+        return array('ok' => true, 'id_customer' => (int) $customer->id, 'id_address' => $idAddress);
+    }
+
+    /**
+     * Si la dirección ya se usó en pedidos, PrestaShop guarda una copia nueva y conserva la antigua en esos pedidos.
+     */
+    protected static function updateInvoiceAddress($idAddress, Customer $customer, array $d)
+    {
+        $address = new Address((int) $idAddress);
+        if (!Validate::isLoadedObject($address) || (int) $address->id_customer !== (int) $customer->id) {
+            return self::addInvoiceAddress((int) $customer->id, $d);
+        }
+        $nif = Tools::strtoupper(preg_replace('/[\s\-\.]/', '', $d['nif']));
+        $address->firstname = $customer->firstname;
+        $address->lastname = $customer->lastname;
+        $address->company = trim($d['company']);
+        $address->dni = $nif;
+        $address->vat_number = trim($d['company']) !== '' ? $nif : '';
+        $address->address1 = trim($d['address']);
+        $address->address2 = '';
+        $address->postcode = trim($d['postcode']);
+        $address->city = trim($d['city']);
+        if ($d['phone'] !== '' && Validate::isPhoneNumber($d['phone'])) {
+            $address->phone_mobile = $d['phone'];
+        }
+        try {
+            if (!$address->update()) {
+                return array('ok' => false, 'errors' => array('general' => 'PrestaShop no pudo guardar la dirección de facturación.'));
+            }
+        } catch (Exception $e) {
+            return array('ok' => false, 'errors' => array('general' => 'Dirección no válida: ' . $e->getMessage()));
+        }
+
+        return array('ok' => true, 'id_address' => (int) $address->id);
+    }
+
+    /**
+     * Dirección para el pedido del taller: la fiscal si la tiene; si no, otra suya;
+     * si no tiene ninguna, se crea una con los datos de la tienda («Recogida en taller»).
+     */
+    public static function orderAddress($idCustomer)
+    {
+        $inv = self::invoiceAddress((int) $idCustomer);
+        if ($inv) {
+            return (int) $inv['id_address'];
+        }
+        $id = (int) Db::getInstance()->getValue('SELECT id_address FROM `' . _DB_PREFIX_ . 'address`
+            WHERE id_customer = ' . (int) $idCustomer . ' AND deleted = 0 ORDER BY date_upd DESC');
+        if ($id) {
+            return $id;
+        }
+        $customer = new Customer((int) $idCustomer);
+        if (!Validate::isLoadedObject($customer)) {
+            return 0;
+        }
+        $address = new Address();
+        $address->id_customer = (int) $customer->id;
+        $address->alias = 'Recogida en taller';
+        $address->firstname = $customer->firstname;
+        $address->lastname = $customer->lastname;
+        $address->address1 = Configuration::get('PS_SHOP_ADDR1') ?: 'Taller';
+        $address->postcode = Configuration::get('PS_SHOP_CODE') ?: '28000';
+        $address->city = Configuration::get('PS_SHOP_CITY') ?: 'Madrid';
+        $address->id_country = (int) (Configuration::get('PS_SHOP_COUNTRY_ID') ?: Country::getByIso('ES'));
+        $phone = (string) self::storedPhone($idCustomer);
+        if ($phone !== '' && Validate::isPhoneNumber($phone)) {
+            $address->phone_mobile = $phone;
+        } else {
+            $address->phone_mobile = Configuration::get('PS_SHOP_PHONE') ?: '';
+        }
+        try {
+            return $address->add() ? (int) $address->id : 0;
+        } catch (Exception $e) {
+            return 0;
+        }
+    }
+
     public static function storedPhone($idCustomer)
     {
         return Db::getInstance()->getValue('SELECT phone FROM `' . _DB_PREFIX_ . 'ecorepair_customer` WHERE id_customer = ' . (int) $idCustomer);

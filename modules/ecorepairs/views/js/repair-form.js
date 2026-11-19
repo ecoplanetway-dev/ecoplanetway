@@ -46,7 +46,9 @@
     }
     function addBtn(type, tile) {
       if (!opts.canAdd || editing) return '';
-      if (adding === type) return addBox(type, { category: 'Nueva categoría', brand: 'Nueva marca', model: 'Nuevo modelo', fault: 'Nueva avería' }[type]);
+      if (adding === type) return addBox(type, { category: 'Nueva categoría', brand: 'Nueva marca', model: 'Nuevo modelo', fault: 'Nueva avería' }[type]) +
+        (type === 'model' ? '<span class="er-inl"><input class="er-input" data-newimg maxlength="255" placeholder="Foto del modelo: dirección https:// (opcional)" aria-label="Foto del modelo" style="width:320px">' +
+          '<a class="er-btn er-btn-ghost er-btn-sm" data-gimg target="_blank" rel="noopener" href="#">' + icon('search', true) + 'Buscar imagen</a></span>' : '');
       return tile
         ? '<button type="button" class="er-tile er-add" data-add="' + type + '">' + icon('plus') + 'Añadir</button>'
         : '<button type="button" class="er-opt er-add" data-add="' + type + '">' + icon('plus', true) + 'Añadir</button>';
@@ -108,7 +110,9 @@
       var parent = type === 'brand' || type === 'fault' ? v.cat : type === 'model' ? v.brand : 0;
       var btn = el.querySelector('[data-save="' + type + '"]');
       if (btn) btn.disabled = true;
-      E.api('addCatalog', {}, { type: type, id_parent: parent, name: name, icon: 'other' }).then(function (res) {
+      var imgInp = el.querySelector('[data-newimg]');
+      E.api('addCatalog', {}, { type: type, id_parent: parent, name: name, icon: 'other', image: imgInp ? imgInp.value.trim() : '' }).then(function (res) {
+        if (res.warning) E.toast(res.warning, true);
         if (btn) btn.disabled = false;
         if (!res.ok) { E.toast(res.error || 'No se pudo guardar.', true); return; }
         var cat = findCat(catalog, v.cat);
@@ -120,7 +124,7 @@
           v.brand = res.id; v.model = 0;
         } else if (type === 'model') {
           var b = findBrand(cat, v.brand);
-          if (!b.models.filter(function (m) { return m.id === res.id; })[0]) b.models.push({ id: res.id, name: res.name, image: '' });
+          if (!b.models.filter(function (m) { return m.id === res.id; })[0]) b.models.push({ id: res.id, name: res.name, image: res.image || '' });
           v.model = res.id;
         } else if (type === 'fault') {
           if (!cat.faults.filter(function (f) { return f.id === res.id; })[0]) cat.faults.push({ id: res.id, name: res.name });
@@ -191,6 +195,10 @@
       if (e.target.closest('[data-cancel]')) { adding = null; render(); }
     });
     el.addEventListener('input', function (e) {
+      if (e.target.getAttribute('data-new') === 'model') {
+        var g = el.querySelector('[data-gimg]'), cat = findCat(catalog, v.cat), br = findBrand(cat, v.brand);
+        if (g) g.href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent((br ? br.name + ' ' : '') + e.target.value + ' ' + (cat ? cat.name : ''));
+      }
       var f = e.target.getAttribute('data-find');
       if (f) filterGroup(el.querySelector('[data-group="' + f + '"]'), e.target.value);
     });
@@ -289,6 +297,59 @@
     return { get: function () { return selected.slice(); } };
   }
 
+  /**
+   * Ventana para corregir los datos del cliente (también en PrestaShop).
+   * Devuelve una promesa con la respuesta del servidor ({customer, log}) o null si se cancela.
+   */
+  function customerDialog(c, extra) {
+    return new Promise(function (resolve) {
+      var inv = c.invoice || {};
+      var wrap = document.createElement('div');
+      wrap.className = 'er-modal';
+      function f(k, label, val, attrs) {
+        return '<label class="er-field">' + label + '<input class="er-input" data-k="' + k + '" value="' + esc(val || '') + '" ' + (attrs || '') + '></label>';
+      }
+      wrap.innerHTML = '<div class="er-dlg" style="max-width:640px"><h2>Editar cliente</h2>' +
+        '<div class="er-fg">' + f('firstname', 'Nombre <span class="er-req">*</span>', c.firstname, 'maxlength="64"') + f('lastname', 'Apellidos <span class="er-req">*</span>', c.lastname, 'maxlength="64"') +
+        f('phone', 'Teléfono', c.phone, 'inputmode="tel" maxlength="32"') + f('email', 'Email', c.email, 'type="email" maxlength="128"') + '</div>' +
+        '<label class="er-toggle">Acepta avisos por WhatsApp<input type="checkbox" class="er-sw" data-b="consent_whatsapp"' + (c.consent_whatsapp ? ' checked' : '') + '></label>' +
+        '<label class="er-toggle">Quiere factura a su nombre<input type="checkbox" class="er-sw" data-b="invoice"' + (c.invoice ? ' checked' : '') + '></label>' +
+        '<div class="er-fg" id="er-ce-inv"' + (c.invoice ? '' : ' hidden') + '>' + f('nif', 'NIF / CIF <span class="er-req">*</span>', inv.nif, 'maxlength="16"') + f('company', 'Razón social', inv.company, 'maxlength="64"') +
+          f('address', 'Dirección <span class="er-req">*</span>', inv.address, 'maxlength="128"') + f('postcode', 'Código postal <span class="er-req">*</span>', inv.postcode, 'inputmode="numeric" maxlength="5"') +
+          f('city', 'Ciudad <span class="er-req">*</span>', inv.city, 'maxlength="64"') + '</div>' +
+        '<p class="er-muted er-small" style="margin:0">Los cambios se guardan también en el cliente de PrestaShop.</p>' +
+        '<div class="er-err" id="er-ce-err" hidden></div>' +
+        '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>' + icon('check') + 'Guardar</button></div></div>';
+      (E.root() || document.body).appendChild(wrap);
+      wrap.querySelector('[data-k]').focus();
+      wrap.addEventListener('change', function (e) {
+        if (e.target.getAttribute('data-b') === 'invoice') wrap.querySelector('#er-ce-inv').hidden = !e.target.checked;
+      });
+      wrap.addEventListener('click', function (e) {
+        if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); resolve(null); return; }
+        var ok = e.target.closest('[data-ok]');
+        if (!ok) return;
+        var body = { id_customer: c.id_customer };
+        wrap.querySelectorAll('[data-k]').forEach(function (i) { body[i.getAttribute('data-k')] = i.value.trim(); });
+        wrap.querySelectorAll('[data-b]').forEach(function (i) { body[i.getAttribute('data-b')] = i.checked; });
+        ok.disabled = true;
+        E.api('updateCustomer', extra || {}, body).then(function (res) {
+          ok.disabled = false;
+          if (!res.ok) {
+            wrap.querySelectorAll('[data-k]').forEach(function (i) { i.classList.toggle('er-invalid', !!(res.errors && res.errors[i.getAttribute('data-k')])); });
+            var er = wrap.querySelector('#er-ce-err');
+            er.textContent = res.error || Object.keys(res.errors || {}).map(function (k) { return res.errors[k]; }).join(' ');
+            er.hidden = false;
+            return;
+          }
+          wrap.remove();
+          resolve(res);
+        });
+      });
+    });
+  }
+
+  E.customerDialog = customerDialog;
   E.DevicePicker = DevicePicker;
   E.ChipSet = ChipSet;
 })();

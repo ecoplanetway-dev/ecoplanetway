@@ -21,6 +21,8 @@ window.ECOR.ready(function () {
       '<div class="er-panel"><h3>Categorías, marcas, modelos y averías<span class="er-r">Lo que se oculta deja de salir al crear reparaciones, pero no se borra</span></h3>' +
         '<div id="er-cat-grid" class="er-wide-2" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))"></div>' +
         '<input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
+        (canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button>' +
+          '<span class="er-muted er-small" id="er-nophoto"></span></div>' : '') +
         (canEdit ? '<div class="er-row"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button>' +
           '<span class="er-muted er-small">Añade solo los que falten. No vuelve a mostrar lo que hayas ocultado.</span></div>' : '') + '</div>' +
       '<div class="er-grid2">' +
@@ -40,6 +42,10 @@ window.ECOR.ready(function () {
             '<label class="er-field">Precio de la mano de obra (€/hora, IVA incluido)<input class="er-input" data-c="ECOREPAIRS_LABOUR_RATE" inputmode="decimal" maxlength="8"' + dis + '></label>' +
             '<label class="er-field">Validez del enlace de aceptación (días)<input class="er-input" data-c="ECOREPAIRS_QUOTE_DAYS" inputmode="numeric" maxlength="3"' + dis + '></label>' +
             '<label class="er-field">Condiciones del presupuesto<textarea class="er-input" data-c="ECOREPAIRS_QUOTE_CONDITIONS" rows="5"' + dis + '></textarea></label></div>' +
+          '<div class="er-panel"><h3>Cobro</h3>' +
+            '<label class="er-field">Transportista de los pedidos del taller (tiene que ser gratuito)<select class="er-input" data-c="ECOREPAIRS_CARRIER"' + dis + '><option value="0">Automático (el primero gratuito, «Recogida en tienda» si existe)</option>' +
+              (D.carriers || []).map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + (c.free ? ' · gratuito' : ' · ¡cobra envío!') + '</option>'; }).join('') + '</select></label>' +
+            '<p class="er-muted er-small" style="margin:0">Solo se usa en los pedidos que lleven piezas. La mano de obra va en el producto oculto «Servicio de taller».</p></div>' +
           '<div class="er-panel"><h3>Impresión</h3>' +
             '<label class="er-field">Resguardo<select class="er-input" data-c="ECOREPAIRS_PRINT_FORMAT"' + dis + '><option value="80mm">Ticket de 80 mm</option><option value="a4">A4</option></select></label>' +
             '<label class="er-field">Etiqueta del equipo<select class="er-input" data-c="ECOREPAIRS_LABEL_SIZE"' + dis + '><option value="62x29">62 × 29 mm</option><option value="50x25">50 × 25 mm</option><option value="62x100">62 × 100 mm</option></select></label>' +
@@ -73,6 +79,7 @@ window.ECOR.ready(function () {
                   : '<span style="flex:1;min-width:0;padding-left:12px;display:flex;align-items:center;gap:8px">' + (extra || '') + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(item.name) + '</span></span>') +
       (canEdit && type === 'model' ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Subir foto" aria-label="Subir foto de ' + esc(item.name) + '" data-imgup="' + item.id + '">' + icon('camera', true) + '</button>' +
         '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Foto desde una dirección web" aria-label="Foto desde una dirección web" data-imgurl="' + item.id + '">' + icon('link', true) + '</button>' +
+        '<a class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Buscar imagen en Google" aria-label="Buscar imagen en Google" target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(((brand() || {}).name || '') + ' ' + item.name) + '">' + icon('search', true) + '</a>' +
         (item.image ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Quitar foto" aria-label="Quitar foto" data-imgdel="' + item.id + '">' + icon('x', true) + '</button>' : '') : '') +
       (canEdit ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre de ' + esc(item.name) + '" data-ren="' + type + '" data-id="' + item.id + '" data-name="' + esc(item.name) + '">' + icon('pen', true) + '</button>' +
         '<button type="button" class="er-btn er-btn-sm" data-act="' + type + '" data-id="' + item.id + '" data-v="' + (item.active ? 0 : 1) + '">' + (item.active ? 'Ocultar' : 'Mostrar') + '</button>' : '') +
@@ -110,6 +117,7 @@ window.ECOR.ready(function () {
       catalog = res.catalog;
       if (!cat()) sel.cat = catalog[0] ? catalog[0].id : 0;
       renderCatalog();
+      countNoPhoto();
       return res;
     });
   }
@@ -179,6 +187,49 @@ window.ECOR.ready(function () {
     });
   }
 
+  /* ---------- Fotos de los modelos ---------- */
+  function countNoPhoto() {
+    var n = 0, t = 0;
+    catalog.forEach(function (c) { c.brands.forEach(function (b) { if (!b.active) return; b.models.forEach(function (m) { if (m.active) { t++; if (!m.image) n++; } }); }); });
+    var el = $('#er-nophoto');
+    if (el) el.innerHTML = n ? '<b>' + n + '</b> de ' + t + ' modelos sin foto. Busca en tu tienda o usa la lupa de cada modelo para buscar en Google.' : 'Todos los modelos tienen foto.';
+  }
+  var shopBtn = $('#er-shopimg');
+  if (shopBtn) {
+    shopBtn.addEventListener('click', function () {
+      shopBtn.disabled = true;
+      E.toast('Buscando en los productos de la tienda…');
+      E.api('shopImages', {}, {}).then(function (res) {
+        shopBtn.disabled = false;
+        if (!res.ok) { E.toast(res.error, true); return; }
+        var list = res.proposals || [];
+        if (!list.length) { E.dialog({ title: 'Sin coincidencias', text: 'No he encontrado productos de la tienda con el nombre de los modelos que no tienen foto.' }); return; }
+        var wrap = document.createElement('div');
+        wrap.className = 'er-modal';
+        wrap.innerHTML = '<div class="er-dlg" style="max-width:760px"><h2>Fotos encontradas en tu tienda (' + list.length + ')</h2>' +
+          '<p class="er-muted" style="margin:0">Quita la marca de las que no cuadren y guarda.</p>' +
+          '<div class="er-mini er-shopimg">' + list.map(function (p, i) {
+            return '<label><input type="checkbox" data-i="' + i + '" checked><img src="' + esc(p.image) + '" alt="" loading="lazy">' +
+              '<span class="er-grow" style="white-space:normal"><b>' + esc(p.model) + '</b><span class="er-muted er-small" style="display:block">Producto: ' + esc(p.product) + '</span></span></label>';
+          }).join('') + '</div>' +
+          '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar las marcadas</button></div></div>';
+        app.appendChild(wrap);
+        wrap.addEventListener('click', function (e) {
+          if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+          if (!e.target.closest('[data-ok]')) return;
+          var items = [];
+          wrap.querySelectorAll('[data-i]:checked').forEach(function (c) { var p = list[+c.getAttribute('data-i')]; items.push({ id_model: p.id_model, image: p.image }); });
+          catalogCall('applyShopImages', { items: JSON.stringify(items) }).then(function (r2) {
+            if (!r2) return;
+            wrap.remove();
+            countNoPhoto();
+            E.toast(r2.saved + ' fotos guardadas');
+          });
+        });
+      });
+    });
+  }
+
   var importBtn = $('#er-import');
   if (importBtn) {
     importBtn.addEventListener('click', function () {
@@ -216,4 +267,5 @@ window.ECOR.ready(function () {
 
   renderCatalog();
   fillConfig();
+  countNoPhoto();
 });

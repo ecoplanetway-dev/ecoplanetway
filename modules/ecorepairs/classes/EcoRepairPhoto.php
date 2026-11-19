@@ -91,7 +91,7 @@ class EcoRepairPhoto
 
     protected static function saveImageFile($idRepair, $path, $type, $idEmployee)
     {
-        if (!in_array($type, array('entry', 'signature', 'work', 'quote_sig'), true)) {
+        if (!in_array($type, array('entry', 'signature', 'work', 'quote_sig', 'device'), true)) {
             $type = 'entry';
         }
         $open = self::openImage($path);
@@ -146,7 +146,7 @@ class EcoRepairPhoto
             'date_add' => date('Y-m-d H:i:s'),
         ));
         $id = (int) Db::getInstance()->Insert_ID();
-        EcoRepairLog::add($idRepair, $idEmployee, 'photo', $type === 'quote_sig' ? 'Firma de aceptación del presupuesto guardada' : ($isSignature ? 'Firma del cliente guardada' : 'Foto añadida'));
+        EcoRepairLog::add($idRepair, $idEmployee, 'photo', $type === 'quote_sig' ? 'Firma de aceptación del presupuesto guardada' : ($isSignature ? 'Firma del cliente guardada' : ($type === 'device' ? 'Foto del equipo guardada' : 'Foto añadida')));
 
         return array('ok' => true, 'id' => $id);
     }
@@ -227,6 +227,37 @@ class EcoRepairPhoto
         }
 
         return array('ok' => true, 'file' => $name);
+    }
+
+    /**
+     * Copia una foto de reparación (la del equipo) como foto del modelo. Devuelve el nombre del archivo nuevo.
+     */
+    public static function copyToModel(array $photo)
+    {
+        $name = basename($photo['file']);
+        $src = self::dir() . (int) $photo['id_ecorepair'] . '/' . $name;
+        if (!preg_match('/^[a-f0-9]{32}\.(webp|jpg|png)$/', $name) || !is_file($src)) {
+            return array('ok' => false, 'error' => 'No se encontró la foto.');
+        }
+        $open = self::openImage($src);
+        if (!$open['ok']) {
+            return $open;
+        }
+        if (!is_dir(self::modelDir()) && !@mkdir(self::modelDir(), 0755, true)) {
+            imagedestroy($open['img']);
+
+            return array('ok' => false, 'error' => 'La carpeta de fotos no tiene permisos de escritura.');
+        }
+        $ext = self::canWebp() ? 'webp' : 'jpg';
+        $new = self::randomName($ext);
+        $small = self::resize($open['img'], 400, false);
+        $ok = self::write($small, self::modelDir() . $new, $ext);
+        if ($small !== $open['img']) {
+            imagedestroy($small);
+        }
+        imagedestroy($open['img']);
+
+        return $ok ? array('ok' => true, 'file' => $new) : array('ok' => false, 'error' => 'No se pudo guardar la imagen.');
     }
 
     public static function deleteModelImage($name)
