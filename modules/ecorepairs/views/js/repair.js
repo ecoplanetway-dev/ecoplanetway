@@ -433,7 +433,7 @@ window.ECOR.ready(function () {
         return '<a href="' + esc(D.quoteUrl) + '"><span class="er-grow">' + esc(q.label) + '</span><span class="er-tag ' + (cls[q.status] || 'er-t-neu') + '">' + esc(q.status_name) + '</span>' +
           '<b class="er-num">' + esc(E.fmtMoney(q.total)) + '</b></a>';
       }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Sin presupuesto.</p>') +
-      '<a class="er-btn er-btn-block' + (pri ? ' er-btn-pri' : '') + '" href="' + esc(D.quoteUrl) + '">' + icon(qs.length ? 'doc' : 'plus') + (qs.length ? 'Abrir presupuesto' : (canEdit ? 'Crear presupuesto' : 'Ver presupuesto')) + '</a>';
+      '<a class="er-btn er-btn-block' + (pri ? ' er-btn-pri' : '') + '" href="' + esc(D.quoteUrl + (!qs.length && canEdit ? '&create=1' : '')) + '">' + icon(qs.length ? 'doc' : 'plus') + (qs.length ? 'Abrir presupuesto' : (canEdit ? 'Crear presupuesto' : 'Ver presupuesto')) + '</a>';
   }
 
   /* ---------- Cobro ---------- */

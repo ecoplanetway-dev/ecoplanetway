@@ -499,8 +499,9 @@ window.ECOR.ready(function () {
   }
 
   function createQuote() {
-    call('quoteCreate', { id_ecorepair: r.id }, {}, true).then(function (res) {
-      if (res) { var s = $('#er-q-search'); if (s) s.focus(); }
+    return call('quoteCreate', { id_ecorepair: r.id }, {}, true).then(function (res) {
+      if (res) { var s = $('#er-q-search'); if (s) s.focus(); } else render();
+      return res;
     });
   }
 
@@ -586,5 +587,15 @@ window.ECOR.ready(function () {
     });
   }
 
-  render();
+  // Desde «Crear presupuesto» de la ficha: se crea directamente y se abre el editor
+  var wantsCreate = /[?&]create=1/.test(location.search);
+  if (wantsCreate) {
+    try { history.replaceState(null, '', location.href.replace(/&create=1/, '')); } catch (e) {}
+  }
+  if (wantsCreate && !quotes.length && canEdit && r.status !== 'delivered' && r.status !== 'cancelled') {
+    $('#er-q-body').innerHTML = '<div class="er-empty">Creando presupuesto…</div>';
+    createQuote();
+  } else {
+    render();
+  }
 });
