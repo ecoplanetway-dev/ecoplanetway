@@ -62,7 +62,7 @@
     <tr><th>Concepto</th>{if $format == 'a4'}<th class="r">Cant.</th><th class="r">Precio</th>{/if}<th class="r">Importe</th></tr>
     {foreach from=$q.lines item=l}
       <tr class="l">
-        <td>{$l.name|escape:'html':'UTF-8'}{if $l.reference && $format == 'a4'} <span class="muted">({$l.reference|escape:'html':'UTF-8'})</span>{/if}{if $l.warranty} · <b>GARANTÍA</b>{/if}
+        <td>{$l.name|escape:'html':'UTF-8'}{if $l.reference && $format == 'a4'} <span class="muted">({$l.reference|escape:'html':'UTF-8'})</span>{/if}{if $l.warranty} · <b>GARANTÍA</b>{/if}{if $l.discount > 0}<br><span class="muted">Descuento −{$l.discount|string_format:'%.2f'|replace:'.':','} €</span>{/if}
           {if $format != 'a4'}<br><span class="muted">{$l.qty_text|escape:'html':'UTF-8'}{if $l.type == 'labour'} h{/if} × {$l.price|string_format:'%.2f'|replace:'.':','} €</span>{/if}</td>
         {if $format == 'a4'}<td class="r">{$l.qty_text|escape:'html':'UTF-8'}{if $l.type == 'labour'} h{/if}</td><td class="r">{$l.price|string_format:'%.2f'|replace:'.':','} €</td>{/if}
         <td class="r">{if $l.warranty}0,00{else}{$l.total|string_format:'%.2f'|replace:'.':','}{/if} €</td>

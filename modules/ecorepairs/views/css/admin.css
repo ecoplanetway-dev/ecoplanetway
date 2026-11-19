@@ -511,3 +511,27 @@
 /* La lista de resultados del buscador de piezas queda por encima de «Observaciones» */
 .ecor #er-q-lines { position: relative; z-index: 20; }
 .ecor #er-q-lines .er-qs-res { max-height: min(60vh, 520px); }
+/* 1.4.1 · Líneas con descuento */
+.ecor .er-ql { grid-template-columns: minmax(0, 1fr) 66px 100px 80px 92px 60px 96px 44px; }
+.ecor .er-disc::placeholder { color: #B7BDC8; }
+@media (max-width: 1180px) {
+  .ecor .er-ql { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ecor .er-ql-t { grid-column: 2 / 4; }
+}
+/* 1.4.1 · Resultados del buscador de piezas: más grandes y con acciones */
+.ecor #er-q-lines .er-qs-res { max-height: min(72vh, 680px); border-radius: var(--er-r-card); }
+.ecor .er-qs-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; gap: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--er-fg2); background: var(--er-bg); border-bottom: 1px solid var(--er-line2); }
+.ecor .er-qs-res button { min-height: 76px; padding: 10px 14px; gap: 14px; }
+.ecor .er-qs-res button.er-on { background: var(--er-grad-soft); box-shadow: inset 3px 0 0 var(--er-pri); }
+.ecor .er-qs-res .er-pimg { width: 60px; height: 60px; border-radius: 10px; }
+.ecor .er-qs-res .er-grow b { font-size: 14px; line-height: 1.3; }
+.ecor .er-qs-side { display: flex; align-items: center; gap: 10px; flex: none; }
+.ecor .er-qs-price { font-size: 16px; min-width: 78px; text-align: right; }
+.ecor .er-qs-add { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--er-pri); background: var(--er-grad-soft); border-radius: 999px; padding: 6px 10px; opacity: 0; transition: opacity .15s; }
+.ecor .er-qs-res button:hover .er-qs-add, .ecor .er-qs-res button.er-on .er-qs-add { opacity: 1; }
+.ecor .er-qs-side [data-pedit] { min-height: 34px; padding: 0 8px; }
+@media (max-width: 760px) {
+  .ecor .er-qs-res button { flex-wrap: wrap; }
+  .ecor .er-qs-side { width: 100%; justify-content: flex-end; }
+  .ecor .er-qs-add { opacity: 1; }
+}

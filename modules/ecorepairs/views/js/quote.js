@@ -48,10 +48,10 @@ window.ECOR.ready(function () {
   function totals(lines) {
     var excl = 0, incl = 0, war = 0;
     lines.forEach(function (l) {
-      var li = r2(num(l.qty) * num(l.price));
-      if (l.warranty) { war += li; return; }
+      var li = r2(num(l.qty) * num(l.price) - num(l.discount));
+      if (l.warranty) { war += r2(num(l.qty) * num(l.price)); return; }
       incl += li;
-      excl += r2(num(l.qty) * num(l.price) / (1 + num(l.tax_rate) / 100));
+      excl += r2(li / (1 + num(l.tax_rate) / 100));
     });
     return { total_tax_excl: r2(excl), total_tax_incl: r2(incl), tax: r2(incl - excl), warranty_amount: r2(war) };
   }
@@ -93,7 +93,8 @@ window.ECOR.ready(function () {
   function payloadLines() {
     return work.lines.filter(function (l) { return String(l.name || '').trim() !== ''; }).map(function (l) {
       return { type: l.type, id_product: l.id_product || 0, id_product_attribute: l.id_product_attribute || 0, name: String(l.name).trim(),
-        reference: l.reference || '', qty: num(l.qty), price: num(l.price), tax_rate: num(l.tax_rate), warranty: l.warranty ? 1 : 0 };
+        reference: l.reference || '', qty: num(l.qty), price: num(l.price), tax_rate: num(l.tax_rate), warranty: l.warranty ? 1 : 0,
+        discount: l.warranty ? 0 : num(l.discount) };
     });
   }
   /** Guarda si hay cambios. Resuelve true si todo quedó guardado. */
@@ -201,14 +202,16 @@ window.ECOR.ready(function () {
       rows.innerHTML = '<div class="er-empty">Sin líneas. Busca una pieza o añade mano de obra.</div>';
       return;
     }
-    rows.innerHTML = '<div class="er-ql er-ql-h" aria-hidden="true"><span>Concepto</span><span>Cant.</span><span>Precio IVA incl.</span><span>IVA</span><span>Garantía</span><span class="er-ql-t">Importe</span><span></span></div>' +
+    rows.innerHTML = '<div class="er-ql er-ql-h" aria-hidden="true"><span>Concepto</span><span>Cant.</span><span>Precio IVA incl.</span><span>Dto. €</span><span>IVA</span><span>Garantía</span><span class="er-ql-t">Importe</span><span></span></div>' +
       work.lines.map(function (l, i) {
         return '<div class="er-ql' + (l.warranty ? ' er-ql-war' : '') + '" data-i="' + i + '">' +
           '<div class="er-ql-name"><span class="er-row" style="flex-wrap:nowrap">' + (l.type === 'part' ? pimg(l.image) : '') + '<span class="er-tag er-t-neu">' + esc(TYPES[l.type] || 'Otro') + '</span></span>' +
             '<input class="er-input" data-k="name" maxlength="128" value="' + esc(l.name) + '" placeholder="Descripción" aria-label="Descripción">' +
-            '<div class="er-row er-small">' + (l.reference ? '<span class="er-muted">Ref. ' + esc(l.reference) + '</span>' : '') + stockTag(l.stock, num(l.qty)) + '</div></div>' +
+            '<div class="er-row er-small">' + (l.reference ? '<span class="er-muted">Ref. ' + esc(l.reference) + '</span>' : '') + stockTag(l.stock, num(l.qty)) +
+            (l.type === 'part' && l.id_product && canEdit ? '<button type="button" class="er-link er-small" data-pedit-line="' + i + '">Stock / precio web</button>' : '') + '</div></div>' +
           '<label class="er-ql-f"><span>Cant.' + (l.type === 'labour' ? ' (h)' : '') + '</span><input class="er-input er-num" data-k="qty" inputmode="decimal" value="' + esc(fmtNum(num(l.qty))) + '" aria-label="Cantidad"></label>' +
           '<label class="er-ql-f"><span>Precio IVA incl.</span><input class="er-input er-num" data-k="price" inputmode="decimal" value="' + esc(num(l.price).toFixed(2).replace('.', ',')) + '" aria-label="Precio con IVA"></label>' +
+          '<label class="er-ql-f"><span>Dto. €</span><input class="er-input er-num er-disc" data-k="discount" inputmode="decimal" value="' + (num(l.discount) ? esc(num(l.discount).toFixed(2).replace('.', ',')) : '') + '" placeholder="0" aria-label="Descuento en euros"' + (l.warranty ? ' disabled' : '') + '></label>' +
           '<label class="er-ql-f"><span>IVA</span><select class="er-input" data-k="tax_rate" aria-label="IVA">' + D.taxRates.map(function (t) {
             return '<option value="' + t + '"' + (num(l.tax_rate) === t ? ' selected' : '') + '>' + t + ' %</option>';
           }).join('') + '</select></label>' +
@@ -219,8 +222,9 @@ window.ECOR.ready(function () {
       }).join('');
   }
   function lineTotal(l) {
-    var t = r2(num(l.qty) * num(l.price));
-    return l.warranty ? '<s class="er-muted">' + esc(E.fmtMoney(t)) + '</s><br><span class="er-small">Garantía</span>' : esc(E.fmtMoney(t));
+    var gross = r2(num(l.qty) * num(l.price)), t = r2(gross - num(l.discount));
+    if (l.warranty) return '<s class="er-muted">' + esc(E.fmtMoney(gross)) + '</s><br><span class="er-small">Garantía</span>';
+    return num(l.discount) > 0 ? '<s class="er-muted er-small">' + esc(E.fmtMoney(gross)) + '</s><br>' + esc(E.fmtMoney(t)) : esc(E.fmtMoney(t));
   }
 
   function addLine(l, focusName) {
@@ -248,7 +252,16 @@ window.ECOR.ready(function () {
     if (!row || !work) return;
     var l = work.lines[+row.getAttribute('data-i')], k = e.target.getAttribute('data-k');
     if (!l || !k) return;
-    if (k === 'warranty') { l.warranty = e.target.checked ? 1 : 0; row.classList.toggle('er-ql-war', !!l.warranty); }
+    if (k === 'warranty') {
+      l.warranty = e.target.checked ? 1 : 0; row.classList.toggle('er-ql-war', !!l.warranty);
+      var dEl = row.querySelector('[data-k="discount"]'); if (dEl) { dEl.disabled = !!l.warranty; if (l.warranty) { dEl.value = ''; l.discount = 0; } }
+    }
+    else if (k === 'discount') {
+      var dv = Math.max(0, num(e.target.value)), maxD = r2(num(l.qty) * num(l.price));
+      if (dv > maxD) { dv = maxD; E.toast('El descuento no puede ser mayor que el importe de la línea.', true); }
+      l.discount = dv;
+      e.target.value = dv ? dv.toFixed(2).replace('.', ',') : '';
+    }
     else if (k === 'tax_rate') l.tax_rate = num(e.target.value);
     else if (k === 'qty' || k === 'price') {
       var v = num(e.target.value);
@@ -279,6 +292,24 @@ window.ECOR.ready(function () {
       else addLine({ type: 'other', name: '', qty: 1, price: 0, tax_rate: 21, warranty: 0 }, true);
       return;
     }
+    if ((t = e.target.closest('[data-pedit]'))) {
+      e.stopPropagation();
+      var pi = +t.getAttribute('data-pedit');
+      productDialog(searchResults[pi], function (upd) {
+        searchResults[pi].stock = upd.stock; searchResults[pi].price = upd.price;
+        var btn = app.querySelector('[data-pick="' + pi + '"]');
+        if (btn) btn.outerHTML = resultRow(searchResults[pi], pi);
+      });
+      return;
+    }
+    if ((t = e.target.closest('[data-pedit-line]'))) {
+      var li = +t.getAttribute('data-pedit-line'), ln = work.lines[li];
+      productDialog({ id_product: ln.id_product, id_product_attribute: ln.id_product_attribute, name: ln.name, stock: ln.stock, price: ln.price, image: ln.image }, function (upd) {
+        ln.stock = upd.stock;
+        renderRows();
+      }, true);
+      return;
+    }
     if ((t = e.target.closest('[data-pick]'))) {
       var p = searchResults[+t.getAttribute('data-pick')];
       if (!p) return;
@@ -295,6 +326,14 @@ window.ECOR.ready(function () {
 
   /* ---------- Buscador del catálogo ---------- */
   var searchResults = [], searchTimer = null, searchSeq = 0;
+  var resultIdx = -1;
+  function resultRow(p, i) {
+    return '<button type="button" data-pick="' + i + '">' + pimg(p.image) +
+      '<span class="er-grow"><b>' + esc(p.name) + '</b><span class="er-row er-small er-muted">' + (p.reference ? 'Ref. ' + esc(p.reference) : '') + (p.active ? '' : ' · No visible en la tienda') + '</span></span>' +
+      '<span class="er-qs-side">' + stockTag(p.stock) + '<b class="er-num er-qs-price">' + esc(E.fmtMoney(p.price)) + '</b>' +
+      (canEdit ? '<span class="er-btn er-btn-sm er-btn-ghost" role="button" tabindex="-1" data-pedit="' + i + '" title="Cambiar stock o precio en la tienda">' + icon('pen', true) + '</span>' : '') +
+      '<span class="er-qs-add">' + icon('plus', true) + 'Añadir</span></span></button>';
+  }
   function hideResults() { var res = $('#er-q-res'); if (res) res.hidden = true; }
   app.addEventListener('input', function (e) {
     if (e.target.id !== 'er-q-search') return;
@@ -310,22 +349,78 @@ window.ECOR.ready(function () {
         searchResults = res.ok ? res.products : [];
         box.hidden = false;
         if (!res.ok) { box.innerHTML = '<div class="er-muted er-small" style="padding:12px">' + esc(res.error) + '</div>'; return; }
-        box.innerHTML = searchResults.length ? searchResults.map(function (p, i) {
-          return '<button type="button" data-pick="' + i + '">' + pimg(p.image) + '<span class="er-grow"><b>' + esc(p.name) + '</b>' +
-            '<span class="er-row er-small er-muted">' + (p.reference ? 'Ref. ' + esc(p.reference) : '') + (p.active ? '' : ' · No visible en la tienda') + '</span></span>' +
-            stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></button>';
-        }).join('') : '<div class="er-muted er-small" style="padding:12px">Nada encontrado. Usa «Línea libre» si la pieza no está en el catálogo.</div>';
+        resultIdx = -1;
+        box.innerHTML = searchResults.length ? '<div class="er-qs-head"><span>' + searchResults.length + (searchResults.length >= 40 ? '+' : '') + ' resultados · pulsa una pieza para añadirla</span><span class="er-muted">↑ ↓ y Enter</span></div>' +
+          searchResults.map(function (p, i) { return resultRow(p, i); }).join('')
+          : '<div class="er-muted er-small" style="padding:12px">Nada encontrado. Usa «Línea libre» si la pieza no está en el catálogo.</div>';
       });
     }, 250);
   });
   app.addEventListener('keydown', function (e) {
     if (e.target.id === 'er-q-search' && e.key === 'Enter') {
       e.preventDefault();
-      var first = app.querySelector('#er-q-res:not([hidden]) [data-pick]');
-      if (first) first.click();
+      var all = app.querySelectorAll('#er-q-res:not([hidden]) [data-pick]');
+      var pick = all[resultIdx > -1 ? resultIdx : 0];
+      if (pick) pick.click();
     }
     if (e.target.id === 'er-q-search' && e.key === 'Escape') hideResults();
+    if (e.target.id === 'er-q-search' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      var btns = app.querySelectorAll('#er-q-res:not([hidden]) [data-pick]');
+      if (!btns.length) return;
+      e.preventDefault();
+      resultIdx = Math.max(0, Math.min(btns.length - 1, resultIdx + (e.key === 'ArrowDown' ? 1 : -1)));
+      btns.forEach(function (b, k) { b.classList.toggle('er-on', k === resultIdx); });
+      btns[resultIdx].scrollIntoView({ block: 'nearest' });
+    }
   });
+
+  /* ---------- Stock y precio de la tienda ---------- */
+  /**
+   * Cambia stock y precio de venta del producto en la tienda (con «Guardar»).
+   * fromLine: el precio de la línea del presupuesto no cambia solo; se pregunta.
+   */
+  function productDialog(p, onSaved, fromLine) {
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg"><h2>Cambiar en la tienda</h2>' +
+      '<div class="er-row" style="flex-wrap:nowrap">' + pimg(p.image) + '<b style="min-width:0">' + esc(p.name) + '</b></div>' +
+      '<div class="er-fg">' +
+        '<label class="er-field">Stock en la tienda (unidades)<input class="er-input er-num" id="er-pd-stock" inputmode="numeric" value="' + (p.stock === null || p.stock === undefined ? '' : p.stock) + '"></label>' +
+        '<label class="er-field">Precio de venta (IVA incluido)<input class="er-input er-num" id="er-pd-price" inputmode="decimal" value="' + esc(num(p.price).toFixed(2).replace('.', ',')) + '"></label>' +
+      '</div>' +
+      '<p class="er-muted er-small" style="margin:0">Se cambia en la web al pulsar «Guardar». Queda registrado en Parámetros avanzados › Registros.</p>' +
+      '<div class="er-err" id="er-pd-err" hidden></div>' +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>' + icon('check') + 'Guardar</button></div></div>';
+    app.appendChild(wrap);
+    var stockIn = wrap.querySelector('#er-pd-stock'), priceIn = wrap.querySelector('#er-pd-price');
+    var start = { stock: stockIn.value, price: priceIn.value };
+    stockIn.focus(); stockIn.select();
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      var ok = e.target.closest('[data-ok]');
+      if (!ok) return;
+      var body = { id_product: p.id_product, id_product_attribute: p.id_product_attribute || 0 };
+      if (stockIn.value.trim() !== start.stock) body.stock = stockIn.value.trim();
+      if (priceIn.value.trim() !== start.price) body.price = priceIn.value.trim();
+      if (body.stock === undefined && body.price === undefined) { wrap.remove(); return; }
+      ok.disabled = true;
+      E.api('productUpdate', {}, body).then(function (res) {
+        ok.disabled = false;
+        if (!res.ok) { var er = wrap.querySelector('#er-pd-err'); er.textContent = res.error; er.hidden = false; return; }
+        wrap.remove();
+        onSaved(res);
+        E.toast('Guardado en la tienda' + (res.has_discount ? ' · ojo: tiene un descuento activo, se vende a ' + E.fmtMoney(res.price) : ''), !!res.has_discount);
+        if (fromLine && body.price !== undefined) {
+          E.dialog({ title: 'Precio de la línea', text: '¿Poner también ' + E.fmtMoney(res.price) + ' en esta línea del presupuesto?', ok: 'Sí, actualizar' }).then(function (yes) {
+            if (!yes) return;
+            work.lines.forEach(function (l) { if (l.id_product === p.id_product && (l.id_product_attribute || 0) === (p.id_product_attribute || 0)) l.price = res.price; });
+            renderRows(); scheduleSave();
+          });
+        }
+      });
+    });
+    wrap.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); wrap.querySelector('[data-ok]').click(); } if (e.key === 'Escape') wrap.remove(); });
+  }
 
   /* ---------- Kits ---------- */
   function kitsDialog() {
@@ -417,7 +512,7 @@ window.ECOR.ready(function () {
     $('#er-q-lines').innerHTML = '<h3>' + icon('doc') + esc(q.label) + lock + '</h3>' +
       (q.lines.length ? '<div class="er-mini">' + q.lines.map(function (l) {
         return '<div>' + (l.type === 'part' ? pimg(l.image) : '') + '<span class="er-grow" style="white-space:normal"><b>' + esc(l.name) + '</b>' + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') +
-          '<span class="er-muted er-small" style="display:block">' + esc(TYPES[l.type] + (l.reference ? ' · Ref. ' + l.reference : '') + ' · ' + fmtNum(l.qty) + (l.type === 'labour' ? ' h' : ' ud.') + ' × ' + E.fmtMoney(l.price) + ' · IVA ' + l.tax_rate + ' %') + '</span></span>' +
+          '<span class="er-muted er-small" style="display:block">' + esc(TYPES[l.type] + (l.reference ? ' · Ref. ' + l.reference : '') + ' · ' + fmtNum(l.qty) + (l.type === 'labour' ? ' h' : ' ud.') + ' × ' + E.fmtMoney(l.price) + ' · IVA ' + l.tax_rate + ' %' + (l.discount > 0 ? ' · dto. ' + E.fmtMoney(l.discount) : '')) + '</span></span>' +
           '<b class="er-num">' + (l.warranty ? '<s class="er-muted">' + esc(E.fmtMoney(l.total)) + '</s>' : esc(E.fmtMoney(l.total))) + '</b></div>';
       }).join('') + '</div>' : '<div class="er-empty">Sin líneas</div>');
   }
@@ -571,7 +666,7 @@ window.ECOR.ready(function () {
     wrap.className = 'er-modal';
     wrap.innerHTML = '<div class="er-dlg"><h2>Aprobado en tienda</h2>' +
       '<p style="margin:0">El cliente acepta <b>' + esc(q.label) + '</b> por <b class="er-num">' + esc(E.fmtMoney(t.total_tax_incl)) + '</b> (IVA incluido).</p>' +
-      '<p class="er-muted er-small" style="margin:0">Después queda bloqueado. Firma del cliente:</p>' +
+      '<p class="er-muted er-small" style="margin:0">Después queda bloqueado. Firma del cliente (opcional):</p>' +
       '<canvas class="er-sig" id="er-qsig" aria-label="Firma"></canvas>' +
       '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-clear>Borrar</button><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Confirmar aceptación</button></div></div>';
     app.appendChild(wrap);
@@ -581,9 +676,8 @@ window.ECOR.ready(function () {
       if (ev.target.closest('[data-clear]')) { pad.clear(); return; }
       var ok = ev.target.closest('[data-ok]');
       if (!ok) return;
-      if (pad.isEmpty()) { E.toast('Falta la firma del cliente.', true); return; }
       ok.disabled = true;
-      call('quoteAccept', { id_quote: q.id }, { signature: pad.toDataURL() }).then(function (res) {
+      call('quoteAccept', { id_quote: q.id }, { signature: pad.isEmpty() ? '' : pad.toDataURL() }).then(function (res) {
         ok.disabled = false;
         if (!res) return;
         wrap.remove();

@@ -134,7 +134,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.4.0';
+    const SCHEMA = '1.4.1';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -148,6 +148,7 @@ class EcoRepairInstaller
         }
         $ok = self::installDb()
             && self::addModelImageColumn()
+            && self::addColumn('ecorepair_quote_line', 'discount', 'DECIMAL(20,6) NOT NULL DEFAULT 0')
             && self::installConfig()
             && EcoRepairPhoto::ensureStorage();
         if ($ok) {
@@ -156,6 +157,17 @@ class EcoRepairInstaller
         }
 
         return $ok;
+    }
+
+    /** Añade una columna si no existe (para versiones anteriores). */
+    public static function addColumn($table, $column, $definition)
+    {
+        $db = Db::getInstance();
+        if ($db->executeS('SHOW COLUMNS FROM `' . _DB_PREFIX_ . pSQL($table) . '` LIKE \'' . pSQL($column) . '\'')) {
+            return true;
+        }
+
+        return $db->execute('ALTER TABLE `' . _DB_PREFIX_ . pSQL($table) . '` ADD `' . pSQL($column) . '` ' . $definition);
     }
 
     /**
@@ -221,6 +233,7 @@ class EcoRepairInstaller
             `unit_price_tax_excl` DECIMAL(20,6) NOT NULL DEFAULT 0,
             `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 21,
             `warranty` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
+            `discount` DECIMAL(20,6) NOT NULL DEFAULT 0,
             PRIMARY KEY (`id_ecorepair_quote_line`),
             KEY `id_ecorepair_quote` (`id_ecorepair_quote`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";

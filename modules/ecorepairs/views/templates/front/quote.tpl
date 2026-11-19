@@ -71,7 +71,7 @@
       <table>
         {foreach from=$q.lines item=l}
           <tr>
-            <td>{$l.name|escape:'html':'UTF-8'}{if $l.warranty}<span class="tag">Garantía</span>{/if}
+            <td>{$l.name|escape:'html':'UTF-8'}{if $l.warranty}<span class="tag">Garantía</span>{/if}{if $l.discount > 0}<span class="tag" style="background:#E3F1EB;color:#0B6E4B">−{$l.discount|string_format:'%.2f'|replace:'.':','} €</span>{/if}
               <div class="muted">{$l.qty_text|escape:'html':'UTF-8'}{if $l.type == 'labour'} h{else} ud.{/if} × {$l.price|string_format:'%.2f'|replace:'.':','} €</div></td>
             <td class="n">{if $l.warranty}0,00 €{else}{$l.total|string_format:'%.2f'|replace:'.':','} €{/if}</td>
           </tr>

@@ -307,6 +307,8 @@ class EcoRepairPayment
         $hasService = false;
         foreach ($lines as $l) {
             $excl = !empty($l['warranty']) ? 0.0 : (float) $l['unit_price_tax_excl'];
+            // Descuento de la línea (IVA incluido) repartido sin IVA
+            $discExcl = !empty($l['warranty']) || empty($l['discount']) ? 0.0 : (float) $l['discount'] / (1 + (float) $l['tax_rate'] / 100);
             if ($l['type'] === 'part' && (int) $l['id_product']) {
                 if ((float) (int) $l['qty'] !== (float) $l['qty']) {
                     return array('ok' => false, 'error' => 'La pieza «' . $l['name'] . '» tiene una cantidad con decimales.');
@@ -316,13 +318,13 @@ class EcoRepairPayment
                     $items[$k] = array('id_product' => (int) $l['id_product'], 'id_product_attribute' => (int) $l['id_product_attribute'], 'qty' => 0, 'amount' => 0.0);
                 }
                 $items[$k]['qty'] += (int) $l['qty'];
-                $items[$k]['amount'] += (int) $l['qty'] * $excl;
+                $items[$k]['amount'] += (int) $l['qty'] * $excl - $discExcl;
             } else {
                 if ((int) round($l['tax_rate']) !== 21 && $excl > 0) {
                     return array('ok' => false, 'error' => 'La línea «' . $l['name'] . '» tiene un IVA distinto del 21 %. Cámbialo en el presupuesto (solo las piezas pueden llevar otro IVA).');
                 }
                 $hasService = true;
-                $serviceExcl += (float) $l['qty'] * $excl;
+                $serviceExcl += (float) $l['qty'] * $excl - $discExcl;
                 $serviceNames[] = $l['name'] . ((float) $l['qty'] != 1 ? ' ×' . str_replace('.', ',', rtrim(rtrim(number_format((float) $l['qty'], 2, '.', ''), '0'), '.')) : '');
             }
         }

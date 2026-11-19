@@ -94,6 +94,7 @@ class EcoRepairQuote
             $qty = (float) $l['qty'];
             $excl = (float) $l['unit_price_tax_excl'];
             $rate = (float) $l['tax_rate'];
+            $disc = isset($l['discount']) ? (float) $l['discount'] : 0.0;
             $out[] = array(
                 'type' => (string) $l['type'],
                 'id_product' => (int) $l['id_product'],
@@ -105,7 +106,9 @@ class EcoRepairQuote
                 'unit_price_tax_excl' => $excl,
                 'tax_rate' => $rate,
                 'price' => round($excl * (1 + $rate / 100), 2),
-                'total' => round($qty * $excl * (1 + $rate / 100), 2),
+                'discount' => round($disc, 2),
+                'gross' => round($qty * $excl * (1 + $rate / 100), 2),
+                'total' => round($qty * $excl * (1 + $rate / 100) - $disc, 2),
                 'warranty' => isset($l['warranty']) ? (int) $l['warranty'] : 0,
             );
         }
@@ -169,6 +172,10 @@ class EcoRepairQuote
             if ($price < 0 || $price > 999999) {
                 return array('ok' => false, 'error' => 'Línea ' . $n . ': el precio no es válido.');
             }
+            $discount = round(self::num(isset($l['discount']) ? $l['discount'] : 0), 2);
+            if ($discount < 0 || $discount > round($qty * $price, 2)) {
+                return array('ok' => false, 'error' => 'Línea ' . $n . ': el descuento no puede ser mayor que el importe.');
+            }
             $rate = self::num(isset($l['tax_rate']) ? $l['tax_rate'] : 21);
             if (!in_array((int) $rate, self::taxRates(), true) || (float) (int) $rate !== $rate) {
                 return array('ok' => false, 'error' => 'Línea ' . $n . ': el IVA no es válido.');
@@ -193,6 +200,7 @@ class EcoRepairQuote
                 'unit_price_tax_excl' => round($price / (1 + $rate / 100), 6),
                 'tax_rate' => (int) $rate,
                 'warranty' => $withWarranty && !empty($l['warranty']) ? 1 : 0,
+                'discount' => $withWarranty ? $discount : 0,
             );
         }
         if ($productIds) {
@@ -223,8 +231,9 @@ class EcoRepairQuote
         $incl = 0.0;
         $war = 0.0;
         foreach ($lines as $l) {
-            $base = (float) $l['qty'] * (float) $l['unit_price_tax_excl'];
-            $lineIncl = round($base * (1 + (float) $l['tax_rate'] / 100), 2);
+            $disc = isset($l['discount']) ? (float) $l['discount'] : 0.0;
+            $base = (float) $l['qty'] * (float) $l['unit_price_tax_excl'] - $disc / (1 + (float) $l['tax_rate'] / 100);
+            $lineIncl = round((float) $l['qty'] * (float) $l['unit_price_tax_excl'] * (1 + (float) $l['tax_rate'] / 100) - $disc, 2);
             if (!empty($l['warranty'])) {
                 $war += $lineIncl;
             } else {
@@ -258,6 +267,7 @@ class EcoRepairQuote
                 'unit_price_tax_excl' => (float) $l['unit_price_tax_excl'],
                 'tax_rate' => (float) $l['tax_rate'],
                 'warranty' => !empty($l['warranty']) ? 1 : 0,
+                'discount' => isset($l['discount']) ? (float) $l['discount'] : 0,
             ));
         }
         $t = self::totals($lines);
@@ -519,9 +529,13 @@ class EcoRepairQuote
         if (!self::lines((int) $q['id_ecorepair_quote'])) {
             return array('ok' => false, 'error' => 'Añade al menos una línea.');
         }
-        $sig = EcoRepairPhoto::saveSignature((int) $q['id_ecorepair'], $signatureDataUrl, $idEmployee, 'quote_sig');
-        if (!$sig['ok']) {
-            return $sig;
+        // La firma es opcional: basta con la confirmación del empleado
+        $sig = array('ok' => true, 'id' => 0);
+        if ((string) $signatureDataUrl !== '') {
+            $sig = EcoRepairPhoto::saveSignature((int) $q['id_ecorepair'], $signatureDataUrl, $idEmployee, 'quote_sig');
+            if (!$sig['ok']) {
+                return $sig;
+            }
         }
         $db = Db::getInstance();
         $db->execute('UPDATE `' . _DB_PREFIX_ . 'ecorepair_quote` SET status = \'' . self::ACCEPTED . '\', channel = \'store\',
@@ -529,11 +543,13 @@ class EcoRepairQuote
             date_answer = NOW(), date_upd = NOW()
             WHERE id_ecorepair_quote = ' . (int) $q['id_ecorepair_quote'] . ' AND status IN (\'' . self::DRAFT . '\', \'' . self::SENT . '\')');
         if (!$db->Affected_Rows()) {
-            EcoRepairPhoto::delete((int) $sig['id'], $idEmployee);
+            if ($sig['id']) {
+                EcoRepairPhoto::delete((int) $sig['id'], $idEmployee);
+            }
 
             return array('ok' => false, 'error' => 'Este presupuesto ya está respondido.');
         }
-        EcoRepairLog::add((int) $q['id_ecorepair'], $idEmployee, 'quote', self::label($q) . ' aprobado en tienda con firma · ' . self::money($q['total_tax_incl']));
+        EcoRepairLog::add((int) $q['id_ecorepair'], $idEmployee, 'quote', self::label($q) . ' aprobado en tienda' . ($sig['id'] ? ' con firma' : ' (sin firma)') . ' · ' . self::money($q['total_tax_incl']));
         self::afterAccept($q, $idEmployee);
 
         return array('ok' => true);
@@ -630,6 +646,68 @@ class EcoRepairQuote
     /* ------------------------------------------------------------------ */
 
     /**
+     * Cambia el stock y/o el precio de venta (IVA incluido) de un producto o combinación de la tienda.
+     * $stock / $price a null = no se cambia.
+     */
+    public static function updateShopProduct($idProduct, $idAttr, $stock, $price, $idShop, $idLang, Employee $employee)
+    {
+        $product = new Product((int) $idProduct, false, null, (int) $idShop);
+        if (!Validate::isLoadedObject($product)) {
+            return array('ok' => false, 'error' => 'El producto no existe.');
+        }
+        $idAttr = (int) $idAttr;
+        if ($idAttr) {
+            $comb = new Combination($idAttr);
+            if (!Validate::isLoadedObject($comb) || (int) $comb->id_product !== (int) $product->id) {
+                return array('ok' => false, 'error' => 'La combinación no es de ese producto.');
+            }
+        }
+        $done = array();
+        if ($stock !== null) {
+            $stock = trim((string) $stock);
+            if (!preg_match('/^-?\d{1,6}$/', $stock)) {
+                return array('ok' => false, 'error' => 'Escribe el stock en unidades (número entero).');
+            }
+            $old = (int) StockAvailable::getQuantityAvailableByProduct((int) $product->id, $idAttr, (int) $idShop);
+            StockAvailable::setQuantity((int) $product->id, $idAttr, (int) $stock, (int) $idShop);
+            $done[] = 'stock ' . $old . ' → ' . (int) $stock;
+        }
+        if ($price !== null) {
+            $incl = round(self::num($price), 2);
+            if ($incl < 0 || $incl > 999999) {
+                return array('ok' => false, 'error' => 'El precio no es válido.');
+            }
+            $rate = (float) Tax::getProductTaxRate((int) $product->id);
+            $excl = round($incl / (1 + $rate / 100), 6);
+            try {
+                if ($idAttr) {
+                    $comb->price = round($excl - (float) $product->price, 6);
+                    $comb->update();
+                } else {
+                    $product->price = $excl;
+                    $product->update();
+                }
+            } catch (Exception $e) {
+                return array('ok' => false, 'error' => 'PrestaShop no pudo guardar el precio: ' . $e->getMessage());
+            }
+            $done[] = 'precio ' . self::money($incl);
+        }
+        Product::flushPriceCache();
+        $name = Product::getProductName((int) $product->id, $idAttr ?: null, (int) $idLang);
+        PrestaShopLogger::addLog('ecorepairs: ' . $name . ': ' . implode(', ', $done) . ' (desde el presupuesto del taller)', 1, null, 'Product', (int) $product->id, true, (int) $employee->id);
+        $final = round((float) Product::getPriceStatic((int) $product->id, true, $idAttr ?: null, 2, null, false, true, 1, true), 2);
+        $base = round((float) Product::getPriceStatic((int) $product->id, true, $idAttr ?: null, 2, null, false, false, 1, true), 2);
+
+        return array(
+            'ok' => true,
+            'stock' => (int) StockAvailable::getQuantityAvailableByProduct((int) $product->id, $idAttr, (int) $idShop),
+            'price' => $final,
+            'price_base' => $base,
+            'has_discount' => $final < $base - 0.001,
+        );
+    }
+
+    /**
      * Foto pequeña del producto: la de la combinación si tiene; si no, la portada del producto.
      */
     public static function productImage($idProduct, $idAttr, $linkRewrite, $idShop)
@@ -691,7 +769,7 @@ class EcoRepairQuote
      * - Primero los que tienen todas las palabras; si no hay, los que tienen alguna.
      * - Ordena por relevancia: referencia exacta, palabras completas, marca/modelo del equipo, stock y visibles en la tienda.
      */
-    public static function searchProducts($query, $idLang, $idShop, $limit = 20, $deviceText = '')
+    public static function searchProducts($query, $idLang, $idShop, $limit = 40, $deviceText = '')
     {
         $query = trim((string) $query);
         $words = self::searchWords($query);

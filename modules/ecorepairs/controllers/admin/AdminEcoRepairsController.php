@@ -311,6 +311,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'printReceipt' => array('ajaxPrintReceipt', 'view', false),
             'printLabel' => array('ajaxPrintLabel', 'view', false),
             'searchProducts' => array('ajaxSearchProducts', 'view', false),
+            'productUpdate' => array('ajaxProductUpdate', 'edit', true),
             'quoteCreate' => array('ajaxQuoteCreate', 'edit', true),
             'quoteSave' => array('ajaxQuoteSave', 'edit', true),
             'quoteSend' => array('ajaxQuoteSend', 'edit', true),
@@ -981,6 +982,24 @@ class AdminEcoRepairsController extends ModuleAdminController
     /* Presupuestos                                                        */
     /* ------------------------------------------------------------------ */
 
+    protected function ajaxProductUpdate()
+    {
+        $stock = Tools::getIsset('stock') && Tools::getValue('stock') !== '' ? (string) Tools::getValue('stock') : null;
+        $price = Tools::getIsset('price') && Tools::getValue('price') !== '' ? (string) Tools::getValue('price') : null;
+        if ($stock === null && $price === null) {
+            $this->jsonOut(array('ok' => false, 'error' => 'No hay nada que guardar.'));
+        }
+        $this->jsonOut(EcoRepairQuote::updateShopProduct(
+            (int) Tools::getValue('id_product'),
+            (int) Tools::getValue('id_product_attribute'),
+            $stock,
+            $price,
+            (int) $this->context->shop->id,
+            (int) $this->context->language->id,
+            $this->context->employee
+        ));
+    }
+
     protected function ajaxSearchProducts()
     {
         $device = '';
@@ -992,7 +1011,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             Tools::getValue('q'),
             (int) $this->context->language->id,
             (int) $this->context->shop->id,
-            20,
+            40,
             $device
         )));
     }
