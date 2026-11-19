@@ -917,3 +917,5 @@
 .ecor .er-phb-n.on { box-shadow: 0 0 0 3px var(--c), 0 2px 8px rgba(0,0,0,.2); }
 .ecor .er-dw-hint { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #5B6170; padding: 6px 4px 2px; }
 .ecor .er-dw-hint a { color: var(--er-pri); font-weight: 600; }
+.ecor .er-cat-s { font-size: 12px; font-weight: 600; color: var(--er-fg2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.ecor .er-c-devtxt { justify-content: center; }

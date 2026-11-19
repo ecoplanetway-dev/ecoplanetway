@@ -120,7 +120,7 @@ window.ECOR.ready(function () {
     return '<article class="er-card" tabindex="0" data-id="' + r.id + '" aria-label="' + esc(r.reference + ', ' + r.device_name) + '">' +
       '<div class="er-c-top"><span class="er-ref">' + esc(r.reference) + '</span>' + tags + '</div>' +
       '<div class="er-c-dev"><div class="er-c-img">' + (r.cover ? '<img src="' + esc(r.cover) + '" alt="" loading="lazy" draggable="false">' : icon(cat.icon || 'other')) + '</div><div class="er-c-devtxt">' +
-        '<div class="er-cat">' + icon(cat.icon || 'other', true) + esc(cat.name) + '</div>' +
+        (r.cover ? '' : '<div class="er-cat-s">' + esc(cat.name) + '</div>') +
         '<div class="er-model">' + (r.device_name && r.device_name !== cat.name ? esc(r.device_name) : '<span class="er-muted">Marca y modelo sin indicar</span>') + '</div></div></div>' +
       (fault ? '<div class="er-fault">' + esc(fault) + '</div>' : '') +
       '<div class="er-c-foot"><span class="er-cust">' + esc(r.customer_name) + '</span>' +
