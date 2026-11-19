@@ -209,6 +209,7 @@ window.ECOR.ready(function () {
             '<input class="er-input" data-k="name" maxlength="128" value="' + esc(l.name) + '" placeholder="Descripción" aria-label="Descripción">' +
             '<div class="er-row er-small">' + (l.reference ? '<span class="er-muted">Ref. ' + esc(l.reference) + '</span>' : '') + stockTag(l.stock, num(l.qty)) +
             (l.type === 'part' && l.id_product && canEdit ? '<button type="button" class="er-link er-small" data-pedit-line="' + i + '">Stock / precio web</button>' : '') +
+            (l.type === 'part' && canEdit && r.id_brand && l.name ? '<button type="button" class="er-link er-small er-link-bad" data-incl="' + i + '">No vale para este modelo</button>' : '') +
             (l.type === 'part' && canEdit && (l.stock === null || l.stock === undefined || num(l.stock) < num(l.qty)) && l.name ? '<button type="button" class="er-link er-small" data-order-line="' + i + '">' + (l.requested ? 'Encargo creado' : 'Encargar') + '</button>' : '') + '</div></div>' +
           '<label class="er-ql-f"><span>Cant.' + (l.type === 'labour' ? ' (h)' : '') + '</span><input class="er-input er-num" data-k="qty" inputmode="decimal" value="' + esc(fmtNum(num(l.qty))) + '" aria-label="Cantidad"></label>' +
           '<label class="er-ql-f"><span>Precio IVA incl.</span><input class="er-input er-num" data-k="price" inputmode="decimal" value="' + esc(num(l.price).toFixed(2).replace('.', ',')) + '" aria-label="Precio con IVA"></label>' +
@@ -325,10 +326,24 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-pick]'))) {
       var p = searchResults[+t.getAttribute('data-pick')];
       if (!p) return;
+      E.confirmIncompat(p.name, p.incompat, r.device_name).then(function (go) {
+      if (!go) return;
       addLine({ type: 'part', id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference,
         qty: 1, price: p.price, tax_rate: p.tax_rate, warranty: r.warranty ? 1 : 0, stock: p.stock, image: p.image }, false);
       if (p.stock <= 0) E.toast('Esa pieza no tiene stock: habrá que pedirla.', true);
       var s = $('#er-q-search'); s.value = ''; hideResults(); s.focus();
+      });
+      return;
+    }
+    if ((t = e.target.closest('[data-incl]'))) {
+      var il = work.lines[+t.getAttribute('data-incl')];
+      E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, prefill: { id_product: il.id_product, id_product_attribute: il.id_product_attribute, name: il.name, image: il.image },
+        onSave: function (d) {
+          return E.api('incompatSave', {}, { id_brand: r.id_brand, id_model: d.all_brand ? 0 : r.id_model, view_model: r.id_model, id_ecorepair: r.id, data: JSON.stringify(d) }).then(function (res) {
+            if (res.ok) D.incompat = res.incompat;
+            return res;
+          });
+        } });
       return;
     }
     if (e.target.closest('#er-q-kits')) { kitsDialog(); return; }
@@ -341,7 +356,7 @@ window.ECOR.ready(function () {
   var resultIdx = -1;
   function resultRow(p, i) {
     return '<button type="button" data-pick="' + i + '">' + pimg(p.image) +
-      '<span class="er-grow"><b>' + esc(p.name) + '</b><span class="er-row er-small er-muted">' + (p.reference ? 'Ref. ' + esc(p.reference) : '') + (p.active ? '' : ' · No visible en la tienda') + '</span></span>' +
+      '<span class="er-grow"><b>' + esc(p.name) + '</b>' + (p.incompat ? ' <span class="er-tag ' + (p.incompat.level === 'block' ? 'er-t-bad' : 'er-t-warn') + '" title="' + esc(p.incompat.reason) + '">' + (p.incompat.level === 'block' ? 'No vale para este modelo' : 'Precaución') + '</span>' : '') + '<span class="er-row er-small er-muted">' + (p.reference ? 'Ref. ' + esc(p.reference) : '') + (p.active ? '' : ' · No visible en la tienda') + '</span></span>' +
       '<span class="er-qs-side">' + stockTag(p.stock) + '<b class="er-num er-qs-price">' + esc(E.fmtMoney(p.price)) + '</b>' +
       (canEdit ? '<span class="er-btn er-btn-sm er-btn-ghost" role="button" tabindex="-1" data-pedit="' + i + '" title="Cambiar stock o precio en la tienda">' + icon('pen', true) + '</span>' : '') +
       '<span class="er-qs-add">' + icon('plus', true) + 'Añadir</span></span></button>';

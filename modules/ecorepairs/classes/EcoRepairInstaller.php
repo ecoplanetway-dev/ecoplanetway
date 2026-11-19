@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.7.0';
+    const SCHEMA = '1.7.2';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -400,6 +400,22 @@ class EcoRepairInstaller
             `date_add` DATETIME NOT NULL,
             `date_upd` DATETIME NOT NULL,
             PRIMARY KEY (`id_ecorepair_part`),
+            KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`),
+            KEY `id_product` (`id_product`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_incompat` (
+            `id_ecorepair_incompat` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_ecorepair_brand` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_ecorepair_model` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_product` INT UNSIGNED NOT NULL DEFAULT 0,
+            `id_product_attribute` INT UNSIGNED NOT NULL DEFAULT 0,
+            `label` VARCHAR(160) NOT NULL DEFAULT '',
+            `reason` VARCHAR(500) NOT NULL DEFAULT '',
+            `level` VARCHAR(8) NOT NULL DEFAULT 'block',
+            `author` VARCHAR(64) NOT NULL DEFAULT '',
+            `date_add` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_incompat`),
             KEY `brand_model` (`id_ecorepair_brand`, `id_ecorepair_model`),
             KEY `id_product` (`id_product`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";

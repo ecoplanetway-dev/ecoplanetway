@@ -509,8 +509,23 @@ window.ECOR.ready(function () {
     box.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(r.device_name) + '<span class="er-r">' +
       (D.modelUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.modelUrl + '&tab=parts') + '" target="_blank" rel="noopener">' + icon('book', true) + 'Ficha del modelo</a> ' : '') +
       '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.parts) + '" target="_blank" rel="noopener">' + icon('search', true) + 'Buscar piezas</a></span></h3><div id="er-dwr"></div>';
-    E.PartsDiagram(box.querySelector('#er-dwr'), { parts: D.modelParts || [], zones: D.zones, shape: D.shape, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+    var dg = E.PartsDiagram(box.querySelector('#er-dwr'), { parts: D.modelParts || [], zones: D.zones, shape: D.shape, suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+      incompat: D.incompat || [],
+      onIncompat: canEdit ? function () {
+        E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {
+          return E.api('incompatSave', {}, { id_brand: r.id_brand, id_model: d.all_brand ? 0 : r.id_model, view_model: r.id_model, id_ecorepair: r.id, data: JSON.stringify(d) }).then(function (res) {
+            if (res.ok) { D.incompat = res.incompat; dg.setIncompat(res.incompat); }
+            return res;
+          });
+        } });
+      } : null,
+      onIncompatDelete: D.canDelete && canEdit ? function (id) {
+        E.api('incompatDelete', {}, { id: id, id_brand: r.id_brand, id_model: r.id_model }).then(function (res) { D.incompat = res.incompat || []; dg.setIncompat(D.incompat); });
+      } : null,
       onAdd: canEdit ? function (p, btn) {
+        var w = (D.incompat || []).filter(function (x) { return x.id_product === p.id_product && (!x.id_product_attribute || x.id_product_attribute === p.id_product_attribute); })[0];
+        E.confirmIncompat(p.product.name, w, r.device_name).then(function (go) {
+        if (!go) return;
         btn.disabled = true;
         E.api('quoteAddParts', { id_ecorepair: r.id }, { lines: JSON.stringify([{ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name,
           reference: p.product.reference, qty: 1, price: p.product.price, tax_rate: p.product.tax_rate }]) }).then(function (res) {
@@ -519,6 +534,7 @@ window.ECOR.ready(function () {
           D.quotes = res.quotes; log = res.log; renderQuote(); renderLog(); renderHead();
           E.toast('«' + p.product.name + '» añadido al presupuesto (borrador)');
           if (p.product.stock <= 0) E.toast('Ojo: no hay stock en la tienda. Ábrelo en el presupuesto para encargarla.', true);
+        });
         });
       } : null,
       onEdit: canEdit ? function (p, zone) {

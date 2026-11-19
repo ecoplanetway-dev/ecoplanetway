@@ -7,7 +7,7 @@ window.ECOR.ready(function () {
   if (!app || app.getAttribute('data-view') !== 'model') return;
 
   var kb = D.kb, tab = D.tab === 'parts' ? 'parts' : 'codes', q = D.code || '', canEdit = !!D.canEdit, canDelete = !!D.canDelete;
-  var parts = D.parts || [];
+  var parts = D.parts || [], incompat = D.incompat || [];
   var title = D.brand + (D.model ? ' ' + D.model : '');
 
   function base() { return E.boot.links.model + '&id_brand=' + D.id_brand; }
@@ -28,7 +28,18 @@ window.ECOR.ready(function () {
     var el = app.querySelector('#er-kb');
     if (tab === 'parts') {
       el.innerHTML = '<h3>' + icon('box') + 'Piezas de ' + esc(title) + '<span class="er-r">Pulsa una zona del dibujo</span></h3><div id="er-dwp"></div>';
-      E.PartsDiagram(el.querySelector('#er-dwp'), { parts: parts, zones: D.zones, shape: D.shape, admin: !!D.isAdmin,
+      E.PartsDiagram(el.querySelector('#er-dwp'), { parts: parts, zones: D.zones, shape: D.shape, admin: !!D.isAdmin, incompat: incompat,
+        onIncompat: canEdit ? function () {
+          E.incompatDialog({ title: title, canBrand: !!D.id_model, onSave: function (d) {
+            return E.api('incompatSave', {}, { id_brand: D.id_brand, id_model: d.all_brand ? 0 : D.id_model, view_model: D.id_model, data: JSON.stringify(d) }).then(function (res) {
+              if (res.ok) { incompat = res.incompat; render(); }
+              return res;
+            });
+          } });
+        } : null,
+        onIncompatDelete: canDelete ? function (id) {
+          E.api('incompatDelete', {}, { id: id, id_brand: D.id_brand, id_model: D.id_model }).then(function (res) { incompat = res.incompat || []; render(); });
+        } : null,
         onEdit: canEdit ? function (p, zone) {
           E.partDialog(p, zone, { zones: D.zones, admin: !!D.isAdmin, canDelete: canDelete, id_brand: D.id_brand, id_model: D.id_model, title: title,
             onSaved: function (list) { parts = list; render(); } });

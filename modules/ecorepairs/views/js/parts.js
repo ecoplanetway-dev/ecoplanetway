@@ -57,6 +57,82 @@
   }
   function pimg(src) { return src ? '<img class="er-pimg" src="' + esc(src) + '" alt="" loading="lazy">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>'; }
 
+  /** Lista de piezas que no valen para el modelo. */
+  function incompatList(list, opts) {
+    if (!list.length && !opts.onIncompat) return '';
+    return '<div class="er-incompat"><div class="er-row" style="flex-wrap:nowrap"><b class="er-incompat-t">' + icon('alert', true) + 'No compatibles con este modelo' + (list.length ? ' (' + list.length + ')' : '') + '</b>' +
+      (opts.onIncompat ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-inew style="margin-left:auto">' + icon('plus', true) + 'Apuntar</button>' : '') + '</div>' +
+      list.map(function (w) {
+        return '<div class="er-iw er-iw-' + esc(w.level) + '">' + (w.image ? '<img class="er-pimg" src="' + esc(w.image) + '" alt="">' : '') +
+          '<div class="er-grow"><b>' + esc(w.label) + '</b> <span class="er-tag ' + (w.level === 'block' ? 'er-t-bad' : 'er-t-warn') + '">' + (w.level === 'block' ? 'No poner' : 'Precaución') + '</span>' +
+          (w.scope === 'brand' ? ' <span class="er-tag er-t-neu">Toda la marca</span>' : '') +
+          '<div class="er-small">' + esc(w.reason) + '</div><div class="er-small er-muted">' + esc((w.author ? w.author + ' · ' : '') + E.fmtDate(w.date)) + '</div></div>' +
+          (opts.onIncompatDelete ? '<button type="button" class="er-btn er-btn-ghost er-btn-sm er-icon-btn" data-idel="' + w.id + '" aria-label="Quitar aviso">' + icon('trash', true) + '</button>' : '') + '</div>';
+      }).join('') + '</div>';
+  }
+
+  /**
+   * Ventana para apuntar una pieza que no vale para el modelo (PC).
+   * ctx: { title, prefill: {id_product, id_product_attribute, name, image}, canBrand, onSave(data) }
+   */
+  function incompatDialog(ctx) {
+    var prod = ctx.prefill || null;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg" style="max-width:600px"><h2>' + icon('alert') + ' Pieza que no vale para ' + esc(ctx.title) + '</h2>' +
+      '<div id="er-ip"></div>' +
+      '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-iq" placeholder="Buscar el producto de la tienda" autocomplete="off"></label><div class="er-pick" id="er-ires"></div>' +
+      '<label class="er-field">O escríbela si no está en la tienda<input class="er-input" id="er-ilabel" maxlength="160" placeholder="Neumático 10x3"></label>' +
+      '<label class="er-field">Por qué no vale <span class="er-req">*</span><textarea class="er-input" id="er-ireason" rows="2" maxlength="500" placeholder="No entra en la horquilla, otra válvula…"></textarea></label>' +
+      '<div class="er-opts"><button type="button" class="er-opt er-warn" data-lv="block" aria-pressed="true">No poner</button><button type="button" class="er-opt" data-lv="warn" aria-pressed="false">Precaución</button></div>' +
+      (ctx.canBrand ? '<label class="er-toggle">Vale para toda la marca<input type="checkbox" class="er-sw" id="er-ibrand"></label>' : '') +
+      '<div class="er-err" id="er-ierr" hidden></div>' +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar aviso</button></div></div>';
+    (E.root() || document.body).appendChild(wrap);
+    var level = 'block', results = [], timer;
+    function drawProd() {
+      wrap.querySelector('#er-ip').innerHTML = prod ? '<div class="er-chosen">' + pimg(prod.image) + '<div class="er-grow"><b>' + esc(prod.name) + '</b></div><button type="button" class="er-btn er-btn-sm" data-iun>Quitar</button></div>' : '';
+    }
+    drawProd();
+    wrap.addEventListener('input', function (e) {
+      if (e.target.id !== 'er-iq') return;
+      var v = e.target.value.trim(); clearTimeout(timer);
+      timer = setTimeout(function () {
+        if (v.length < 2) { wrap.querySelector('#er-ires').innerHTML = ''; return; }
+        E.api('searchProducts', { q: v }).then(function (res) {
+          results = res.products || [];
+          wrap.querySelector('#er-ires').innerHTML = results.slice(0, 8).map(function (r, i) {
+            return '<button type="button" data-ipp="' + i + '">' + pimg(r.image) + '<span class="er-grow"><b>' + esc(r.name) + '</b><br><span class="er-small er-muted">' + esc(r.reference || '') + '</span></span></button>';
+          }).join('');
+        });
+      }, 300);
+    });
+    wrap.addEventListener('click', function (e) {
+      var t;
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if ((t = e.target.closest('[data-ipp]'))) { var r = results[+t.getAttribute('data-ipp')]; prod = { id_product: r.id_product, id_product_attribute: r.id_product_attribute, name: r.name, image: r.image }; drawProd(); wrap.querySelector('#er-ires').innerHTML = ''; return; }
+      if (e.target.closest('[data-iun]')) { prod = null; drawProd(); return; }
+      if ((t = e.target.closest('[data-lv]'))) { level = t.getAttribute('data-lv'); wrap.querySelectorAll('[data-lv]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); }); return; }
+      var ok = e.target.closest('[data-ok]');
+      if (!ok) return;
+      var d = { id_product: prod ? prod.id_product : 0, id_product_attribute: prod ? prod.id_product_attribute : 0,
+        label: prod ? prod.name : wrap.querySelector('#er-ilabel').value.trim(), reason: wrap.querySelector('#er-ireason').value.trim(), level: level,
+        all_brand: !!(wrap.querySelector('#er-ibrand') && wrap.querySelector('#er-ibrand').checked) };
+      ok.disabled = true;
+      ctx.onSave(d).then(function (res) {
+        ok.disabled = false;
+        if (!res || !res.ok) { var er = wrap.querySelector('#er-ierr'); er.textContent = (res && res.error) || 'No se pudo guardar.'; er.hidden = false; return; }
+        wrap.remove(); E.toast('Aviso guardado en ' + ctx.title);
+      });
+    });
+  }
+
+  /** Pregunta antes de añadir una pieza marcada como no compatible. Devuelve promesa true/false. */
+  function confirmIncompat(name, w, model) {
+    if (!w) return Promise.resolve(true);
+    return E.dialog({ title: (w.level === 'block' ? 'No compatible con ' : 'Precaución con ') + model, text: name + ': ' + w.reason, ok: 'Añadir igualmente', danger: w.level === 'block' });
+  }
+
   /** Tarjeta de una pieza. opts.onAdd / opts.onEdit / opts.admin */
   function partCard(p, opts, i) {
     var pr = p.product;
@@ -96,6 +172,7 @@
       el.innerHTML = '<div class="er-dw-wrap">' + svg + '</div>' +
         '<div class="er-row er-dw-chips">' + (sug.length ? '<button type="button" class="er-chip" data-sel="suggested" aria-pressed="' + (sel === 'suggested') + '">' + icon('alert', true) + 'Sugeridas</button>' : '') +
           '<button type="button" class="er-chip" data-sel="all" aria-pressed="' + (sel === 'all') + '">Todas <span class="er-n">' + parts.length + '</span></button></div>' +
+        incompatList(opts.incompat || [], opts) +
         '<div class="er-sub" style="margin:4px 0 0">' + esc(title) + '</div>' +
         '<div class="er-parts">' + (list.length ? list.map(function (p) { return partCard(p, opts, parts.indexOf(p)); }).join('')
           : '<div class="er-empty">' + (sel && sel !== 'all' && sel !== 'suggested' ? 'Sin piezas apuntadas en esta zona.' : 'Aún no hay piezas apuntadas para este modelo.') + '</div>') + '</div>' +
@@ -108,14 +185,16 @@
       if ((t = e.target.closest('[data-sel]'))) { sel = t.getAttribute('data-sel'); render(); return; }
       if ((t = e.target.closest('[data-padd]'))) { opts.onAdd(parts[+t.getAttribute('data-padd')], t); return; }
       if ((t = e.target.closest('[data-pedit]'))) { opts.onEdit(parts[+t.getAttribute('data-pedit')], null); return; }
-      if (e.target.closest('[data-pnew]')) opts.onEdit(null, sel && zones[sel] ? sel : 'other');
+      if (e.target.closest('[data-pnew]')) { opts.onEdit(null, sel && zones[sel] ? sel : 'other'); return; }
+      if (e.target.closest('[data-inew]')) { opts.onIncompat(); return; }
+      if ((t = e.target.closest('[data-idel]'))) { opts.onIncompatDelete(+t.getAttribute('data-idel')); }
     });
     el.addEventListener('keydown', function (e) {
       var t = e.target.closest('[data-zone]');
       if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     });
     render();
-    return { set: function (p) { parts = p; render(); } };
+    return { set: function (p) { parts = p; render(); }, setIncompat: function (w) { opts.incompat = w; render(); } };
   }
 
   /** Ventana para añadir o editar una pieza (en el PC). */
@@ -203,6 +282,8 @@
   E.PartsDiagram = PartsDiagram;
   E.partDialog = partDialog;
   E.PartsSearch = PartsSearch;
+  E.incompatDialog = incompatDialog;
+  E.confirmIncompat = confirmIncompat;
 
   /* Página «Buscar piezas» del PC */
   E.ready(function () {

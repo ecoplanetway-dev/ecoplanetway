@@ -791,7 +791,7 @@ class EcoRepairQuote
      */
     public static function searchWords($text)
     {
-        $text = Tools::strtolower(Tools::replaceAccentedChars((string) $text));
+        $text = Tools::strtolower(Tools::replaceAccentedChars(str_replace(array('×', '″', '"'), array('x', ' ', ' '), (string) $text)));
         $text = preg_replace('/[^a-z0-9,.\-]+/', ' ', $text);
         $out = array();
         $stop = array('de', 'del', 'la', 'el', 'los', 'las', 'para', 'con', 'y', 'en', 'un', 'una', 'por');
@@ -829,10 +829,16 @@ class EcoRepairQuote
         }
         $p = _DB_PREFIX_;
         $conds = array();
+        $inName = array();
         foreach ($words as $w) {
             $like = pSQL(str_replace(array('%', '_'), array('\\%', '\\_'), $w));
-            $conds[] = "(pl.name LIKE '%{$like}%' OR p.reference LIKE '%{$like}%' OR p.ean13 LIKE '%{$like}%'
-                OR pa.reference LIKE '%{$like}%' OR pa.ean13 LIKE '%{$like}%' OR p.supplier_reference LIKE '%{$like}%')";
+            // El código de barras solo se compara con números largos: «60» o «70» coinciden con casi todos los EAN
+            $ean = ctype_digit($w) && strlen($w) >= 6 ? " OR p.ean13 LIKE '%{$like}%' OR pa.ean13 LIKE '%{$like}%'" : '';
+            // «10x2,5» también encuentra «10×2,5» y «10x2.5»
+            $alt = strpos($w, ',') !== false ? " OR pl.name LIKE '%" . pSQL(str_replace(',', '.', $w)) . "%'" : '';
+            $alt .= strpos($w, 'x') !== false && preg_match('/\d/', $w) ? " OR pl.name LIKE '%" . pSQL(str_replace('x', '×', $w)) . "%'" : '';
+            $conds[] = "(pl.name LIKE '%{$like}%'{$alt} OR p.reference LIKE '%{$like}%' OR pa.reference LIKE '%{$like}%' OR p.supplier_reference LIKE '%{$like}%'{$ean})";
+            $inName[] = "pl.name LIKE '%{$like}%'";
         }
         $sql = "SELECT p.id_product, IFNULL(pa.id_product_attribute, 0) AS id_product_attribute, pl.name AS pname, pl.link_rewrite,
                 IF(pa.reference IS NOT NULL AND pa.reference != '', pa.reference, p.reference) AS reference,
@@ -841,7 +847,9 @@ class EcoRepairQuote
             INNER JOIN `{$p}product_shop` ps ON ps.id_product = p.id_product AND ps.id_shop = " . (int) $idShop . "
             INNER JOIN `{$p}product_lang` pl ON pl.id_product = p.id_product AND pl.id_lang = " . (int) $idLang . ' AND pl.id_shop = ' . (int) $idShop . "
             LEFT JOIN `{$p}product_attribute` pa ON pa.id_product = p.id_product
-            WHERE %s LIMIT 150";
+            WHERE %s
+            ORDER BY (" . implode(' AND ', $inName) . ") DESC, ps.active DESC, CHAR_LENGTH(pl.name) ASC
+            LIMIT 300";
         $db = Db::getInstance();
         $rows = $db->executeS(sprintf($sql, implode(' AND ', $conds)));
         if (!$rows && count($conds) > 1) {

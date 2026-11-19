@@ -186,8 +186,16 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                     // no break
                 case 'search':
                     $r = (int) Tools::getValue('id') ? EcoRepair::get((int) Tools::getValue('id')) : false;
-                    $this->out(array('ok' => true, 'products' => EcoRepairQuote::searchProducts(Tools::getValue('q'), (int) $this->context->language->id,
-                        (int) $this->context->shop->id, 30, $r ? $r['brand_name'] . ' ' . $r['model_name'] : '')));
+                    $products = EcoRepairQuote::searchProducts(Tools::getValue('q'), (int) $this->context->language->id,
+                        (int) $this->context->shop->id, 30, $r ? $r['brand_name'] . ' ' . $r['model_name'] : '');
+                    if ($r && (int) $r['id_brand']) {
+                        $map = EcoRepairIncompat::mapForProducts((int) $r['id_brand'], (int) $r['id_model'], array_column($products, 'id_product'));
+                        foreach ($products as &$pr) {
+                            $pr['incompat'] = EcoRepairIncompat::find($map, $pr['id_product'], $pr['id_product_attribute']);
+                        }
+                        unset($pr);
+                    }
+                    $this->out(array('ok' => true, 'products' => $products));
                     // no break
                 case 'addParts':
                     $this->out($this->addParts($this->findRepair()));
@@ -213,6 +221,16 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                         json_decode((string) Tools::getValue('data'), true) ?: array(), $this->staff['name']);
                     if ($res['ok']) {
                         $res['kb'] = EcoRepairKnowledge::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'));
+                    }
+                    $this->out($res);
+                    // no break
+                case 'incompatSave':
+                    $r = $this->findRepair();
+                    $d = json_decode((string) Tools::getValue('data'), true) ?: array();
+                    $res = EcoRepairIncompat::save((int) $r['id_brand'], !empty($d['all_brand']) ? 0 : (int) $r['id_model'], $d, $this->staff['name']);
+                    if ($res['ok']) {
+                        EcoRepairLog::add((int) $r['id_ecorepair'], $this->emp(), 'field', 'Apuntado como no compatible con el modelo: ' . (isset($d['label']) ? $d['label'] : '') . ' · ' . (isset($d['reason']) ? $d['reason'] : '') . ' (' . $this->staff['name'] . ', móvil)');
+                        $res = $this->repairData(EcoRepair::get((int) $r['id_ecorepair']));
                     }
                     $this->out($res);
                     // no break
@@ -390,6 +408,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'repeat' => $repeat,
             'kbCount' => $kbCount,
             'modelParts' => (int) $r['id_brand'] ? EcoRepairParts::forModel((int) $r['id_brand'], (int) $r['id_model'], false) : array(),
+            'incompat' => (int) $r['id_brand'] ? EcoRepairIncompat::forModel((int) $r['id_brand'], (int) $r['id_model']) : array(),
             'zones' => EcoRepairParts::zones(),
             'suggestedZones' => EcoRepairParts::zonesForFaults($r['faults'], $r['fault_customer'] . ' ' . $r['diagnosis']),
             'shape' => $r['category_icon'] === 'bike' ? 'bike' : 'scooter',

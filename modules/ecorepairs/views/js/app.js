@@ -240,8 +240,13 @@ window.ECOR.ready(function () {
     if (tab === 'parts') {
       el.innerHTML = (R.modelParts.length ? '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div>' : '') + '<div id="er-pt"></div>';
       var pt = partsTab(el.querySelector('#er-pt'), canWork);
+      if (!R.modelParts.length && (R.incompat || []).length) {
+        var iw = document.createElement('div'); iw.className = 'er-panel';
+        el.insertBefore(iw, el.firstChild);
+        E.PartsDiagram(iw, { parts: [], zones: R.zones, shape: R.shape, admin: false, incompat: R.incompat });
+      }
       if (R.modelParts.length) {
-        E.PartsDiagram(el.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, shape: R.shape, suggested: R.suggestedZones, admin: false,
+        E.PartsDiagram(el.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, shape: R.shape, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
           onAdd: canWork ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
       }
     }
@@ -325,9 +330,11 @@ window.ECOR.ready(function () {
           '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-app-q" type="search" placeholder="Nombre, referencia o EAN" autocomplete="off"></label>' +
           '<div class="er-app-res" id="er-app-res">' + (results || []).map(function (p, i) {
             return '<div class="er-app-prod">' + (p.image ? '<img class="er-pimg" src="' + esc(p.image) + '" alt="">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>') +
-              '<span class="er-grow"><b>' + esc(p.name) + '</b><span class="er-row er-small">' + stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></span></span>' +
+              '<span class="er-grow"><b>' + esc(p.name) + '</b>' + (p.incompat ? '<span class="er-tag ' + (p.incompat.level === 'block' ? 'er-t-bad' : 'er-t-warn') + '">' + (p.incompat.level === 'block' ? 'No vale para este modelo' : 'Precaución') + '</span><span class="er-small er-muted" style="display:block">' + esc(p.incompat.reason) + '</span>' : '') +
+              '<span class="er-row er-small">' + stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></span></span>' +
               '<span class="er-stack" style="gap:6px"><button type="button" class="er-btn er-btn-sm er-btn-pri" data-add="' + i + '">' + icon('plus', true) + '</button>' +
-              (p.stock <= 0 ? '<button type="button" class="er-btn er-btn-sm" data-req="' + i + '">Encargar</button>' : '') + '</span></div>';
+              (p.stock <= 0 ? '<button type="button" class="er-btn er-btn-sm" data-req="' + i + '">Encargar</button>' : '') +
+              (r.id_brand && !p.incompat ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-inc-mark="' + i + '" title="No vale para este modelo">' + icon('alert', true) + '</button>' : '') + '</span></div>';
           }).join('') + '</div>' +
           (cart.length ? '<div class="er-app-cart"><div class="er-sub">Vas a añadir</div>' + cart.map(function (c, i) {
             return '<div class="er-row" style="flex-wrap:nowrap"><span class="er-grow">' + esc(c.name) + '</span><button type="button" class="er-btn er-btn-sm er-icon-btn" data-dec="' + i + '">−</button><b class="er-num">' + c.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-inc="' + i + '">+</button></div>';
@@ -366,10 +373,25 @@ window.ECOR.ready(function () {
     el.addEventListener('click', function (e) {
       var t;
       if ((t = e.target.closest('[data-add]'))) {
-        var p = results[+t.getAttribute('data-add')], ex = cart.filter(function (c) { return c.id_product === p.id_product && c.id_product_attribute === p.id_product_attribute; })[0];
-        if (ex) ex.qty++; else cart.push({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference, qty: 1, price: p.price, tax_rate: p.tax_rate });
-        if (navigator.vibrate) navigator.vibrate(30);
-        draw(results); return;
+        var p = results[+t.getAttribute('data-add')];
+        E.confirmIncompat(p.name, p.incompat, r.device_name).then(function (go) {
+          if (!go) return;
+          var ex = cart.filter(function (c) { return c.id_product === p.id_product && c.id_product_attribute === p.id_product_attribute; })[0];
+          if (ex) ex.qty++; else cart.push({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.name, reference: p.reference, qty: 1, price: p.price, tax_rate: p.tax_rate });
+          if (navigator.vibrate) navigator.vibrate(30);
+          draw(results);
+        });
+        return;
+      }
+      if ((t = e.target.closest('[data-inc-mark]'))) {
+        var pm = results[+t.getAttribute('data-inc-mark')];
+        E.dialog({ title: 'No vale para ' + r.device_name, text: pm.name, input: true, multiline: true, inputLabel: 'Por qué no vale', required: true, requiredMsg: 'Escribe el motivo', maxlength: 500, ok: 'Guardar aviso', danger: true }).then(function (why) {
+          if (!why) return;
+          api('incompatSave', { id: r.id }, { data: JSON.stringify({ id_product: pm.id_product, id_product_attribute: pm.id_product_attribute, label: pm.name, reason: why, level: 'block' }) }).then(function (res) {
+            if (!res.ok) { E.toast(res.error, true); return; }
+            R = res; pm.incompat = { level: 'block', reason: why }; draw(results); E.toast('Aviso guardado en ' + r.device_name);
+          });
+        });
       }
       if ((t = e.target.closest('[data-inc]'))) { cart[+t.getAttribute('data-inc')].qty++; draw(results); return; }
       if ((t = e.target.closest('[data-dec]'))) { var c = cart[+t.getAttribute('data-dec')]; c.qty--; if (c.qty <= 0) cart.splice(cart.indexOf(c), 1); draw(results); return; }

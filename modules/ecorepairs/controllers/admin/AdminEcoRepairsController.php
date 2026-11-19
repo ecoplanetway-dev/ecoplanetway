@@ -164,6 +164,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                     }, $models),
                     'kb' => EcoRepairKnowledge::forModel($idBrand, $names && $names['model'] ? $idModel : 0),
                     'parts' => EcoRepairParts::forModel($idBrand, $names && $names['model'] ? $idModel : 0, $this->isAdmin()),
+                    'incompat' => EcoRepairIncompat::forModel($idBrand, $names && $names['model'] ? $idModel : 0),
                     'zones' => EcoRepairParts::zones(),
                     'isAdmin' => $this->isAdmin(),
                     'shape' => (string) Db::getInstance()->getValue('SELECT c.icon FROM `' . _DB_PREFIX_ . 'ecorepair_brand` b INNER JOIN `' . _DB_PREFIX_ . 'ecorepair_category` c ON c.id_ecorepair_category = b.id_ecorepair_category WHERE b.id_ecorepair_brand = ' . $idBrand) === 'bike' ? 'bike' : 'scooter',
@@ -339,6 +340,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             })(EcoRepair::get((int) $repair['repeat_of']), $repair) : null,
             'kbCount' => (int) $repair['id_brand'] ? EcoRepairKnowledge::counts((int) $repair['id_brand'], (int) $repair['id_model']) : null,
             'modelParts' => (int) $repair['id_brand'] ? EcoRepairParts::forModel((int) $repair['id_brand'], (int) $repair['id_model'], $this->isAdmin()) : array(),
+            'incompat' => (int) $repair['id_brand'] ? EcoRepairIncompat::forModel((int) $repair['id_brand'], (int) $repair['id_model']) : array(),
             'zones' => EcoRepairParts::zones(),
             'suggestedZones' => EcoRepairParts::zonesForFaults($repair['faults'], $repair['fault_customer'] . ' ' . $repair['diagnosis']),
             'shape' => $repair['category_icon'] === 'bike' ? 'bike' : 'scooter',
@@ -382,6 +384,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'categories' => $this->categoriesLite(),
             'labourRate' => (float) str_replace(',', '.', (string) Configuration::get('ECOREPAIRS_LABOUR_RATE')),
             'taxRates' => EcoRepairQuote::taxRates(),
+            'incompat' => (int) $repair['id_brand'] ? EcoRepairIncompat::forModel((int) $repair['id_brand'], (int) $repair['id_model']) : array(),
             'repairUrl' => $this->repairUrl($id),
             'canEdit' => (bool) $this->access('edit'),
             'canDelete' => (bool) $this->access('delete'),
@@ -453,6 +456,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             'notifyPreview' => array('ajaxNotifyPreview', 'view', false),
             'kbSave' => array('ajaxKbSave', 'edit', true),
             'partSave' => array('ajaxPartSave', 'edit', true),
+            'incompatSave' => array('ajaxIncompatSave', 'edit', true),
+            'incompatDelete' => array('ajaxIncompatDelete', 'delete', true),
             'partDelete' => array('ajaxPartDelete', 'delete', true),
             'partSearch' => array('ajaxPartSearch', 'view', false),
             'quoteAddParts' => array('ajaxQuoteAddParts', 'edit', true),
@@ -982,6 +987,29 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->jsonOut($res);
     }
 
+    protected function ajaxIncompatSave()
+    {
+        $idBrand = (int) Tools::getValue('id_brand');
+        $idModel = (int) Tools::getValue('id_model');
+        $res = EcoRepairIncompat::save($idBrand, $idModel, json_decode((string) Tools::getValue('data'), true) ?: array(),
+            trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname));
+        $idRepair = (int) Tools::getValue('id_ecorepair');
+        if ($res['ok'] && $idRepair) {
+            $d = json_decode((string) Tools::getValue('data'), true) ?: array();
+            EcoRepairLog::add($idRepair, (int) $this->context->employee->id, 'field', 'Apuntado como no compatible con el modelo: ' . (isset($d['label']) ? $d['label'] : '') . ' · ' . (isset($d['reason']) ? $d['reason'] : ''));
+        }
+        // Al guardar desde un modelo concreto se devuelven los de ese modelo (incluye los de la marca)
+        $res['incompat'] = EcoRepairIncompat::forModel($idBrand, (int) Tools::getValue('view_model', $idModel));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxIncompatDelete()
+    {
+        $res = EcoRepairIncompat::delete((int) Tools::getValue('id'));
+        $res['incompat'] = EcoRepairIncompat::forModel((int) Tools::getValue('id_brand'), (int) Tools::getValue('id_model'));
+        $this->jsonOut($res);
+    }
+
     protected function ajaxPartDelete()
     {
         $res = EcoRepairParts::delete((int) Tools::getValue('id'));
@@ -1407,13 +1435,22 @@ class AdminEcoRepairsController extends ModuleAdminController
         if ($repair && (int) $repair['id_shop'] === (int) $this->context->shop->id) {
             $device = $repair['brand_name'] . ' ' . $repair['model_name'];
         }
-        $this->jsonOut(array('ok' => true, 'products' => EcoRepairQuote::searchProducts(
+        $products = EcoRepairQuote::searchProducts(
             Tools::getValue('q'),
             (int) $this->context->language->id,
             (int) $this->context->shop->id,
             40,
             $device
-        )));
+        );
+        // Avisos de piezas que no valen para el modelo de la reparación
+        if ($repair && (int) $repair['id_brand']) {
+            $map = EcoRepairIncompat::mapForProducts((int) $repair['id_brand'], (int) $repair['id_model'], array_column($products, 'id_product'));
+            foreach ($products as &$pr) {
+                $pr['incompat'] = EcoRepairIncompat::find($map, $pr['id_product'], $pr['id_product_attribute']);
+            }
+            unset($pr);
+        }
+        $this->jsonOut(array('ok' => true, 'products' => $products));
     }
 
     /**
