@@ -612,6 +612,9 @@ window.ECOR.ready(function () {
             });
           } });
         } : null,
+        onDelete: canEdit && D.canDelete ? function (id) {
+          E.api('unlockDelete', {}, { id: id, id_brand: r.id_brand, view_model: r.id_model }).then(function (res) { D.unlock = res.unlock || []; renderParts(); });
+        } : null,
         onAdd: canEdit ? function (u, btn) {
         btn.disabled = true;
         E.api('unlockAdd', { id_ecorepair: r.id }, { id: u.id }).then(function (res) { btn.disabled = false; afterQuote(res, 'Deslimitación añadida al presupuesto con el aviso legal'); });

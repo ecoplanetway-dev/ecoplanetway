@@ -1075,3 +1075,11 @@
 /* Con una ventana abierta, la rueda del ratón no mueve la página de detrás */
 .ecor .er-modal, .ecor .er-modal .er-dlg, .ecor .er-kbd-list { overscroll-behavior: contain; }
 html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !important; }
+/* Deslimitar: tarjetas en cuadrícula, sin espacio vacío */
+.ecor .er-unl2-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.ecor .er-unl2-grid .er-unl2 { margin: 0; height: 100%; box-sizing: border-box; }
+.ecor .er-unl2-act .er-muted { flex-basis: 100%; margin-left: 0 !important; }
+@media (max-width: 520px) { .ecor .er-unl2-grid { grid-template-columns: 1fr; } }
+.ecor .er-unl2-top { flex-wrap: nowrap; align-items: flex-start; }
+.ecor .er-unl2-top b { min-width: 0; }
+.ecor .er-unl2-sp, .ecor .er-unl2-p { white-space: nowrap; flex: none; }

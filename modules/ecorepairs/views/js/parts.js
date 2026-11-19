@@ -443,7 +443,8 @@
     function draw() {
       box.querySelector('#er-pk-l').innerHTML = list.length ? '<div class="er-mini">' + list.map(function (p, i) {
         return '<div class="er-row" style="flex-wrap:nowrap">' + pimg(p.image) + '<span class="er-grow" style="white-space:normal">' + esc(p.name) + '</span>' +
-          '<button type="button" class="er-btn er-btn-sm er-icon-btn" data-pkd="' + i + '">−</button><b class="er-num">' + p.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-pki="' + i + '">+</button></div>';
+          '<button type="button" class="er-btn er-btn-sm er-icon-btn" data-pkd="' + i + '">−</button><b class="er-num">' + p.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-pki="' + i + '">+</button>' +
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-btn-danger er-icon-btn" data-pkx="' + i + '" aria-label="Quitar producto" title="Quitar producto">' + icon('trash', true) + '</button></div>';
       }).join('') + '</div>' : '<p class="er-muted er-small" style="margin:0">Sin productos.</p>';
     }
     box.addEventListener('input', function (e) {
@@ -467,6 +468,7 @@
         box.querySelector('#er-pk-r').innerHTML = ''; box.querySelector('#er-pk-q').value = ''; draw(); return;
       }
       if ((t = e.target.closest('[data-pki]'))) { list[+t.getAttribute('data-pki')].qty++; draw(); return; }
+      if ((t = e.target.closest('[data-pkx]'))) { list.splice(+t.getAttribute('data-pkx'), 1); draw(); return; }
       if ((t = e.target.closest('[data-pkd]'))) { var x = list[+t.getAttribute('data-pkd')]; x.qty--; if (x.qty <= 0) list.splice(list.indexOf(x), 1); draw(); }
     });
     draw();
@@ -498,7 +500,7 @@
   function UnlockPanel(el, opts) {
     function render() {
       var l = opts.list || [];
-      el.innerHTML = (l.length ? l.map(function (u, i) {
+      el.innerHTML = (l.length ? '<div class="er-unl2-grid">' + l.map(function (u, i) {
         var cover = (u.products || []).filter(function (p) { return p.image; })[0];
         return '<div class="er-unl2">' +
           '<div class="er-unl2-ph">' + (cover ? '<img src="' + esc(cover.image) + '" alt="">' : '<svg class="er-gauge" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 23a11 11 0 1 1 22 0" class="er-g-arc"/><path d="M16 23 23 14"/><circle cx="16" cy="23" r="2.2"/></svg>') + '</div>' +
@@ -519,7 +521,7 @@
               (opts.onDelete ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-btn-danger er-icon-btn" data-udel="' + i + '" aria-label="Borrar">' + icon('trash', true) + '</button>' : '') +
               '<span class="er-muted er-small" style="margin-left:auto">' + esc((u.author ? u.author + ' · ' : '') + E.fmtDate(u.date)) + '</span></div>' +
           '</div></div>';
-      }).join('') : '<div class="er-empty">Aún no hay forma de deslimitar apuntada para este modelo.</div>') +
+      }).join('') + '</div>' : '<div class="er-empty">Aún no hay forma de deslimitar apuntada para este modelo.</div>') +
         (opts.onEdit ? '<button type="button" class="er-btn er-btn-sm" data-unew>' + icon('plus', true) + 'Añadir método</button>' : '');
     }
     el.addEventListener('click', function (e) {
