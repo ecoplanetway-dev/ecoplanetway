@@ -27,7 +27,7 @@ class EcoRepairs extends Module
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.3.0';
+        $this->version = '1.3.1';
         $this->author = 'Ecoplanet Way';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -49,6 +49,7 @@ class EcoRepairs extends Module
             && is_array(EcoRepairCatalogSeed::importMissing())
             && EcoRepairInstaller::installConfig()
             && EcoRepairInstaller::installTabs($this->name)
+            && EcoRepairInstaller::ensureSchema()
             && EcoRepairPhoto::ensureStorage();
     }
 

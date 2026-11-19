@@ -23,6 +23,12 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
         $this->meta_title = 'Ajustes del taller';
     }
 
+    public function init()
+    {
+        parent::init();
+        EcoRepairInstaller::ensureSchema();
+    }
+
     public function setMedia($isNewTheme = false)
     {
         parent::setMedia($isNewTheme);

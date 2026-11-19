@@ -134,6 +134,30 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
+    const SCHEMA = '1.3.1';
+
+    /**
+     * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
+     * Así el módulo funciona aunque PrestaShop no haya ejecutado los scripts de actualización
+     * (por ejemplo, al subir el zip encima de una versión anterior).
+     */
+    public static function ensureSchema()
+    {
+        if (Configuration::get('ECOREPAIRS_SCHEMA') === self::SCHEMA) {
+            return true;
+        }
+        $ok = self::installDb()
+            && self::addModelImageColumn()
+            && self::installConfig()
+            && EcoRepairPhoto::ensureStorage();
+        if ($ok) {
+            EcoRepairCatalogSeed::importMissing();
+            Configuration::updateValue('ECOREPAIRS_SCHEMA', self::SCHEMA);
+        }
+
+        return $ok;
+    }
+
     /**
      * 1.2.0: foto del modelo. Se añade la columna si la tabla viene de una versión anterior.
      */

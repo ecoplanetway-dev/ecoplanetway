@@ -23,6 +23,14 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->meta_title = 'Reparaciones';
     }
 
+    public function init()
+    {
+        parent::init();
+        if (!EcoRepairInstaller::ensureSchema()) {
+            $this->errors[] = 'No se pudieron crear las tablas del módulo. Revisa los permisos de la base de datos.';
+        }
+    }
+
     public function setMedia($isNewTheme = false)
     {
         parent::setMedia($isNewTheme);
@@ -157,10 +165,8 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $repair = EcoRepair::get($id);
         if (!$repair || (int) $repair['id_shop'] !== (int) $this->context->shop->id) {
-            $this->errors[] = 'Esa reparación no existe.';
-            $this->renderBoard();
-
-            return;
+            $this->logDbError('ficha ' . (int) $id);
+            Tools::redirectAdmin($this->baseUrl() . '&notfound=' . (int) $id);
         }
         $customer = EcoRepairCustomer::info((int) $repair['id_customer']);
         $photos = array();
@@ -221,10 +227,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $repair = EcoRepair::get($id);
         if (!$repair || (int) $repair['id_shop'] !== (int) $this->context->shop->id) {
-            $this->errors[] = 'Esa reparación no existe.';
-            $this->renderBoard();
-
-            return;
+            Tools::redirectAdmin($this->baseUrl() . '&notfound=' . (int) $id);
         }
         $customer = EcoRepairCustomer::info((int) $repair['id_customer']);
         $data = array(
@@ -684,6 +687,7 @@ class AdminEcoRepairsController extends ModuleAdminController
     {
         $repair = EcoRepair::get((int) Tools::getValue('id_ecorepair'));
         if (!$repair || (int) $repair['id_shop'] !== (int) $this->context->shop->id) {
+            $this->logDbError('imprimir ' . (int) Tools::getValue('id_ecorepair'));
             header('HTTP/1.1 404 Not Found');
             echo 'La reparación no existe.';
             exit;
@@ -879,6 +883,15 @@ class AdminEcoRepairsController extends ModuleAdminController
     /* ------------------------------------------------------------------ */
     /* Utilidades                                                          */
     /* ------------------------------------------------------------------ */
+
+    /** Si una consulta falla, deja el error de la base de datos en Parámetros avanzados › Registros. */
+    protected function logDbError($where)
+    {
+        $msg = Db::getInstance()->getMsgError();
+        if ($msg) {
+            PrestaShopLogger::addLog('ecorepairs (' . $where . '): ' . Tools::substr($msg, 0, 900), 3, null, 'EcoRepair');
+        }
+    }
 
     protected function jsonOut($data, $code = 200)
     {

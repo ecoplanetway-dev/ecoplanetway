@@ -32,6 +32,8 @@ window.ECOR.ready(function () {
     '<div class="er-board" id="er-board"></div>';
 
   var $ = function (s) { return app.querySelector(s); };
+  var nf = /[?&]notfound=(\d+)/.exec(location.search);
+  if (nf) setTimeout(function () { E.toast('La reparación nº ' + nf[1] + ' no se pudo abrir. Si se repite, mira Parámetros avanzados › Registros.', true); }, 300);
 
   function match(r) {
     var f = FILTERS.filter(function (x) { return x.id === state.filter; })[0] || FILTERS[0];
