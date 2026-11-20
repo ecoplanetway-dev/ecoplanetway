@@ -30,7 +30,7 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
         if (strlen($code) === 8) {
             $code = substr($code, 0, 4) . '-' . substr($code, 4);
         }
-        $vars = array('state' => 'form', 'code' => $code);
+        $vars = array('state' => 'form', 'code' => $code, 'tech' => null);
 
         // Foto pública del trabajo (solo las marcadas «Mostrar al cliente» y con el código correcto)
         if ((int) Tools::getValue('photo') && $code !== '') {
@@ -182,6 +182,7 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             'steps' => $steps,
             'quoteLink' => $quoteLink,
             'photos' => $this->publicPhotos((int) $repair['id_ecorepair'], $repair['tracking_code']),
+            'tech' => EcoRepairPhoto::techFor((int) $repair['id_employee_tech']),
         );
     }
 

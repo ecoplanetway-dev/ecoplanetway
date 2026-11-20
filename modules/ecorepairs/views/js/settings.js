@@ -475,17 +475,57 @@ window.ECOR.ready(function () {
     wrap.className = 'er-modal';
     wrap.innerHTML = '<div class="er-dlg er-net-dlg"><div class="er-net-h"><h2 id="er-net-t"></h2><button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
       '<div class="er-row" style="gap:8px;align-items:center"><div class="er-netuse er-netuse-dlg"></div><span class="er-grow"></span><button type="button" class="er-btn er-btn-sm er-btn-ghost" data-nmode></button></div>' +
+      '<div class="er-net-last" id="er-net-last" hidden></div>' +
       '<div class="er-net-body" id="er-net-b"></div>' +
       '<div class="er-dlg-act"><span class="er-muted er-small" id="er-net-n" style="margin-right:auto"></span><button type="button" class="er-btn er-btn-ghost" data-x>Terminar</button><button type="button" class="er-btn" data-skip>Saltar este</button></div></div>';
     app.appendChild(wrap);
-    var body = wrap.querySelector('#er-net-b'), res = null;
+    var body = wrap.querySelector('#er-net-b'), res = null, last = null;
+    function findModel(id) {
+      var f = null;
+      catalog.forEach(function (c) { c.brands.forEach(function (b) { b.models.forEach(function (m) { if (m.id === id) f = m; }); }); });
+      return f;
+    }
+    // Aviso de la última foto guardada, con «Deshacer»
+    function drawLast() {
+      var el = wrap.querySelector('#er-net-last');
+      if (!last) { el.hidden = true; return; }
+      var m = findModel(last.id), src = m && m.image ? E.modelImg(m.image) : '';
+      el.hidden = false;
+      el.innerHTML = (src ? '<img src="' + esc(src) + '" alt="">' : '') + '<span>' + icon('check', true) + '<b>Foto guardada</b> · ' + esc(last.name) + '</span>' +
+        '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-nundo>Deshacer</button>';
+    }
     function close() { wrap.remove(); document.removeEventListener('paste', onPaste); if (done) renderCatalog(); }
     function saved(r) {
       body.classList.remove('er-busy');
       if (!r.ok) { E.toast(r.error || 'No se pudo guardar esa foto. Prueba otra.', true); return; }
       if (r.choose) { E.toast('Ese enlace es una página. Copia la imagen (botón derecho → «Copiar imagen») y pégala.', true); return; }
       if (r.catalog) { catalog = r.catalog; countNoPhoto(); }
-      done++; i++; step();
+      last = { id: list[i].id, name: list[i].name, idx: i };
+      E.toast('Foto guardada ✓ · ' + list[i].name);
+      done++; i++; step(); drawLast();
+    }
+    // Lo que llega al soltar o pegar: archivo, imagen incrustada (data:), enlace o HTML con <img>
+    function fromTransfer(dt) {
+      if (!dt) return false;
+      var k, f = null;
+      for (k = 0; dt.files && k < dt.files.length; k++) { if (/^image\//.test(dt.files[k].type)) { f = dt.files[k]; break; } }
+      if (!f && dt.items) { for (k = 0; k < dt.items.length; k++) { if (dt.items[k].kind === 'file' && /^image\//.test(dt.items[k].type)) { f = dt.items[k].getAsFile(); break; } } }
+      if (f) { sendFile(f); return true; }
+      var html = dt.getData ? dt.getData('text/html') : '', url = '';
+      var mm = html && html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (mm) url = mm[1].replace(/&amp;/g, '&');
+      if (!url) url = ((dt.getData && (dt.getData('text/uri-list') || dt.getData('text'))) || '').split('\n')[0].trim();
+      if (/^data:image\//i.test(url)) {
+        fetch(url).then(function (r) { return r.blob(); }).then(function (b) { sendFile(new File([b], 'foto.' + (b.type.split('/')[1] || 'jpg'), { type: b.type })); });
+        return true;
+      }
+      if (/^https?:\/\//i.test(url)) {
+        // Enlaces de Google Imágenes: la imagen real va en «imgurl=»
+        var g = url.match(/[?&]imgurl=([^&]+)/);
+        sendUrl(g ? decodeURIComponent(g[1]) : url);
+        return true;
+      }
+      return false;
     }
     function sendFile(file) {
       if (!file || !/^image\//.test(file.type)) { E.toast('Eso no es una imagen.', true); return; }
@@ -502,15 +542,18 @@ window.ECOR.ready(function () {
       E.api('modelImage', {}, { id: list[i].id, url: u }).then(saved);
     }
     function onPaste(e) {
-      if (!manual || !document.body.contains(wrap)) return;
-      var items = (e.clipboardData || {}).items || [];
-      for (var k = 0; k < items.length; k++) {
-        if (items[k].kind === 'file' && /^image\//.test(items[k].type)) { e.preventDefault(); sendFile(items[k].getAsFile()); return; }
-      }
-      var txt = (e.clipboardData && e.clipboardData.getData('text')) || '';
-      if (/^https?:\/\//i.test(txt.trim()) && !e.target.closest('#er-net-url')) { e.preventDefault(); sendUrl(txt.trim()); }
+      if (!manual || !document.body.contains(wrap) || (e.target.closest && e.target.closest('#er-net-url'))) return;
+      if (fromTransfer(e.clipboardData)) e.preventDefault();
     }
     document.addEventListener('paste', onPaste);
+    // Soltar la foto en cualquier parte de la ventana (sin que el navegador la abra)
+    wrap.addEventListener('dragover', function (e) { e.preventDefault(); var pz = body.querySelector('#er-net-pz'); if (pz) pz.classList.add('on'); });
+    wrap.addEventListener('dragleave', function (e) { if (e.target === wrap) { var pz = body.querySelector('#er-net-pz'); if (pz) pz.classList.remove('on'); } });
+    wrap.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var pz = body.querySelector('#er-net-pz'); if (pz) pz.classList.remove('on');
+      if (!fromTransfer(e.dataTransfer)) E.toast('No se pudo coger esa foto. Prueba con botón derecho → «Copiar imagen» y Ctrl+V.', true);
+    });
     function drawManual() {
       var m = list[i];
       body.innerHTML = '<div class="er-net-man">' +
@@ -520,9 +563,6 @@ window.ECOR.ready(function () {
         '<div class="er-row" style="flex-wrap:nowrap;gap:8px"><input class="er-input" id="er-net-url" placeholder="…o pega el enlace de la imagen" autocomplete="off"><button type="button" class="er-btn" data-nurl>Guardar</button></div></div>';
       var pz = body.querySelector('#er-net-pz');
       pz.addEventListener('input', function () { pz.innerHTML = icon('camera') + '<span>Pega aquí la foto (Ctrl+V) o arrástrala</span>'; });
-      pz.addEventListener('dragover', function (e) { e.preventDefault(); pz.classList.add('on'); });
-      pz.addEventListener('dragleave', function () { pz.classList.remove('on'); });
-      pz.addEventListener('drop', function (e) { e.preventDefault(); pz.classList.remove('on'); var f = e.dataTransfer.files[0]; if (f) sendFile(f); else { var u = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text'); if (u) sendUrl(u.trim()); } });
     }
     function step() {
       if (i >= list.length) { close(); E.toast(done ? done + ' fotos guardadas' : 'Terminado'); return; }
@@ -548,6 +588,16 @@ window.ECOR.ready(function () {
     wrap.addEventListener('click', function (e) {
       if (e.target === wrap || e.target.closest('[data-x]')) { close(); return; }
       if (e.target.closest('[data-skip]')) { i++; step(); return; }
+      if (e.target.closest('[data-nundo]') && last) {
+        var lu = last;
+        E.api('modelImage', {}, { id: lu.id, url: '' }).then(function (r) {
+          if (!r.ok) { E.toast(r.error || 'No se pudo deshacer.', true); return; }
+          if (r.catalog) { catalog = r.catalog; countNoPhoto(); }
+          done = Math.max(0, done - 1); i = lu.idx; last = null; drawLast(); step();
+          E.toast('Foto quitada de ' + lu.name);
+        });
+        return;
+      }
       if (e.target.closest('[data-nmode]')) {
         if (manual && !netUse.hasKey) { netKeyDialog(); return; }
         manual = !manual; step(); return;

@@ -6,6 +6,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
+{if $state == 'ok' && isset($tech) && $tech && $tech.avatar}
+<meta property="og:title" content="Tu {$r.device|escape:'html':'UTF-8'} · lo ha reparado {$tech.name|escape:'html':'UTF-8'}">
+<meta property="og:description" content="{$r.status_name|escape:'html':'UTF-8'} · {$shop.name|escape:'html':'UTF-8'}">
+<meta property="og:image" content="{$tech.avatar|escape:'html':'UTF-8'}">
+<meta property="og:type" content="website">
+{/if}
 <title>{if $state == 'device'}{$device|escape:'html':'UTF-8'}{else}Seguimiento{/if}{if $state == 'ok'} {$r.reference|escape:'html':'UTF-8'}{/if} · {$shop.name|escape:'html':'UTF-8'}</title>
 <style>
   :root { --bg:#F4F5F7; --card:#FFFFFF; --fg:#14161A; --fg2:#5B6170; --line:#D5D8DE; --line2:#EEF0F2; --pri:#0B6E4B; }
@@ -37,6 +43,10 @@
   .msg { border-radius: 12px; padding: 14px; background: #FBE1E1; color: #8A1C1C; margin-bottom: 14px; }
   .foot { text-align: center; font-size: 13px; color: var(--fg2); margin-top: 20px; }
   .foot a { color: var(--pri); }
+  .tech { display: flex; align-items: center; gap: 16px; }
+  .tech img, .tech .tav { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: #DCFCE7; flex: none; }
+  .tech .tav { display: grid; place-items: center; font-size: 30px; font-weight: 800; color: #0B6E4B; }
+  .tech b { display: block; font-size: 20px; }
   .contact b { display: block; margin-bottom: 12px; }
   .cbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .cbtn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border-radius: 12px; font-weight: 700; font-size: 15px; text-decoration: none; }
@@ -72,6 +82,12 @@
         <div class="labels">{foreach from=$steps item=s}<span>{$s.name|escape:'html':'UTF-8'}</span>{/foreach}</div>
       {/if}
     </div>
+    {if isset($tech) && $tech}
+      <div class="card tech">
+        {if $tech.avatar}<img src="{$tech.avatar|escape:'html':'UTF-8'}" alt="">{else}<span class="tav">{$tech.name|truncate:1:''|escape:'html':'UTF-8'}</span>{/if}
+        <div><span class="muted">Tu técnico</span><b>{$tech.name|escape:'html':'UTF-8'}</b></div>
+      </div>
+    {/if}
     {if $photos}
       <div class="card"><b>Fotos del trabajo</b>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:10px">

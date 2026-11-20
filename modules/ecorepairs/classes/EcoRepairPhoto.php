@@ -468,6 +468,22 @@ class EcoRepairPhoto
         }
     }
 
+    /** Técnico de la reparación para el cliente: nombre de pila y foto (URL completa, para la vista previa de WhatsApp). */
+    public static function techFor($idEmployee)
+    {
+        $idEmployee = (int) $idEmployee;
+        if (!$idEmployee) {
+            return null;
+        }
+        $e = new Employee($idEmployee);
+        if (!Validate::isLoadedObject($e)) {
+            return null;
+        }
+        $av = self::avatars();
+
+        return array('name' => trim((string) $e->firstname), 'avatar' => isset($av[$idEmployee]) ? Tools::getShopDomainSsl(true) . $av[$idEmployee] : '');
+    }
+
     /** id_employee => URL de su foto. */
     public static function avatars()
     {

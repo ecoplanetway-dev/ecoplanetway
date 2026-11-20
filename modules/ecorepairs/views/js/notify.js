@@ -25,6 +25,8 @@
           '<label class="er-field">Teléfono<input class="er-input er-num" id="er-wa-phone" inputmode="tel" value="' + esc(res.phone) + '"></label>' +
           '<label class="er-field"><span class="er-row" style="flex-wrap:nowrap">Mensaje (puedes cambiarlo antes de abrir WhatsApp)' + (E.hasVoice ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-dict style="margin-left:auto">' + icon('mic', true) + 'Dictar</button>' : '') + '</span>' +
             '<textarea class="er-input" id="er-wa-text" rows="7"></textarea></label>' +
+          (res.tech ? '<label class="er-wa-tech"><input type="checkbox" id="er-wa-tech">' + (res.tech.avatar ? '<img src="' + esc(res.tech.avatar) + '" alt="">' : '') +
+            '<span><b>Mostrar al técnico</b><small>Añade «Tu patín lo ha reparado ' + esc(res.tech.name) + '» y el enlace con su foto</small></span></label>' : '') +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
             '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="web">' + icon('whatsapp') + 'Abrir en WhatsApp Web</button>' +
@@ -35,6 +37,16 @@
         var ta = wrap.querySelector('#er-wa-text');
         ta.value = texts[key] || '';
         ta.addEventListener('input', function () { texts[key] = ta.value; });
+        // Técnico (opcional): una línea con su nombre y el enlace de seguimiento, que en WhatsApp sale con su foto
+        var techLine = res.tech ? '\n\nTu patín lo ha reparado ' + res.tech.name + ' 🔧' : '';
+        function withTech(txt, on) {
+          if (!res.tech) return txt;
+          var base = txt.replace(techLine + '\n' + res.tech.link, '').replace(techLine, '');
+          if (!on) return base;
+          return base + techLine + (base.indexOf(res.tech.link) > -1 ? '' : '\n' + res.tech.link);
+        }
+        var techCb = wrap.querySelector('#er-wa-tech');
+        if (techCb) techCb.addEventListener('change', function () { ta.value = withTech(ta.value, techCb.checked); texts[key] = ta.value; });
         function close(v) { wrap.remove(); resolve(v); }
         function phone() {
           var d = wrap.querySelector('#er-wa-phone').value.replace(/\D+/g, '');
@@ -48,7 +60,7 @@
           if ((t = e.target.closest('[data-tpl]'))) {
             key = t.getAttribute('data-tpl');
             wrap.querySelectorAll('[data-tpl]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
-            ta.value = texts[key] || '';
+            ta.value = withTech(texts[key] || '', techCb && techCb.checked);
             return;
           }
           if (e.target.closest('[data-dict]')) { e.preventDefault(); E.dictate(ta); return; }

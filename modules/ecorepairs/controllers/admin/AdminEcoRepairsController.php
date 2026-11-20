@@ -908,8 +908,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         $default = array('delivered' => 'review', 'received' => 'received', 'quote' => 'quote', 'ready' => (int) $repair['days_in_status'] >= (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS') ? 'reminder' : 'ready');
         $c = EcoRepairCustomer::info((int) $repair['id_customer']);
+        $tech = EcoRepairPhoto::techFor((int) $repair['id_employee_tech']);
+        if ($tech) {
+            $tech['link'] = $this->trackingUrl($repair['tracking_code']);
+        }
         $this->jsonOut(array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
-            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received'));
+            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received', 'tech' => $tech));
     }
 
     protected function ajaxLogMessage()
