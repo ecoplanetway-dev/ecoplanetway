@@ -1663,3 +1663,8 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .er-printq span { flex: 1; min-width: 0; }
 .er-printq + .er-printq { bottom: 84px; }
 .er-printq .er-btn-ghost { color: #fff; }
+.er-printdot { position: fixed; left: 12px; bottom: 12px; z-index: 5500; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; background: #F1F3F5; color: #5B6170; font: 600 11.5px Inter, system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,.12); opacity: .85; }
+.er-printdot .er-i { width: 14px; height: 14px; }
+.er-printdot.ok { background: #ECFDF5; color: #065F46; }
+.er-printdot.bad { background: #FEF2F2; color: #B91C1C; opacity: 1; }
+@media (max-width: 760px) { .er-printdot { display: none; } }

@@ -267,17 +267,26 @@
         try { var n = new Notification('Imprimir · ' + j.ref, { body: label(j), tag: 'ecor-' + j.id }); n.onclick = function () { window.focus(); window.open(urlFor(j), '_blank'); b.remove(); n.close(); }; } catch (e) { }
       }
     }
+    // Indicador abajo a la izquierda: verde si el panel recibe las impresiones del móvil, rojo con el motivo si falla
+    var dot = document.createElement('div');
+    dot.className = 'er-printdot';
+    dot.title = 'Impresión desde el móvil';
+    dot.innerHTML = icon('print', true) + '<span>Conectando…</span>';
+    (root() || document.body).appendChild(dot);
+    function state(ok, txt) { dot.classList.toggle('ok', ok); dot.classList.toggle('bad', !ok); dot.querySelector('span').textContent = txt; }
     function poll() {
       if (busy) return;
       busy = true;
       api('printPoll', {}).then(function (res) {
         busy = false;
+        if (!res || !res.ok) { state(false, 'Impresión móvil: ' + ((res && res.error) || 'sin respuesta')); return; }
+        state(true, 'Recibe impresiones del móvil · ' + new Date().toLocaleTimeString().slice(0, 5));
         (res && res.jobs || []).forEach(function (j) {
           var w = null;
           try { w = window.open(urlFor(j), '_blank'); } catch (e) { w = null; }
           if (!w) banner(j);
         });
-      }, function () { busy = false; });
+      }, function () { busy = false; state(false, 'Impresión móvil: sin conexión'); });
     }
     if (window.Notification && Notification.permission === 'default') {
       document.addEventListener('click', function ask() { document.removeEventListener('click', ask); try { Notification.requestPermission(); } catch (e) { } });
