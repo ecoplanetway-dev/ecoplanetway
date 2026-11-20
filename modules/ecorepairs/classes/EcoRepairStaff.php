@@ -220,21 +220,43 @@ class EcoRepairStaff
             return $cache;
         }
         $cache = false;
-        $raw = isset($_COOKIE[self::COOKIE]) ? (string) $_COOKIE[self::COOKIE] : '';
-        $parts = explode('.', $raw);
-        if (count($parts) !== 4) {
+        // Puede haber varias cookies con el mismo nombre (una antigua solo de www o sin www y la nueva de todo el dominio):
+        // PHP solo ve la primera, así que se leen todas y vale la primera que sea correcta.
+        $values = array();
+        if (!empty($_SERVER['HTTP_COOKIE']) && preg_match_all('/(?:^|;\s*)' . preg_quote(self::COOKIE, '/') . '=([^;]*)/', (string) $_SERVER['HTTP_COOKIE'], $m)) {
+            $values = array_map('urldecode', $m[1]);
+        }
+        if (isset($_COOKIE[self::COOKIE])) {
+            array_unshift($values, (string) $_COOKIE[self::COOKIE]);
+        }
+        $found = null;
+        foreach (array_unique($values) as $raw) {
+            $parts = explode('.', (string) $raw);
+            if (count($parts) !== 4) {
+                continue;
+            }
+            list($id, $ver, $exp, $sig) = $parts;
+            $payload = (int) $id . '.' . (int) $ver . '.' . (int) $exp;
+            if (!hash_equals(self::sign($payload), (string) $sig) || (int) $exp < time()) {
+                continue;
+            }
+            $s = self::get((int) $id);
+            if (!$s || !(int) $s['active'] || (int) $s['session_version'] !== (int) $ver) {
+                continue;
+            }
+            $found = array($s, (int) $id, (int) $ver, (int) $exp);
+            break;
+        }
+        if (!$found) {
             return $cache;
         }
-        list($id, $ver, $exp, $sig) = $parts;
-        $payload = (int) $id . '.' . (int) $ver . '.' . (int) $exp;
-        if (!hash_equals(self::sign($payload), $sig) || (int) $exp < time()) {
-            return $cache;
-        }
-        $s = self::get((int) $id);
-        if (!$s || !(int) $s['active'] || (int) $s['session_version'] !== (int) $ver) {
-            return $cache;
-        }
+        list($s, $id, $ver, $exp) = $found;
         $cache = $s;
+        // Si había más de una, se deja solo la buena (de todo el dominio)
+        if (count(array_unique($values)) > 1 && !headers_sent()) {
+            $p0 = $id . '.' . $ver . '.' . $exp;
+            self::setCookie($p0 . '.' . self::sign($p0), $exp);
+        }
         // Se renueva sola: mientras se use, no caduca (si le quedan menos de 80 días, otros 90)
         if ((int) $exp - time() < 80 * 86400 && !headers_sent()) {
             $newExp = time() + self::DAYS * 86400;
