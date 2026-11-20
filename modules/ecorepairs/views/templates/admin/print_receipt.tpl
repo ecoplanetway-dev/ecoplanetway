@@ -10,7 +10,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
   body { font: 11px/1.3 Arial, Helvetica, sans-serif; }
-  .doc { {if $format == 'a4'}max-width: 100mm; margin: 0 auto; font-size: 12px;{else}width: 70mm; margin: 0 auto; padding: 3mm 0 2mm;{/if} }
+  .doc { {if $format == 'a4'}max-width: 100mm; margin: 0 auto; font-size: 12px;{else}width: 68mm; margin: 0 auto; padding: 3mm 0 2mm;{/if} }
   .hd { display: flex; align-items: center; gap: 2.5mm; border-bottom: 1.5px solid #000; padding-bottom: 1.5mm; }
   .hd img { width: 13mm; height: 13mm; object-fit: contain; flex: none; }
   .hd b { font-size: 12px; display: block; }

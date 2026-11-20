@@ -9,12 +9,12 @@
  * Etiqueta del taller para pegar al patín (76,2 mm de ancho, vertical, unos 9,5 cm): QR grande que abre la reparación en la app del taller.
  *}
 <style>
-  @page { size: 76.2mm 95mm; margin: 0; }
+  @page { size: 76.2mm 85mm; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
   body { font: 12px/1.25 Arial, Helvetica, sans-serif; }
-  .t { width: 76.2mm; padding: 3mm 3.5mm; display: flex; flex-direction: column; align-items: stretch; gap: 1.4mm; text-align: center; }
-  .qr { width: 30mm; height: 30mm; margin: 0 auto; }
+  .t { width: 68mm; margin: 0 auto; padding: 2.5mm 0; display: flex; flex-direction: column; align-items: stretch; gap: 1.4mm; text-align: center; }
+  .qr { width: 26mm; height: 26mm; margin: 0 auto; }
   .qr svg { width: 100%; height: 100%; display: block; }
   .r1 { font-size: 22px; font-weight: 900; line-height: 1; letter-spacing: .02em; }
   .urg { align-self: center; background: #000; color: #fff; font-weight: 800; font-size: 11px; padding: .5mm 2mm; border-radius: .8mm; }
@@ -27,7 +27,7 @@
   .noprint { margin: 12px auto; text-align: center; }
   .noprint button { font: 600 15px Arial, sans-serif; padding: 10px 18px; border-radius: 10px; border: 1px solid #0B6E4B; background: #0B6E4B; color: #fff; cursor: pointer; }
   @media print { .noprint { display: none; } }
-  @media screen { .t { margin: 0 auto; box-shadow: 0 0 0 1px #ccc; } }
+  @media screen { .t { box-shadow: 0 0 0 1px #ccc; } }
 </style>
 </head>
 <body>
