@@ -1317,3 +1317,6 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-pick button { aspect-ratio: 1; border: 2px solid #E1E4E8; border-radius: 12px; background: #fff; padding: 6px; cursor: pointer; display: grid; place-items: center; }
 .ecor .er-pick button:hover { border-color: #4F46E5; box-shadow: 0 0 0 3px #EEF2FF; }
 .ecor .er-pick img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* Botones dentro del título del panel: no heredan el gris pequeño de .er-r */
+.ecor .er-panel h3 .er-btn.er-r { font-size: 13px; font-weight: 600; }
+.ecor .er-panel h3 .er-btn-pri.er-r, .ecor .er-panel h3 .er-btn-pri.er-r .er-i { color: #fff; }
