@@ -7,12 +7,12 @@ if (!defined('_PS_VERSION_')) {
 /**
  * Personal del taller que usa la app del móvil (/taller) con PIN, sin entrar en PrestaShop.
  * Cada persona va unida a un empleado de PrestaShop (para asignaciones, historial e informes).
- * Sesión: cookie firmada con _COOKIE_KEY_ que caduca a los 30 días; «Cerrar sesiones» la invalida.
+ * Sesión: cookie firmada con _COOKIE_KEY_ que dura 3 meses y se renueva sola al usarla; «Cerrar sesiones» la invalida.
  */
 class EcoRepairStaff
 {
     const COOKIE = 'ecor_staff';
-    const DAYS = 30;
+    const DAYS = 90;
 
     public static function all($onlyActive = false)
     {
@@ -177,13 +177,33 @@ class EcoRepairStaff
         return array('ok' => true);
     }
 
+    /** Dominio de la cookie: vale con y sin «www.» (el QR y la app pueden abrir una u otra). */
+    protected static function cookieDomain()
+    {
+        $host = strtolower(preg_replace('/:\d+$/', '', (string) Tools::getHttpHost(false)));
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) || strpos($host, '.') === false) {
+            return '';
+        }
+
+        return '.' . preg_replace('/^www\./', '', $host);
+    }
+
     protected static function setCookie($value, $exp)
     {
         $path = '/';
+        $domain = self::cookieDomain();
+        if ($domain !== '') {
+            // Borra la cookie antigua ligada solo a este host, para que no quede duplicada
+            if (PHP_VERSION_ID >= 70300) {
+                setcookie(self::COOKIE, '', array('expires' => time() - 3600, 'path' => $path, 'secure' => Tools::usingSecureMode(), 'httponly' => true, 'samesite' => 'Lax'));
+            } else {
+                setcookie(self::COOKIE, '', time() - 3600, $path . '; samesite=Lax', '', Tools::usingSecureMode(), true);
+            }
+        }
         if (PHP_VERSION_ID >= 70300) {
-            setcookie(self::COOKIE, $value, array('expires' => $exp, 'path' => $path, 'secure' => Tools::usingSecureMode(), 'httponly' => true, 'samesite' => 'Lax'));
+            setcookie(self::COOKIE, $value, array('expires' => $exp, 'path' => $path, 'domain' => $domain, 'secure' => Tools::usingSecureMode(), 'httponly' => true, 'samesite' => 'Lax'));
         } else {
-            setcookie(self::COOKIE, $value, $exp, $path . '; samesite=Lax', '', Tools::usingSecureMode(), true);
+            setcookie(self::COOKIE, $value, $exp, $path . '; samesite=Lax', $domain, Tools::usingSecureMode(), true);
         }
     }
 
@@ -215,6 +235,12 @@ class EcoRepairStaff
             return $cache;
         }
         $cache = $s;
+        // Se renueva sola: mientras se use, no caduca (si le quedan menos de 80 días, otros 90)
+        if ((int) $exp - time() < 80 * 86400 && !headers_sent()) {
+            $newExp = time() + self::DAYS * 86400;
+            $p2 = (int) $id . '.' . (int) $ver . '.' . $newExp;
+            self::setCookie($p2 . '.' . self::sign($p2), $newExp);
+        }
 
         return $cache;
     }

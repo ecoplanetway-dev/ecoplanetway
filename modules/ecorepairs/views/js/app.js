@@ -98,6 +98,7 @@ window.ECOR.ready(function () {
     if (h[0] === 'scan') return scanView();
     if (h[0] === 'rep') return repairView({ code: decodeURIComponent(h[1] || '') }, h[2] || 'work');
     if (h[0] === 'id') return repairView({ id: h[1] }, h[2] || 'work');
+    if (h[0] === 'all') return allView();
     if (h[0] === 'models') return modelsView();
     if (h[0] === 'psearch') return partSearchView();
     if (h[0] === 'model') return modelView(+h[1], +h[2], h[3] || '', h[4] || 'parts');
@@ -120,7 +121,8 @@ window.ECOR.ready(function () {
     tabbar('home');
     main.innerHTML = header('Hola, ' + esc(me.name.split(' ')[0])) +
       '<div class="er-app-big">' + (me.tech ? '<a class="er-bigbtn er-bigbtn-pri" href="#scan">' + icon('qr') + '<span><b>Escanear QR</b><small>Del patinete o del resguardo</small></span></a>' : '') +
-      (me.reception ? '<a class="er-bigbtn" href="#new">' + icon('plus') + '<span><b>Nueva reparación</b><small>Entra un equipo al taller</small></span></a>' : '') + '</div>' +
+      (me.reception ? '<a class="er-bigbtn" href="#new">' + icon('plus') + '<span><b>Nueva reparación</b><small>Entra un equipo al taller</small></span></a>' : '') +
+      '<a class="er-bigbtn er-bigbtn-all" href="#all">' + icon('layers') + '<span><b>Todas las reparaciones</b><small>Buscar por cliente, teléfono, modelo o REP-</small></span></a></div>' +
       (me.tech ? '<div class="er-seg" id="er-seg"><button type="button" data-ht="mine">Mis reparaciones</button><button type="button" data-ht="free">Sin asignar</button></div><div id="er-home-list" class="er-stack" style="gap:10px"><div class="er-empty">Cargando…</div></div>' : '');
     if (!me.tech) return;
     api('home').then(function (res) {
@@ -141,6 +143,43 @@ window.ECOR.ready(function () {
         homeTab = b.getAttribute('data-ht'); draw();
       });
     });
+  }
+
+  /* ---------- Todas las reparaciones ---------- */
+  var allState = { q: '', st: 'open' };
+  function allView() {
+    tabbar('home');
+    var FL = [['open', 'Abiertas'], ['mine', 'Mías'], ['free', 'Sin asignar'], ['urgent', 'Urgentes'], ['ready', 'Listas'], ['delivered', 'Entregadas'], ['cancelled', 'Canceladas'], ['all', 'Todas']];
+    main.innerHTML = header('Todas las reparaciones', '#home') +
+      '<label class="er-search er-all-q">' + icon('search') + '<input class="er-input" id="er-all-q" type="search" autocomplete="off" placeholder="Cliente, teléfono, modelo, nº de serie o REP-" value="' + esc(allState.q) + '"></label>' +
+      '<div class="er-all-f" id="er-all-f">' + FL.map(function (f) { return '<button type="button" data-af="' + f[0] + '" aria-pressed="' + (allState.st === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="er-all-l" class="er-stack" style="gap:10px"><div class="er-empty">Cargando…</div></div>';
+    var timer = null, seq = 0;
+    function load() {
+      var my = ++seq, box = main.querySelector('#er-all-l');
+      if (!box) return;
+      api('all', { q: allState.q, st: allState.st }).then(function (res) {
+        if (my !== seq || !main.querySelector('#er-all-l')) return;
+        if (!res.ok) { box.innerHTML = '<div class="er-err">' + esc(res.error || 'No se pudo cargar.') + '</div>'; return; }
+        res.list = res.list || [];
+        box.innerHTML = res.list.length ? res.list.map(function (r) {
+          return card(r, res.statuses).replace('</a>', '') + '<div class="er-all-who">' + (r.customer ? icon('user', true) + esc(r.customer) : '') +
+            (r.tech_name ? '<span>' + E.avatar(r.id_employee_tech, r.tech_name) + esc(String(r.tech_name).split(' ')[0]) + '</span>' : '<span class="er-muted">Sin técnico</span>') + '</div></a>';
+        }).join('') + (res.more ? '<div class="er-empty">Salen las 150 más recientes. Escribe en el buscador para encontrar otras.</div>' : '')
+          : '<div class="er-empty">No hay reparaciones' + (allState.q ? ' con «' + esc(allState.q) + '»' : '') + '.</div>';
+      });
+    }
+    main.querySelector('#er-all-q').addEventListener('input', function (e) {
+      allState.q = e.target.value.trim();
+      clearTimeout(timer); timer = setTimeout(load, 300);
+    });
+    main.querySelector('#er-all-f').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-af]'); if (!b) return;
+      allState.st = b.getAttribute('data-af');
+      main.querySelectorAll('[data-af]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      load();
+    });
+    load();
   }
 
   /* ---------- Escanear ---------- */

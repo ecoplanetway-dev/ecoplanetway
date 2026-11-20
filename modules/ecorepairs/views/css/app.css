@@ -98,3 +98,15 @@ body.er-appbody { -webkit-tap-highlight-color: transparent; overscroll-behavior-
 .ecor.er-app .er-fg { grid-template-columns: 1fr 1fr; }
 .ecor.er-app .er-inl .er-input { width: 100%; }
 .ecor.er-app .er-photos { grid-template-columns: repeat(3, 1fr); }
+/* Todas las reparaciones */
+.ecor .er-bigbtn-all { grid-column: 1 / -1; }
+.ecor .er-all-q { margin: 4px 0 10px; flex: none; max-width: none; }
+.ecor .er-all-f { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; margin-bottom: 10px; }
+.ecor .er-all-f button { flex: none; min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid #E1E4E8; background: #fff; font: 600 13px Inter, system-ui, sans-serif; color: #3A3F48; }
+.ecor .er-all-f button[aria-pressed="true"] { background: #0F1113; color: #fff; border-color: #0F1113; }
+.ecor .er-all-who { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid #EEF0F3; font-size: 13px; color: #3A3F48; }
+.ecor .er-all-who > span { display: inline-flex; align-items: center; gap: 6px; }
+.ecor .er-all-who .er-av { width: 26px; height: 26px; font-size: 10px; }
+.ecor .er-all-who .er-i { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+.ecor .er-all-f { flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; }
+.ecor .er-all-f button { width: auto !important; min-width: 0; white-space: nowrap; }

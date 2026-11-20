@@ -164,6 +164,9 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                 case 'home':
                     $this->out($this->home());
                     // no break
+                case 'all':
+                    $this->out($this->allRepairs((string) Tools::getValue('q'), (string) Tools::getValue('st')));
+                    // no break
                 case 'repair':
                     $this->out($this->repairData($this->findRepair()));
                     // no break
@@ -410,7 +413,48 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         return array('ok' => true, 'mine' => $mine, 'free' => $free, 'statuses' => EcoRepairStatus::all());
     }
 
-    protected function repairData(array $r)
+    /** Todas las reparaciones del taller, con buscador y filtro por estado (para localizarlas desde el móvil). */
+    protected function allRepairs($q, $st)
+    {
+        $p = _DB_PREFIX_;
+        $db = Db::getInstance();
+        $where = 'r.id_shop = ' . (int) $this->context->shop->id;
+        $open = "'received', 'diagnosis', 'quote', 'repair', 'ready'";
+        if ($st === '' || $st === 'open') {
+            $where .= ' AND r.status IN (' . $open . ')';
+        } elseif ($st === 'mine') {
+            $where .= ' AND r.status IN (' . $open . ') AND r.id_employee_tech = ' . $this->emp();
+        } elseif ($st === 'free') {
+            $where .= ' AND r.status IN (' . $open . ') AND r.id_employee_tech = 0';
+        } elseif ($st === 'urgent') {
+            $where .= ' AND r.status IN (' . $open . ') AND r.urgent = 1';
+        } elseif ($st !== 'all' && isset(EcoRepairStatus::all()[$st])) {
+            $where .= " AND r.status = '" . pSQL($st) . "'";
+        }
+        $q = trim(Tools::substr($q, 0, 64));
+        if ($q !== '') {
+            $like = "'%" . pSQL(str_replace(array('%', '_'), ' ', $q)) . "%'";
+            $digits = preg_replace('/\D+/', '', $q);
+            $where .= ' AND (r.reference LIKE ' . $like . ' OR r.device_name LIKE ' . $like . ' OR r.serial LIKE ' . $like . ' OR r.tracking_code LIKE ' . $like .
+                ' OR CONCAT(c.firstname, \' \', c.lastname) LIKE ' . $like . ' OR c.email LIKE ' . $like .
+                (strlen($digits) >= 4 ? " OR REPLACE(REPLACE(a.phone_mobile, ' ', ''), '+34', '') LIKE '%" . pSQL($digits) . "%' OR REPLACE(REPLACE(a.phone, ' ', ''), '+34', '') LIKE '%" . pSQL($digits) . "%'" : '') . ')';
+        }
+        $rows = $db->executeS('SELECT r.id_ecorepair FROM `' . $p . 'ecorepair` r
+            LEFT JOIN `' . $p . 'customer` c ON c.id_customer = r.id_customer
+            LEFT JOIN `' . $p . 'address` a ON a.id_customer = r.id_customer AND a.deleted = 0
+            WHERE ' . $where . ' GROUP BY r.id_ecorepair ORDER BY r.urgent DESC, r.date_add DESC LIMIT 150') ?: array();
+        $out = array();
+        foreach ($rows as $row) {
+            $r = EcoRepair::get((int) $row['id_ecorepair']);
+            if ($r) {
+                $out[] = $this->lite($r);
+            }
+        }
+
+        return array('ok' => true, 'list' => $out, 'statuses' => EcoRepairStatus::all(), 'more' => count($rows) >= 150);
+    }
+
+        protected function repairData(array $r)
     {
         $id = (int) $r['id_ecorepair'];
         $base = $this->appUrl() . (strpos($this->appUrl(), '?') === false ? '?' : '&');
@@ -643,6 +687,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'search' => $s . '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
             'camera' => $s . '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
             'user' => $s . '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+            'layers' => $s . '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>',
             'wrench' => $s . '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
             'alert' => $s . '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>',
             'clock' => $s . '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',

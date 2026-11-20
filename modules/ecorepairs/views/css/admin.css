@@ -1088,7 +1088,7 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor { max-width: 100%; overflow-x: clip; }
 .ecor .er-mstates { display: none; }
 @media (max-width: 760px) {
-  html, body { overflow-x: hidden; }
+  html { overflow-x: clip; } /* «hidden» en html y body bloquea el desplazamiento en iPhone */
   .ecor img, .ecor svg, .ecor video, .ecor canvas { max-width: 100%; }
   .ecor .er-input, .ecor select, .ecor textarea { max-width: 100%; min-width: 0; }
   /* Cabecera del tablero */
