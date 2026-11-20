@@ -17,6 +17,7 @@ window.ECOR.ready(function () {
   var dis = canEdit ? '' : ' disabled';
   var printUrl = E.ajaxUrl('printReceipt', { id_ecorepair: r.id });
   var labelUrl = E.ajaxUrl('printLabel', { id_ecorepair: r.id });
+  var tagUrl = E.ajaxUrl('printTag', { id_ecorepair: r.id });
 
   app.innerHTML =
     '<div class="er-f-head">' +
@@ -27,7 +28,8 @@ window.ECOR.ready(function () {
         (D.canEdit ? '<button type="button" class="er-btn er-btn-wa" id="er-wa">' + icon('whatsapp') + 'WhatsApp</button>' : '') +
         '<button type="button" class="er-btn er-btn-hist" id="er-hist">' + icon('clock') + 'Historial<span class="er-hist-n" id="er-hist-n"></span></button>' +
         '<a class="er-btn" href="' + esc(printUrl) + '" target="_blank" rel="noopener">' + icon('print') + 'Imprimir resguardo</a>' +
-        '<a class="er-btn" href="' + esc(labelUrl) + '" target="_blank" rel="noopener">' + icon('tag') + 'Etiqueta</a>' +
+        '<a class="er-btn" href="' + esc(tagUrl) + '" target="_blank" rel="noopener">' + icon('qr') + 'Etiqueta del patín</a>' +
+        '<a class="er-btn er-btn-ghost" href="' + esc(labelUrl) + '" target="_blank" rel="noopener" title="Etiqueta pequeña">' + icon('tag') + 'Etiqueta pequeña</a>' +
         (D.stickerUrl ? '<a class="er-btn" href="' + esc(D.stickerUrl) + '" target="_blank" rel="noopener" title="Pegatina QR fija para el patín: historial, garantía y entrada rápida">' + icon('qr') + 'Pegatina</a>' : '') +
         '<a class="er-btn er-btn-pri" href="' + esc(E.boot.links['new']) + '&id_customer=' + r.id_customer + '">' + icon('plus') + 'Otra reparación del cliente</a>' +
       '</div>' +

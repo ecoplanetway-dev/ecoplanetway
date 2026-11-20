@@ -450,6 +450,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'photo' => array('ajaxPhoto', 'view', false),
             'printReceipt' => array('ajaxPrintReceipt', 'view', false),
             'printLabel' => array('ajaxPrintLabel', 'view', false),
+            'printTag' => array('ajaxPrintTag', 'view', false),
             'searchProducts' => array('ajaxSearchProducts', 'view', false),
             'productUpdate' => array('ajaxProductUpdate', 'edit', true),
             'quoteCreate' => array('ajaxQuoteCreate', 'edit', true),
@@ -1638,7 +1639,12 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->outputPrint('print_receipt.tpl');
     }
 
-    protected function ajaxPrintLabel()
+    protected function ajaxPrintTag()
+    {
+        $this->outputPrint('print_tag.tpl');
+    }
+
+        protected function ajaxPrintLabel()
     {
         $this->outputPrint('print_label.tpl');
     }

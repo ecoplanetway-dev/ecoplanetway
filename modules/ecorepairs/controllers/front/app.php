@@ -482,7 +482,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         $mine = array();
         $free = array();
         $rows = Db::getInstance()->executeS('SELECT id_ecorepair FROM `' . $p . 'ecorepair` WHERE id_shop = ' . (int) $this->context->shop->id
-            . ' AND status IN ' . $open . ' AND (id_employee_tech = ' . $this->emp() . ' OR id_employee_tech = 0) ORDER BY urgent DESC, date_add ASC LIMIT 200') ?: array();
+            . ' AND status IN ' . $open . ' AND (id_employee_tech = ' . $this->emp() . ' OR id_employee_tech = 0) ORDER BY date_add DESC LIMIT 200') ?: array();
         foreach ($rows as $row) {
             $r = EcoRepair::get((int) $row['id_ecorepair']);
             if ((int) $r['id_employee_tech'] === $this->emp() && $this->emp()) {
@@ -619,7 +619,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         $rows = $db->executeS('SELECT r.id_ecorepair FROM `' . $p . 'ecorepair` r
             LEFT JOIN `' . $p . 'customer` c ON c.id_customer = r.id_customer
             LEFT JOIN `' . $p . 'address` a ON a.id_customer = r.id_customer AND a.deleted = 0
-            WHERE ' . $where . ' GROUP BY r.id_ecorepair ORDER BY r.urgent DESC, r.date_add DESC LIMIT 150') ?: array();
+            WHERE ' . $where . ' GROUP BY r.id_ecorepair ORDER BY r.date_add DESC LIMIT 150') ?: array();
         $out = array();
         foreach ($rows as $row) {
             $r = EcoRepair::get((int) $row['id_ecorepair']);
