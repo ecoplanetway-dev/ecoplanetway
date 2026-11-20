@@ -1320,3 +1320,15 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 /* Botones dentro del título del panel: no heredan el gris pequeño de .er-r */
 .ecor .er-panel h3 .er-btn.er-r { font-size: 13px; font-weight: 600; }
 .ecor .er-panel h3 .er-btn-pri.er-r, .ecor .er-panel h3 .er-btn-pri.er-r .er-i { color: #fff; }
+/* Pegar códigos de la web */
+.ecor .er-paste-dlg { max-width: 860px; width: 100%; }
+.ecor .er-paste-dlg #er-ps-in { min-height: 240px; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+.ecor .er-ps-list { display: flex; flex-direction: column; gap: 8px; max-height: 56vh; overflow: auto; overscroll-behavior: contain; padding: 2px; margin-top: 8px; }
+.ecor .er-ps-row { display: grid; grid-template-columns: 26px 96px 1fr; gap: 8px; align-items: start; padding: 8px; border: 1px solid #E6E8EC; border-radius: 12px; background: #fff; }
+.ecor .er-ps-row.off { opacity: .45; }
+.ecor .er-ps-ck { padding-top: 12px; display: flex; justify-content: center; }
+.ecor .er-ps-ck input { width: 18px; height: 18px; accent-color: #4F46E5; }
+.ecor .er-ps-code { font-weight: 800; font-variant-numeric: tabular-nums; text-transform: uppercase; }
+.ecor .er-ps-txt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ecor .er-ps-txt textarea { min-height: 52px; font-size: 13px; }
+@media (max-width: 600px) { .ecor .er-ps-row { grid-template-columns: 26px 1fr; } .ecor .er-ps-txt { grid-column: 1 / -1; } }

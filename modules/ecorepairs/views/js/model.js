@@ -99,13 +99,13 @@ window.ECOR.ready(function () {
       return;
     }
     if (tab === 'codes') {
-      el.innerHTML = '<h3>' + icon('code') + 'Códigos de error' + (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-pri er-r" data-new="code" style="margin-left:auto">' + icon('plus', true) + 'Añadir código</button>' : '') + '</h3>' +
+      el.innerHTML = '<h3>' + icon('code') + 'Códigos de error' + (canEdit ? '<span class="er-r"><button type="button" class="er-btn er-btn-sm er-btn-ghost" data-paste="code">' + icon('doc', true) + 'Pegar de la web</button><button type="button" class="er-btn er-btn-sm er-btn-pri" data-new="code">' + icon('plus', true) + 'Añadir código</button></span>' : '') + '</h3>' +
         '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-kq" placeholder="Busca el código que sale en la pantalla" value="' + esc(q) + '"></label><div id="er-kl" class="er-stack" style="gap:8px"></div>';
       drawCodes();
     } else if (tab === 'params') {
       el.innerHTML = '<h3>' + icon('book') + 'Cómo entrar al menú' + (canEdit ? '<button type="button" class="er-btn er-btn-sm er-r" data-new="menu" style="margin-left:auto">' + icon('plus', true) + 'Añadir instrucciones</button>' : '') + '</h3>' +
         (kb.menu.length ? kb.menu.map(function (m) { return item('menu', m, '<b>' + esc(m.title) + '</b>', '<div class="er-kb-body">' + esc(m.body) + '</div>'); }).join('') : empty('Sin instrucciones todavía.')) +
-        '<h3 style="margin-top:8px">' + icon('code') + 'Parámetros' + (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-pri er-r" data-new="param" style="margin-left:auto">' + icon('plus', true) + 'Añadir parámetro</button>' : '') + '</h3>' +
+        '<h3 style="margin-top:8px">' + icon('code') + 'Parámetros' + (canEdit ? '<span class="er-r"><button type="button" class="er-btn er-btn-sm er-btn-ghost" data-paste="param">' + icon('doc', true) + 'Pegar de la web</button><button type="button" class="er-btn er-btn-sm er-btn-pri" data-new="param">' + icon('plus', true) + 'Añadir parámetro</button></span>' : '') + '</h3>' +
         (kb.params.length ? '<div class="er-ptable"><div class="er-ptr er-pth"><span>Parámetro</span><span>Para qué sirve</span><span>De fábrica</span><span></span></div>' + kb.params.map(function (p) {
           return '<div class="er-ptr"><b class="er-num">' + esc(p.code) + '</b><span>' + esc(p.name) + (p.notes ? '<span class="er-muted er-small" style="display:block">' + esc(p.notes) + '</span>' : '') +
             (p.scope === 'brand' && D.model ? ' <span class="er-tag er-t-neu">De la marca</span>' : '') + '</span><span class="er-num">' + esc(p.default_value || '—') + '</span>' + tools('param', p) + '</div>';
@@ -177,6 +177,114 @@ window.ECOR.ready(function () {
       });
     });
   }
+  /**
+   * Convierte un texto copiado de una web (lista, tabla o párrafos) en códigos: «E10 – No comunica… Revisar cable».
+   * Cada línea que empieza por un código abre uno nuevo; las líneas siguientes sin código se suman a «qué revisar».
+   */
+  var CODE_RE = /^(?:(?:error|err|c[oó]digo|code|fallo|fault|aver[ií]a|alarma)\s*(?:n[ºo°.]*)?\s*[:#]?\s*)?((?:[A-Za-z]{1,3}\s?-?\s?)?\d{1,4}[A-Za-z]?|[A-Za-z]{1,3}\d{0,3}[A-Za-z]?(?=\s*[:=|–—\t]))(?=$|[\s:=|.)\]–—,\-\t])[\s:=|.)\]–—,\-\t]*(.*)$/i;
+  function parsePasted(text) {
+    var out = [], cur = null;
+    String(text || '').replace(/\r/g, '').split('\n').forEach(function (raw) {
+      var line = raw.replace(/\u00a0/g, ' ').replace(/^\s*(?:[-•*·▪►✓]|\(?\d{1,2}[.)](?=\s+(?:error|err|c[oó]digo|code|[A-Za-z]{1,3}\s?-?\d)))\s*/i, '').trim();
+      if (!line) return;
+      var cells = line.indexOf('\t') > -1 ? line.split(/\t+/) : line.indexOf('|') > -1 ? line.split('|') : null;
+      if (cells) cells = cells.map(function (c) { return c.trim(); }).filter(Boolean);
+      var m = (cells && cells.length > 1 ? cells[0] + ' : ' + cells.slice(1).join(' | ') : line).match(CODE_RE);
+      if (m && /\d|^[A-Z]{1,3}$/i.test(m[1]) && !/^\d{5,}$/.test(m[1])) {
+        var code = m[1].replace(/\s+/g, '').toUpperCase(), rest = m[2].trim(), title = rest, causes = '';
+        if (cells && cells.length > 2) { title = cells[1]; causes = cells.slice(2).join(' · '); }
+        else {
+          var cut = rest.search(/\s(?:[-–—]\s|\.\s|;\s|→\s)|\s(?=(?:causa|soluci[oó]n|revisar|comprobar|check|cause|solution)\b)/i);
+          if (cut > 8) { title = rest.slice(0, cut).trim(); causes = rest.slice(cut).replace(/^[\s\-–—.;→]+/, '').trim(); }
+        }
+        if (title.length > 160) { causes = (title.slice(157) + ' ' + causes).trim(); title = title.slice(0, 157) + '…'; }
+        cur = { code: code.slice(0, 16), title: title.replace(/[.:;,]+$/, ''), causes: causes, on: true };
+        out.push(cur);
+      } else if (cur) {
+        cur.causes = (cur.causes ? cur.causes + '\n' : '') + line;
+      }
+    });
+    // Mismo código dos veces: se juntan
+    var seen = {};
+    return out.filter(function (r) {
+      if (seen[r.code]) { seen[r.code].causes = (seen[r.code].causes + '\n' + r.title + (r.causes ? '\n' + r.causes : '')).trim(); return false; }
+      seen[r.code] = r; return true;
+    });
+  }
+  function pasteList(type) {
+    var isCode = type === 'code', rows = [];
+    var existing = {};
+    (isCode ? kb.codes : kb.params).forEach(function (x) { existing[String(x.code).toUpperCase()] = x; });
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-paste-dlg"><h2>Pegar ' + (isCode ? 'códigos de error' : 'parámetros') + ' · ' + esc(title) + '</h2>' +
+      '<div id="er-ps-1"><p class="er-muted" style="margin:0">Copia de la web la lista o la tabla entera (aunque venga desordenada) y pégala aquí. Luego la revisas antes de guardar.</p>' +
+      '<textarea class="er-input" id="er-ps-in" rows="12" data-novoice placeholder="' + (isCode ? 'E10  Error de comunicación entre la pantalla y la controladora. Revisar el cable…\nE14  Fallo del acelerador…' : 'P01  Brillo de la pantalla  1-5\nP02  Unidades km/mi  0') + '"></textarea></div>' +
+      '<div id="er-ps-2" hidden></div>' +
+      (D.model ? '<label class="er-toggle">Vale para toda la marca ' + esc(D.brand) + '<input type="checkbox" class="er-sw" id="er-ps-brand" checked></label>' : '') +
+      '<div class="er-err" id="er-ps-err" hidden></div>' +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-ghost" data-back hidden>Volver al texto</button>' +
+      '<button type="button" class="er-btn er-btn-pri" data-go>Organizar</button></div></div>';
+    app.appendChild(wrap);
+    var ta = wrap.querySelector('#er-ps-in'), s1 = wrap.querySelector('#er-ps-1'), s2 = wrap.querySelector('#er-ps-2'), go = wrap.querySelector('[data-go]'), back = wrap.querySelector('[data-back]'), err = wrap.querySelector('#er-ps-err');
+    ta.focus();
+    function count() { return rows.filter(function (r) { return r.on; }).length; }
+    function draw() {
+      s2.innerHTML = '<p class="er-muted" style="margin:0">' + rows.length + ' encontrados. Corrige lo que haga falta y quita los que no quieras.</p><div class="er-ps-list">' + rows.map(function (r, i) {
+        var ex = existing[r.code];
+        return '<div class="er-ps-row' + (r.on ? '' : ' off') + '"><label class="er-ps-ck"><input type="checkbox" data-i="' + i + '" data-f="on"' + (r.on ? ' checked' : '') + '></label>' +
+          '<input class="er-input er-ps-code" data-i="' + i + '" data-f="code" maxlength="16" value="' + esc(r.code) + '">' +
+          '<div class="er-ps-txt"><input class="er-input" data-i="' + i + '" data-f="title" maxlength="160" value="' + esc(r.title) + '" placeholder="' + (isCode ? 'Qué significa' : 'Para qué sirve') + '">' +
+          '<textarea class="er-input" data-i="' + i + '" data-f="causes" rows="2" maxlength="3000" placeholder="' + (isCode ? 'Qué revisar / causas' : 'Valor de fábrica y notas') + '">' + esc(r.causes) + '</textarea>' +
+          (ex ? '<span class="er-tag er-t-warn">Ya existe: se actualiza</span>' : '') + '</div></div>';
+      }).join('') + '</div>';
+      go.textContent = 'Guardar ' + count();
+      go.disabled = !count();
+    }
+    s2.addEventListener('input', function (e) {
+      var el = e.target, i = el.getAttribute('data-i');
+      if (i == null) return;
+      var f = el.getAttribute('data-f');
+      rows[i][f] = f === 'on' ? el.checked : el.value;
+      if (f === 'on') { el.closest('.er-ps-row').classList.toggle('off', !el.checked); go.textContent = 'Guardar ' + count(); go.disabled = !count(); }
+    });
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if (e.target.closest('[data-back]')) { s2.hidden = true; s1.hidden = false; back.hidden = true; go.textContent = 'Organizar'; go.disabled = false; rows = []; return; }
+      if (!e.target.closest('[data-go]') || go.disabled) return;
+      err.hidden = true;
+      if (!rows.length) {
+        rows = parsePasted(ta.value);
+        if (!rows.length) { err.textContent = 'No he encontrado ningún código. Comprueba que cada uno empieza por su código (E10, 21, P05…).'; err.hidden = false; return; }
+        s1.hidden = true; s2.hidden = false; back.hidden = false;
+        draw();
+        return;
+      }
+      var list = rows.filter(function (r) { return r.on && r.code.trim(); }), done = 0, fails = [];
+      var brand = wrap.querySelector('#er-ps-brand'), idModel = brand && brand.checked ? 0 : D.id_model;
+      go.disabled = true;
+      (function next() {
+        if (done >= list.length) {
+          reload().then(function () {
+            render();
+            if (fails.length) { err.textContent = 'No se guardaron: ' + fails.join(' · '); err.hidden = false; go.disabled = false; return; }
+            wrap.remove();
+            E.toast(list.length + ' guardados');
+          });
+          return;
+        }
+        var r = list[done], ex = existing[r.code.trim().toUpperCase()], data;
+        if (isCode) data = { code: r.code.trim(), title: r.title.trim() || r.code.trim(), causes: r.causes.trim(), parts: ex ? ex.parts || '' : '', verified: ex && ex.verified ? 1 : 0 };
+        else data = { code: r.code.trim(), name: r.title.trim() || r.code.trim(), default_value: ex ? ex.default_value || '' : '', notes: r.causes.trim() };
+        go.textContent = 'Guardando ' + (done + 1) + ' de ' + list.length + '…';
+        var mid = ex ? (ex.scope === 'brand' ? 0 : D.id_model) : idModel;
+        E.api('kbSave', {}, { type: type, id: ex ? ex.id : 0, id_brand: D.id_brand, id_model: mid, data: JSON.stringify(data) }).then(function (res) {
+          if (!res.ok) fails.push(r.code + ' (' + (res.error || 'error') + ')');
+          done++; next();
+        }, function () { fails.push(r.code); done++; next(); });
+      })();
+    });
+  }
   function reload() {
     return E.api('kbLookup', { id_brand: D.id_brand, id_model: D.id_model }).then(function (res) { if (res.ok) kb = res.kb; });
   }
@@ -208,6 +316,7 @@ window.ECOR.ready(function () {
     }
     if ((t = e.target.closest('[data-tab]'))) { tab = t.getAttribute('data-tab'); render(); return; }
     if ((t = e.target.closest('[data-new]'))) { form(t.getAttribute('data-new')); return; }
+    if ((t = e.target.closest('[data-paste]'))) { pasteList(t.getAttribute('data-paste')); return; }
     if ((t = e.target.closest('[data-edit]'))) { e.preventDefault(); var a = t.getAttribute('data-edit').split(':'); form(a[0], find(a[0], +a[1])); return; }
     if ((t = e.target.closest('[data-del]'))) {
       e.preventDefault();
