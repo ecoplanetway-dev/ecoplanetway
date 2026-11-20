@@ -1143,3 +1143,9 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
   .ecor .er-f-actions .er-btn { white-space: normal; text-align: center; line-height: 1.15; min-height: 46px; height: auto; padding: 8px 10px; }
   .ecor .er-btn { max-width: 100%; }
 }
+@media (max-width: 760px) {
+  /* Estados de la reparación: barras y solo el nombre del estado actual, debajo */
+  .ecor .er-steps { position: relative; padding-bottom: 32px; }
+  .ecor .er-step span { display: none; }
+  .ecor .er-step.er-cur span { display: block; position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 13px; color: var(--er-fg); }
+}
