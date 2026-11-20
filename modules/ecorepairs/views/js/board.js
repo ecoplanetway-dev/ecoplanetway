@@ -43,6 +43,7 @@ window.ECOR.ready(function () {
     '</header>' +
     '<div id="er-recall"></div>' +
     '<div class="er-filters" id="er-filters"></div>' +
+    '<div class="er-mstates" id="er-mstates"></div>' +
     '<div class="er-results" id="er-results" hidden></div>' +
     '<div class="er-board" id="er-board"></div>' +
     '<div id="er-archive" hidden></div>';
@@ -144,11 +145,19 @@ window.ECOR.ready(function () {
     if (arch) return;
 
     var list = repairs.filter(match);
+    // En el móvil: una sola columna, la del estado elegido arriba
+    if (!state.mcol || D.board.indexOf(state.mcol) < 0) {
+      state.mcol = D.board.filter(function (st) { return list.some(function (r) { return r.status === st; }); })[0] || D.board[0];
+    }
+    $('#er-mstates').innerHTML = D.board.map(function (st) {
+      var n = list.filter(function (r) { return r.status === st; }).length;
+      return '<button type="button" data-mcol="' + st + '" aria-pressed="' + (state.mcol === st) + '"><span class="er-dot" style="background:' + esc(D.statuses[st].color) + '"></span>' + esc(D.statuses[st].name) + '<b>' + n + '</b></button>';
+    }).join('');
     $('#er-board').innerHTML = D.board.map(function (st) {
       var s = D.statuses[st];
       // La última que entró o cambió de estado, la primera
       var items = list.filter(function (r) { return r.status === st; }).sort(function (a, b) { return String(b.date_status).localeCompare(String(a.date_status)) || b.id - a.id; });
-      return '<section class="er-col" data-col="' + st + '" aria-label="' + esc(s.name) + '">' +
+      return '<section class="er-col' + (state.mcol === st ? ' er-mon' : '') + '" data-col="' + st + '" aria-label="' + esc(s.name) + '">' +
         '<div class="er-col-h"><span class="er-dot" style="background:' + esc(s.color) + '"></span>' + esc(s.name) + '<span class="er-cnt">' + items.length + '</span></div>' +
         (items.length ? items.map(card).join('') : '<div class="er-empty">Sin reparaciones</div>') + '</section>';
     }).join('');
@@ -224,6 +233,10 @@ window.ECOR.ready(function () {
     if (c) open(+c.getAttribute('data-id'));
   });
 
+  $('#er-mstates').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mcol]');
+    if (b) { state.mcol = b.getAttribute('data-mcol'); render(); }
+  });
   $('#er-filters').addEventListener('click', function (e) {
     var b = e.target.closest('[data-f]');
     if (b) { state.filter = b.getAttribute('data-f'); if (arch) { arch = ''; } render(); }

@@ -1083,3 +1083,63 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-unl2-top { flex-wrap: nowrap; align-items: flex-start; }
 .ecor .er-unl2-top b { min-width: 0; }
 .ecor .er-unl2-sp, .ecor .er-unl2-p { white-space: nowrap; flex: none; }
+
+/* ===== Móvil: pantalla fija, cabeceras centradas y tablero en una sola lista ===== */
+.ecor { max-width: 100%; overflow-x: clip; }
+.ecor .er-mstates { display: none; }
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }
+  .ecor img, .ecor svg, .ecor video, .ecor canvas { max-width: 100%; }
+  .ecor .er-input, .ecor select, .ecor textarea { max-width: 100%; min-width: 0; }
+  /* Cabecera del tablero */
+  .ecor .er-head2 { align-items: stretch; text-align: center; }
+  .ecor .er-hrow { flex-direction: column; align-items: stretch; gap: 10px; }
+  .ecor .er-hrow .er-brand { justify-content: center; }
+  .ecor .er-hrow .er-search { margin-left: 0; order: 0; }
+  .ecor .er-hrow .er-btn-pri { justify-content: center; width: 100%; }
+  .ecor .er-hrow2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ecor .er-hrow2 .er-navb { justify-content: center; min-width: 0; }
+  .ecor .er-hrow2 .er-msearch { grid-column: 1 / -1; margin-left: 0; flex-basis: auto; }
+  /* Filtros en dos columnas, sin salirse */
+  .ecor .er-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; overflow: visible; }
+  .ecor .er-filters .er-chip { justify-content: center; min-width: 0; padding: 0 8px; white-space: normal; text-align: center; }
+  .ecor .er-filters select, .ecor .er-filters .er-sep { grid-column: 1 / -1; width: 100%; }
+  .ecor .er-filters .er-sep { display: none; }
+  /* Estados: botones para elegir y una sola columna */
+  .ecor .er-mstates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 10px; }
+  .ecor .er-mstates button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--er-line); background: var(--er-card); font: 600 11.5px/1.2 Inter, system-ui, sans-serif; color: var(--er-fg); cursor: pointer; text-align: center; }
+  .ecor .er-mstates button b { font-size: 15px; }
+  .ecor .er-mstates button[aria-pressed="true"] { background: linear-gradient(135deg, #14161A, #2B2F36); color: #fff; border-color: #14161A; }
+  .ecor .er-mstates button[aria-pressed="true"] b { color: var(--er-lime, #D4FF2A); }
+  .ecor .er-board { display: block; overflow: visible; }
+  .ecor .er-board .er-col { display: none; min-height: 0; }
+  .ecor .er-board .er-col.er-mon { display: flex; }
+  /* Cabeceras de fichas y nueva reparación centradas */
+  .ecor .er-f-head { justify-content: center; text-align: center; }
+  .ecor .er-f-head .er-f-title { flex: 1 1 100%; display: flex; flex-direction: column; align-items: center; }
+  .ecor .er-f-head > .er-btn-ghost.er-icon-btn:first-child { position: absolute; left: 0; }
+  .ecor .er-f-head { position: relative; }
+  .ecor #er-voice { margin: 0 auto !important; width: 100%; justify-content: center; }
+  .ecor .er-f-actions { justify-content: center; }
+  .ecor .er-f-actions .er-btn { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  /* Recordar avisos y resultados */
+  .ecor .er-recall-row { justify-content: center; }
+  .ecor .er-recall-row > a:first-child { flex-basis: 100%; text-align: center; }
+  /* Pieza / deslimitar / plegado */
+  .ecor .er-fold { justify-content: center; text-align: center; }
+  .ecor .er-fold-t { flex-basis: 100%; }
+  .ecor .er-fold-meta { justify-content: center; }
+  .ecor .er-fold > .er-unlock, .ecor .er-fold > .er-fold-btn, .ecor .er-fold > .er-bell { flex: 1 1 100%; justify-content: center; }
+  .ecor .er-unl2-grid { grid-template-columns: 1fr; }
+  .ecor .er-pd3-h { flex-wrap: wrap; }
+  /* Ajustes */
+  .ecor .er-set-main { padding: 16px; }
+  .ecor .er-head { justify-content: center; text-align: center; }
+}
+@media (max-width: 760px) {
+  .ecor .er-f-head > a.er-icon-btn:first-child { position: absolute; left: 0; top: 0; }
+  .ecor .er-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 10px; overflow: hidden; }
+  .ecor .er-step span { font-size: 9.5px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+  .ecor .er-f-actions .er-btn { white-space: normal; text-align: center; line-height: 1.15; min-height: 46px; height: auto; padding: 8px 10px; }
+  .ecor .er-btn { max-width: 100%; }
+}
