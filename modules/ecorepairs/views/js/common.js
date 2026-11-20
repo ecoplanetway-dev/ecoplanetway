@@ -148,25 +148,36 @@
     function opts() { return Array.prototype.map.call(sel.options, function (o) { return { v: o.value, n: o.textContent }; }); }
     function first(n) { n = String(n || '').replace(/\s*\(taller\)\s*$/, '').trim(); return n.split(/\s+/)[0] || n; }
     // Caras grandes en fila: se toca la cara y queda asignado
+    var open = false;
     function draw() {
       var list = opts(), techs = list.filter(function (o) { return +o.v; }), none = list.filter(function (o) { return !+o.v; })[0];
+      var cur = techs.filter(function (o) { return o.v === sel.value; })[0];
+      // Ya asignado: una sola foto; solo quien puede cambiarlo ve «Cambiar técnico»
+      if (cur && !open) {
+        box.innerHTML = '<div class="er-ts-cur">' + avatar(+cur.v, cur.n, 'er-ts-av') + '<div class="er-ts-ct"><b>' + esc(cur.n.replace(/\s*\(taller\)\s*$/, '')) + '</b>' +
+          (sel.disabled ? '<small>Técnico asignado</small>' : '<button type="button" class="er-ts-chg" data-tchg>Cambiar técnico</button>') + '</div></div>';
+        return;
+      }
       if (sel.disabled) {
-        var cur = techs.filter(function (o) { return o.v === sel.value; })[0];
-        box.innerHTML = '<div class="er-ts-grid"><div class="er-ts-t on" aria-disabled="true">' + (cur ? avatar(+cur.v, cur.n, 'er-ts-av') : '<span class="er-av er-av-none er-ts-av">?</span>') +
-          '<span>' + esc(cur ? first(cur.n) : 'Sin asignar') + '</span></div></div>';
+        box.innerHTML = '<div class="er-muted er-small">Sin asignar</div>';
         return;
       }
       box.innerHTML = '<div class="er-ts-grid" role="radiogroup" aria-label="Técnico">' + techs.map(function (o) {
         return '<button type="button" class="er-ts-t" role="radio" data-tv="' + esc(o.v) + '" aria-checked="' + (o.v === sel.value) + '" title="' + esc(o.n) + '">' +
           avatar(+o.v, o.n, 'er-ts-av') + '<span>' + esc(first(o.n)) + '</span></button>';
       }).join('') + '</div>' + (none ? '<button type="button" class="er-ts-none" role="radio" data-tv="' + esc(none.v) + '" aria-checked="' + (none.v === sel.value) + '">' +
-        (none.v === sel.value ? 'Sin asignar' : 'Quitar técnico') + '</button>' : '');
+        (none.v === sel.value ? 'Sin asignar' : 'Quitar técnico') + '</button>' : '') +
+        (cur ? '<button type="button" class="er-ts-none" data-tcancel>Cancelar</button>' : '');
     }
     draw();
     box.addEventListener('click', function (e) {
       e.preventDefault(); // va dentro de un <label>: que no reenvíe el clic al <select> oculto
+      if (e.target.closest('[data-tchg]')) { open = true; draw(); return; }
+      if (e.target.closest('[data-tcancel]')) { open = false; draw(); return; }
       var t = e.target.closest('[data-tv]');
-      if (!t || sel.disabled || t.getAttribute('data-tv') === sel.value) return;
+      if (!t || sel.disabled) return;
+      open = false;
+      if (t.getAttribute('data-tv') === sel.value) { draw(); return; }
       sel.value = t.getAttribute('data-tv');
       draw();
       sel.dispatchEvent(new Event('change', { bubbles: true }));
