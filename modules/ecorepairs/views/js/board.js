@@ -11,11 +11,11 @@ window.ECOR.ready(function () {
   (D.categories || []).forEach(function (c) { catById[c.id] = c; });
 
   var FILTERS = [
-    { id: 'all', name: 'Todas', f: function () { return true; } },
-    { id: 'mine', name: 'Mis reparaciones', f: function (r) { return r.id_employee_tech === D.me; } },
-    { id: 'urgent', name: 'Urgentes', f: function (r) { return !!r.urgent; } },
-    { id: 'warranty', name: 'En garantía', f: function (r) { return !!r.warranty; } },
-    { id: 'wait', name: 'Esperando pieza', f: function (r) { return !!r.waiting_part; } }
+    { id: 'all', ic: 'layers', name: 'Todas', f: function () { return true; } },
+    { id: 'mine', ic: 'user', name: 'Mis reparaciones', f: function (r) { return r.id_employee_tech === D.me; } },
+    { id: 'urgent', ic: 'bolt', name: 'Urgentes', f: function (r) { return !!r.urgent; } },
+    { id: 'warranty', ic: 'shield', name: 'En garantía', f: function (r) { return !!r.warranty; } },
+    { id: 'wait', ic: 'package', name: 'Esperando pieza', f: function (r) { return !!r.waiting_part; } }
   ];
   var state = { filter: 'all', q: '', cat: '' };
   try { var saved = JSON.parse(localStorage.getItem('ecor-board') || '{}'); if (saved.filter) state.filter = saved.filter; if (saved.cat) state.cat = saved.cat; } catch (e) {}
@@ -133,13 +133,14 @@ window.ECOR.ready(function () {
     var catOpts = '<option value="">Todas las categorías</option>' + (D.categories || []).map(function (c) {
       return '<option value="' + c.id + '"' + (String(state.cat) === String(c.id) ? ' selected' : '') + '>' + esc(c.name) + '</option>';
     }).join('');
-    $('#er-filters').innerHTML = FILTERS.map(function (f) {
-      return '<button type="button" class="er-chip" data-f="' + f.id + '" aria-pressed="' + (f.id === state.filter) + '">' + esc(f.name) +
-        '<span class="er-n">' + repairs.filter(f.f).length + '</span></button>';
-    }).join('') + '<select class="er-input" id="er-cat" aria-label="Categoría">' + catOpts + '</select>' +
-      '<span class="er-sep"></span>' +
-      '<button type="button" class="er-chip er-chip-arch" data-arch="delivered" aria-pressed="' + (arch === 'delivered') + '">' + icon('check', true) + 'Entregadas</button>' +
-      '<button type="button" class="er-chip er-chip-arch er-chip-bad" data-arch="cancelled" aria-pressed="' + (arch === 'cancelled') + '">' + icon('x', true) + 'Canceladas</button>';
+    $('#er-filters').innerHTML = '<div class="er-seg" role="group" aria-label="Filtrar">' + FILTERS.map(function (f) {
+      var n = repairs.filter(f.f).length;
+      return '<button type="button" class="er-seg-b er-f-' + f.id + '" data-f="' + f.id + '" aria-pressed="' + (f.id === state.filter) + '">' + icon(f.ic, true) + '<span class="er-seg-t">' + esc(f.name) + '</span>' +
+        '<span class="er-n' + (n ? '' : ' er-n0') + '">' + n + '</span></button>';
+    }).join('') + '</div>' +
+      '<label class="er-catsel">' + icon('layers', true) + '<select id="er-cat" aria-label="Categoría">' + catOpts + '</select></label>' +
+      '<div class="er-archs"><button type="button" class="er-arch" data-arch="delivered" aria-pressed="' + (arch === 'delivered') + '">' + icon('check', true) + 'Entregadas</button>' +
+      '<button type="button" class="er-arch er-arch-bad" data-arch="cancelled" aria-pressed="' + (arch === 'cancelled') + '">' + icon('x', true) + 'Canceladas</button></div>';
     $('#er-board').hidden = !!arch;
     $('#er-archive').hidden = !arch;
     if (arch) return;
