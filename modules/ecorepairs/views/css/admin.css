@@ -1238,3 +1238,11 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-dall > summary::-webkit-details-marker { display: none; }
 .ecor .er-dall[open] > summary { color: var(--er-pri); }
 .ecor .er-dsel .er-grow, .ecor .er-dres .er-grow { flex: 1; min-width: 0; }
+/* Títulos de bloque: título y botones en una sola fila */
+.ecor .er-panel > h3 .er-r { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; margin-left: auto; }
+@media (max-width: 760px) {
+  /* Centrado en el móvil: sin márgenes negativos (PrestaShop ya pone el suyo) */
+  .ecor { margin: 0 !important; padding: 12px 8px 96px !important; width: auto; box-sizing: border-box; }
+  .ecor .er-panel > h3 { flex-wrap: nowrap; }
+  .ecor .er-panel > h3 .er-r .er-btn { padding: 0 10px; }
+}
