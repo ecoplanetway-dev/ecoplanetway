@@ -48,8 +48,9 @@ window.ECOR.ready(function () {
       return;
     }
     if (tab === 'battery') {
-      el.innerHTML = '<h3>' + icon('battery') + 'Batería de ' + esc(title) + '<span class="er-r">' + esc(E.batterySummary(B.battery)) + '</span></h3><div id="er-bat"></div>';
-      E.BatteryPanel(el.querySelector('#er-bat'), { data: B.battery, canEdit: canEdit, id_model: D.id_model, onSave: function (d) {
+      el.classList.add('er-panel-bare');
+      el.innerHTML = '<div id="er-bat"></div>';
+      E.BatteryPanel(el.querySelector('#er-bat'), { data: B.battery, canEdit: canEdit, id_model: D.id_model, title: title, onSave: function (d) {
         return E.api('batterySave', {}, { id_model: D.id_model, data: JSON.stringify(d) }).then(function (res) { if (res.ok) B.battery = res.battery; return res; });
       } });
       return;

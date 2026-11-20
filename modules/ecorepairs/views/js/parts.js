@@ -900,48 +900,199 @@
           ok.disabled = false;
           if (!res.ok) { er.textContent = res.error; er.hidden = false; return; }
           wrap.remove();
-          var keep = { ctrl: (b.ctrl || []).slice(), charge: (b.charge || []).slice() };
-          b = res.battery; b.ctrl = keep.ctrl; b.charge = keep.charge;
-          (kind === 'controller' ? b.ctrl : b.charge).push(res.id);
+          var keep = st;
+          b = res.battery; buildKeys(); st = keep;
+          (kind === 'controller' ? st.ctrl : st.charge).push(res.id);
           render(); E.toast('Añadido también al configurador de baterías. Pulsa «Guardar» para dejarlo marcado en este modelo.');
         });
       });
     }
-    function render() {
-      var dis = opts.canEdit ? '' : ' disabled';
-      el.innerHTML = '<div class="er-bat">' +
-        '<div class="er-bat-st">' + (b.linked ? '<span class="er-tag er-t-ok">' + icon('check', true) + 'Unido al configurador de baterías</span>' : b.module ? (b.model_id ? '<span class="er-tag er-t-neu">En el configurador, aún sin datos</span>' : '<span class="er-tag er-t-warn">Este modelo no está en el catálogo del configurador de baterías</span>') : '') + '</div>' +
-        '<div class="er-sub">Hueco de la batería (medidas internas)</div><div class="er-fg er-bat-3">' +
-          '<label class="er-field">Largo (mm)<input class="er-input" data-bk="len" inputmode="decimal" value="' + esc(b.len) + '"' + dis + '></label>' +
-          '<label class="er-field">Ancho (mm)<input class="er-input" data-bk="wid" inputmode="decimal" value="' + esc(b.wid) + '"' + dis + '></label>' +
-          '<label class="er-field">Alto (mm)<input class="er-input" data-bk="hei" inputmode="decimal" value="' + esc(b.hei) + '"' + dis + '></label></div>' +
-        '<div class="er-sub">Batería que le entra</div><div class="er-fg er-bat-3">' +
-          '<label class="er-field">Voltaje<select class="er-input" data-bk="volt"' + dis + '><option value="">—</option>' + (b.volts || []).map(function (v) { return '<option value="' + v + '"' + (+b.volt === +v ? ' selected' : '') + '>' + v + ' V</option>'; }).join('') + '</select></label>' +
-          '<label class="er-field">Ah mínimo<input class="er-input" data-bk="minAh" inputmode="decimal" value="' + esc(b.minAh) + '"' + dis + '></label>' +
-          '<label class="er-field">Ah máximo que entra<input class="er-input" data-bk="maxAh" inputmode="decimal" value="' + esc(b.maxAh) + '"' + dis + '></label></div>' +
-        '<div class="er-sub">Conector hacia la controladora</div><div class="er-opts er-bat-con">' + chips('ctrl', b.connectors.controller || {}, b.ctrl || []) + '</div>' +
-        '<div class="er-sub">Conector de carga</div><div class="er-opts er-bat-con">' + chips('charge', b.connectors.charge || {}, b.charge || []) + '</div>' +
-        '<label class="er-field">Observaciones (salen también en el configurador)<textarea class="er-input" data-bk="notes" rows="2" maxlength="800"' + dis + '>' + esc(b.notes) + '</textarea></label>' +
-        '<div class="er-err" id="er-berr" hidden></div>' +
-        (opts.canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" data-bsave>' + icon('check', true) + 'Guardar' + (b.model_id ? ' en el taller y en el configurador' : '') + '</button></div>' : '') + '</div>';
+    /* ---------- Estado de la ficha (se guarda todo junto con «Guardar») ---------- */
+    var st;
+    function initState() {
+      var rule = b.rule || {};
+      st = { len: b.len, wid: b.wid, hei: b.hei, volt: b.volt, minAh: b.minAh, maxAh: b.maxAh, notes: b.notes || '',
+        ctrl: (b.ctrl || []).slice(), charge: (b.charge || []).slice(),
+        excluded: {}, extra: {}, upgradeEnabled: !!rule.upgradeEnabled, customEnabled: !!rule.customEnabled };
+      var chosen = rule.batteries || [];
+      if (chosen.length) stdKeys().forEach(function (k) { if (chosen.indexOf(k) < 0) st.excluded[k] = true; });
+      (rule.upgradePairs || []).concat(rule.customPairs || []).forEach(function (k) { st.extra[k] = true; });
     }
+    // Claves «36_10» tal como las usa el configurador
+    var keyOf = {};
+    function buildKeys() {
+      keyOf = {};
+      Object.keys(b.pairs || {}).forEach(function (k) { var a = k.split('_'); keyOf[parseFloat(a[0]) + '|' + parseFloat(a[1])] = k; });
+    }
+    function stdKeys() {
+      var v = parseFloat(st ? st.volt : b.volt), mn = parseFloat(st ? st.minAh : b.minAh), mx = parseFloat(st ? st.maxAh : b.maxAh), out = [];
+      if (!v || isNaN(mn) || isNaN(mx)) return out;
+      (b.caps || []).forEach(function (c) { var k = keyOf[v + '|' + c]; if (k && c >= mn && c <= mx) out.push(k); });
+      return out;
+    }
+    function num(x) { return x === '' || x == null ? '' : String(x).replace('.', ','); }
+    var dis = opts.canEdit ? '' : ' disabled';
+    function bico(n) { return icon(n, true); }
+
+    function sumHtml() {
+      var dims = st.len && st.wid && st.hei ? num(st.len) + ' × ' + num(st.wid) + ' × ' + num(st.hei) : '—';
+      var cap = st.minAh !== '' && st.maxAh !== '' ? num(st.minAh) + ' – ' + num(st.maxAh) + ' Ah' : '—';
+      var web = !b.module ? '<b class="er-muted">Sin módulo</b>' : b.linked ? '<b class="er-b2-okt">Visible</b>' : b.inCatalog ? '<b class="er-b2-wt">Sin datos</b>' : '<b class="er-b2-wt">No está</b>';
+      return '<div><small>Voltaje original</small><b>' + (st.volt ? num(st.volt) + ' V' : '—') + '</b></div><div><small>Capacidad</small><b>' + cap + '</b></div>' +
+        '<div><small>Hueco (mm)</small><b>' + dims + '</b></div><div><small>En la web</small>' + web + '</div>';
+    }
+    function matrixHtml() {
+      if (!b.module || !(b.caps || []).length) return '';
+      var v0 = parseFloat(st.volt);
+      if (!v0) return '<p class="er-muted er-small" style="margin:0">Elige el voltaje original para ver qué baterías se ofrecen.</p>';
+      var std = stdKeys(), rows = (b.volts || []).map(parseFloat).filter(function (v) { return v >= v0; });
+      var h = '<div class="er-b2-mx" style="grid-template-columns:56px repeat(' + b.caps.length + ',minmax(44px,1fr))"><div></div>' +
+        b.caps.map(function (c) { return '<div class="er-b2-h">' + num(c) + ' Ah</div>'; }).join('');
+      rows.forEach(function (v) {
+        h += '<div class="er-b2-h er-b2-v">' + num(v) + ' V</div>';
+        b.caps.forEach(function (c) {
+          var k = keyOf[v + '|' + c];
+          if (!k || !b.pairs[k]) { h += '<div class="er-b2-c no" title="No está en la tabla de precios">—</div>'; return; }
+          if (std.indexOf(k) > -1) {
+            var on = !st.excluded[k];
+            h += '<button type="button" class="er-b2-c ' + (on ? 'on' : 'off') + '" data-mx="' + esc(k) + '" title="' + (on ? 'Se vende · pulsa para quitarla' : 'Quitada · pulsa para venderla') + '"' + dis + '>' + (on ? '✓' : '') + '</button>';
+          } else {
+            var up = !!st.extra[k];
+            h += '<button type="button" class="er-b2-c ' + (up ? 'up' : '') + '" data-mx="' + esc(k) + '" title="' + (up ? 'Bajo revisión técnica · pulsa para quitar' : 'Pulsa para ofrecerla bajo revisión técnica') + '"' + dis + '>' + (up ? '↑' : '') + '</button>';
+          }
+        });
+      });
+      return h + '</div><div class="er-b2-lg"><span><i class="on"></i>Se vende</span><span><i class="up"></i>Ampliación / a medida, con revisión</span><span><i class="no"></i>No cabe o no se ofrece</span></div>';
+    }
+    function chk(kind, list, chosen) {
+      var imgs = b.connectorImages || {};
+      return Object.keys(list).map(function (k) {
+        return '<button type="button" class="er-b2-k" data-bc="' + kind + ':' + k + '" aria-pressed="' + (chosen.indexOf(k) > -1) + '"' + dis + '><q></q>' +
+          (imgs[k] ? '<img src="' + esc(imgs[k]) + '" alt="">' : '<u></u>') + '<span>' + esc(list[k]) + '</span></button>';
+      }).join('') + (opts.canEdit && b.module ? '<button type="button" class="er-b2-k er-b2-add" data-bnew="' + (kind === 'ctrl' ? 'controller' : 'charge') + '">' + icon('plus', true) + (kind === 'ctrl' ? 'Conector' : 'Toma') + '</button>' : '');
+    }
+    function sw(key, title, sub) {
+      return '<label class="er-b2-sw"><span>' + title + (sub ? '<small>' + sub + '</small>' : '') + '</span><input type="checkbox" class="er-sw" data-bt="' + key + '"' + (st[key] ? ' checked' : '') + dis + '></label>';
+    }
+    function footNote() {
+      if (!b.module) return 'Se guarda en el taller.';
+      if (!b.inCatalog) return 'Se guarda en el taller. Añade el modelo al catálogo para que salga en la web.';
+      var n = st.volt ? (b.profilesByVolt || {})[String(parseFloat(st.volt))] || 0 : 0;
+      return n ? 'Se guarda también en el configurador de ' + n + ' producto' + (n === 1 ? '' : 's') + ' de batería que tiene' + (n === 1 ? '' : 'n') + ' ' + num(st.volt) + ' V.' : 'Ese voltaje no está en la tabla de precios del configurador: solo se guarda en el taller.';
+    }
+    function render() {
+      var title = opts.title || '';
+      var stat = !b.module ? '' : b.linked ? '<span class="er-b2-pill ok">● Enlazado con el configurador</span>' : b.inCatalog ? '<span class="er-b2-pill">En el catálogo · sin datos</span>' : '';
+      el.innerHTML = '<div class="er-b2">' +
+        '<div class="er-b2-hd"><span class="er-b2-ic">' + icon('battery') + '</span><div class="er-b2-tt"><h3>Batería' + (title ? ' · ' + esc(title) : '') + '</h3><small>Lo que pongas aquí se usa en el taller' + (b.module ? ' y en el configurador de baterías de la web' : '') + '</small></div>' +
+          stat + (b.webUrl ? '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(b.webUrl) + '" target="_blank" rel="noopener">Ver en la web ↗</a>' : '') +
+          (opts.onClose ? '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-bclose aria-label="Cerrar">' + icon('x') + '</button>' : '') + '</div>' +
+        (b.module && !b.inCatalog ? '<div class="er-b2-warn">' + icon('alert', true) + '<span>Este modelo aún no está en el catálogo del configurador.</span>' + (opts.canEdit ? '<button type="button" class="er-btn er-btn-sm er-ink" data-bcat>' + icon('plus', true) + 'Añadirlo al catálogo</button>' : '') + '</div>' : '') +
+        '<div class="er-b2-sum" id="er-b2-sum">' + sumHtml() + '</div>' +
+        '<div class="er-b2-grid">' +
+          '<section class="er-b2-s"><h4><i class="c1">' + bico('layers') + '</i>Hueco de la batería</h4><p>Medidas por dentro, en milímetros.</p><div class="er-b2-box">' +
+            '<svg class="er-b2-svg" viewBox="0 0 200 130" aria-hidden="true"><path d="M30 50 L120 20 L180 45 L90 75 Z" fill="#E0F2FE" stroke="#0369A1" stroke-width="2"/><path d="M30 50 L30 85 L90 110 L90 75 Z" fill="#BAE6FD" stroke="#0369A1" stroke-width="2"/><path d="M90 75 L90 110 L180 80 L180 45 Z" fill="#7DD3FC" stroke="#0369A1" stroke-width="2"/><text x="44" y="110" font-size="11" fill="#0369A1" font-weight="700">Largo</text><text x="140" y="110" font-size="11" fill="#0369A1" font-weight="700">Ancho</text><text x="0" y="72" font-size="11" fill="#0369A1" font-weight="700">Alto</text></svg>' +
+            '<div class="er-b2-in3">' + [['len', 'Largo'], ['wid', 'Ancho'], ['hei', 'Alto']].map(function (x) {
+              return '<label class="er-b2-f"><span>' + x[1] + '</span><input data-bk="' + x[0] + '" inputmode="decimal" value="' + esc(num(st[x[0]])) + '"' + dis + '><em>mm</em></label>'; }).join('') + '</div></div></section>' +
+          '<section class="er-b2-s"><h4><i class="c2">' + bico('bolt') + '</i>Parte eléctrica</h4><p>Voltaje original y la capacidad que cabe.</p>' +
+            '<div class="er-b2-seg">' + (b.volts || []).map(function (v) { return '<button type="button" data-bv="' + v + '" aria-pressed="' + (parseFloat(st.volt) === parseFloat(v)) + '"' + dis + '>' + num(v) + ' V</button>'; }).join('') + '</div>' +
+            '<div class="er-b2-ah"><label class="er-b2-f"><span>Mín.</span><input data-bk="minAh" inputmode="decimal" value="' + esc(num(st.minAh)) + '"' + dis + '><em>Ah</em></label>' +
+              '<span class="er-b2-dash">—</span><label class="er-b2-f"><span>Máx.</span><input data-bk="maxAh" inputmode="decimal" value="' + esc(num(st.maxAh)) + '"' + dis + '><em>Ah</em></label></div>' +
+            '<div class="er-b2-rng" id="er-b2-rng"></div></section>' +
+          (b.module ? '<section class="er-b2-s er-b2-wide"><h4><i class="c3">' + bico('layers') + '</i>Baterías que se ofrecen en la web</h4><p>Se marcan solas con el voltaje y los Ah de arriba. Toca una para quitarla, o marca una de más voltaje o capacidad para ofrecerla bajo revisión técnica.</p><div id="er-b2-mx">' + matrixHtml() + '</div></section>' : '') +
+          '<section class="er-b2-s"><h4><i class="c4">' + bico('link') + '</i>Conectores</h4><p>Hacia la controladora</p><div class="er-b2-ks">' + chk('ctrl', (b.connectors || {}).controller || {}, st.ctrl) + '</div>' +
+            '<p style="margin-top:12px">Toma de carga</p><div class="er-b2-ks">' + chk('charge', (b.connectors || {}).charge || {}, st.charge) + '</div></section>' +
+          '<section class="er-b2-s"><h4><i class="c5">' + bico('settings') + '</i>' + (b.module ? 'En la web' : 'Observaciones') + '</h4>' + (b.module ? '<p>Qué puede pedir el cliente para este modelo.</p><div class="er-b2-sws">' +
+            sw('upgradeEnabled', 'Ofrecer ampliación de voltaje', 'Las ámbar de más voltaje. El cliente la pide y tú la revisas antes de fabricar') +
+            sw('customEnabled', 'Aceptar otras baterías a medida', 'Todas las marcadas en ámbar de la tabla') + '</div>' : '') +
+            '<label class="er-field" style="margin-top:12px">Observaciones' + (b.module ? ' (salen en la web)' : '') + '<textarea class="er-input" data-bk="notes" rows="3" maxlength="800" placeholder="Ej.: hay que quitar la tapa inferior; el hueco se estrecha a 70 mm cerca de la rueda…"' + dis + '>' + esc(st.notes) + '</textarea></label>' +
+            '<div class="er-b2-cnt" id="er-b2-cnt">' + st.notes.length + ' / 800</div></section>' +
+        '</div>' +
+        '<div class="er-err" id="er-berr" hidden></div>' +
+        (opts.canEdit ? '<div class="er-b2-ft"><button type="button" class="er-btn er-btn-pri" data-bsave>' + icon('check', true) + (b.module && b.inCatalog ? 'Guardar en taller y web' : 'Guardar') + '</button><span id="er-b2-note">' + esc(footNote()) + '</span></div>' : '') +
+      '</div>';
+      drawRange();
+    }
+    // Barra visual del rango de Ah
+    function drawRange() {
+      var box = el.querySelector('#er-b2-rng');
+      if (!box) return;
+      var caps = (b.caps || []).length ? b.caps : [5, 10, 15, 20, 25, 30, 35, 40], lo = caps[0], hi = caps[caps.length - 1];
+      var mn = parseFloat(String(st.minAh).replace(',', '.')), mx = parseFloat(String(st.maxAh).replace(',', '.'));
+      var pos = function (x) { return Math.max(0, Math.min(100, (x - lo) / ((hi - lo) || 1) * 100)); };
+      var ok = !isNaN(mn) && !isNaN(mx) && mx >= mn;
+      box.innerHTML = '<div class="er-b2-bar">' + (ok ? '<i style="left:' + pos(mn) + '%;right:' + (100 - pos(mx)) + '%"></i><b style="left:' + pos(mn) + '%"></b><b style="left:' + pos(mx) + '%"></b>' : '') + '</div>' +
+        '<div class="er-b2-tk">' + caps.map(function (c) { return '<span>' + num(c) + '</span>'; }).join('') + '</div>';
+    }
+    function refresh() {
+      var s1 = el.querySelector('#er-b2-sum'); if (s1) s1.innerHTML = sumHtml();
+      var m = el.querySelector('#er-b2-mx'); if (m) m.innerHTML = matrixHtml();
+      var n = el.querySelector('#er-b2-note'); if (n) n.textContent = footNote();
+      drawRange();
+    }
+    el.addEventListener('input', function (e) {
+      var k = e.target.getAttribute('data-bk');
+      if (!k) return;
+      st[k] = k === 'notes' ? e.target.value : e.target.value.replace(',', '.').trim();
+      if (k === 'notes') { var c = el.querySelector('#er-b2-cnt'); if (c) c.textContent = e.target.value.length + ' / 800'; return; }
+      refresh();
+    });
+    el.addEventListener('change', function (e) {
+      var k = e.target.getAttribute('data-bt');
+      if (k) st[k] = e.target.checked;
+    });
     el.addEventListener('click', function (e) {
       var t;
+      if (e.target.closest('[data-bclose]')) { opts.onClose(); return; }
       if ((t = e.target.closest('[data-bnew]'))) { newConnector(t.getAttribute('data-bnew')); return; }
-      if ((t = e.target.closest('[data-bc]')) && opts.canEdit) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); return; }
+      if (!opts.canEdit) return;
+      if ((t = e.target.closest('[data-bc]'))) {
+        var a = t.getAttribute('data-bc').split(':'), list = st[a[0]], i = list.indexOf(a[1]);
+        if (i > -1) list.splice(i, 1); else list.push(a[1]);
+        t.setAttribute('aria-pressed', String(i < 0));
+        return;
+      }
+      if ((t = e.target.closest('[data-bv]'))) {
+        st.volt = t.getAttribute('data-bv');
+        el.querySelectorAll('[data-bv]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === t)); });
+        refresh();
+        return;
+      }
+      if ((t = e.target.closest('[data-mx]'))) {
+        var k = t.getAttribute('data-mx');
+        if (stdKeys().indexOf(k) > -1) { if (st.excluded[k]) delete st.excluded[k]; else st.excluded[k] = true; }
+        else if (st.extra[k]) delete st.extra[k]; else st.extra[k] = true;
+        refresh();
+        return;
+      }
+      if ((t = e.target.closest('[data-bcat]'))) {
+        t.disabled = true;
+        E.api('batteryCatalog', {}, { id_model: opts.id_model || 0 }).then(function (res) {
+          t.disabled = false;
+          if (!res.ok) { E.toast(res.error || 'No se pudo añadir.', true); return; }
+          var keep = st; b = res.battery; buildKeys(); st = keep; render();
+          E.toast('Añadido al catálogo. Pulsa «Guardar» para pasar los datos a la web.');
+        });
+        return;
+      }
       if (!(t = e.target.closest('[data-bsave]'))) return;
-      var d = { ctrl: [], charge: [] };
-      el.querySelectorAll('[data-bk]').forEach(function (i) { d[i.getAttribute('data-bk')] = i.value; });
-      el.querySelectorAll('[data-bc][aria-pressed="true"]').forEach(function (x) { var a = x.getAttribute('data-bc').split(':'); d[a[0]].push(a[1]); });
+      var std = stdKeys(), extra = Object.keys(st.extra).filter(function (k) { return std.indexOf(k) < 0; });
+      var v0 = parseFloat(st.volt);
+      var d = { len: st.len, wid: st.wid, hei: st.hei, volt: st.volt, minAh: st.minAh, maxAh: st.maxAh, notes: st.notes, ctrl: st.ctrl, charge: st.charge,
+        batteries: std.filter(function (k) { return !st.excluded[k]; }),
+        upgradeEnabled: st.upgradeEnabled ? 1 : 0, upgradePairs: extra.filter(function (k) { return parseFloat(k.split('_')[0]) > v0; }),
+        customEnabled: st.customEnabled ? 1 : 0, customPairs: extra };
       t.disabled = true;
       opts.onSave(d).then(function (res) {
         t.disabled = false;
         if (!res.ok) { var er = el.querySelector('#er-berr'); er.textContent = res.error; er.hidden = false; return; }
-        b = res.battery; render();
-        E.toast(res.synced ? 'Guardado también en el configurador de baterías' : res.model_id === '' && b.module ? 'Guardado en el taller (el modelo no está en el configurador)' : 'Guardado');
+        b = res.battery; buildKeys(); initState(); render();
+        E.toast(res.synced ? 'Guardado también en el configurador de baterías' : res.model_id === '' && b.module ? 'Guardado en el taller (el modelo no está en el catálogo del configurador)' : 'Guardado');
         if (res.skipped && res.skipped.length) E.toast('No se pudo pasar a: ' + res.skipped.join(', ') + ' (ese voltaje no está en su tabla de precios)', true);
       });
     });
+    buildKeys();
+    initState();
     render();
   }
 

@@ -712,11 +712,11 @@ window.ECOR.ready(function () {
   function openBattery() {
     var wrap = document.createElement('div');
     wrap.className = 'er-modal';
-    wrap.innerHTML = '<div class="er-dlg" style="max-width:640px"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + icon('battery') + ' Batería · ' + esc(r.device_name) + '</h2>' +
-      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div><div id="er-batd"></div></div>';
+    wrap.innerHTML = '<div class="er-dlg er-b2-dlg"><div id="er-batd"></div></div>';
     app.appendChild(wrap);
-    wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); renderParts(); } });
-    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: D.battery || {}, canEdit: canEdit, id_model: r.id_model, onSave: function (d) {
+    function close() { wrap.remove(); renderParts(); }
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) close(); });
+    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: D.battery || {}, canEdit: canEdit, id_model: r.id_model, title: r.device_name, onClose: close, onSave: function (d) {
       return E.api('batterySave', {}, { id_model: r.id_model, data: JSON.stringify(d) }).then(function (res) { if (res.ok) D.battery = res.battery; return res; });
     } });
   }

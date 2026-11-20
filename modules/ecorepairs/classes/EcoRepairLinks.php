@@ -288,6 +288,38 @@ class EcoRepairLinks
             $out['volts'] = $volts;
         }
         $out['model_id'] = $mid;
+        $out['inCatalog'] = $mid !== '';
+        // Tabla de voltajes × Ah que vende el configurador (con precio en algún producto)
+        $caps = array();
+        $pairs = array();
+        $byVolt = array();
+        foreach ($profiles as $pr) {
+            $pp = $pr['p'];
+            foreach (isset($pp['capacities']) ? $pp['capacities'] : array() as $c) {
+                $caps[] = (float) $c;
+            }
+            foreach (isset($pp['volts']) ? $pp['volts'] : array() as $v) {
+                $byVolt[(string) (float) $v] = (isset($byVolt[(string) (float) $v]) ? $byVolt[(string) (float) $v] : 0) + 1;
+                foreach (isset($pp['capacities']) ? $pp['capacities'] : array() as $c) {
+                    $k = $v . '_' . $c;
+                    if (isset($pp['prices'][$k]) && $pp['prices'][$k] !== null && $pp['prices'][$k] !== '') {
+                        $pairs[$k] = true;
+                    } elseif (!isset($pairs[$k])) {
+                        $pairs[$k] = false;
+                    }
+                }
+            }
+        }
+        $caps = array_values(array_unique($caps));
+        sort($caps);
+        $out['caps'] = $caps;
+        $out['pairs'] = $pairs;
+        $out['profilesByVolt'] = $byVolt;
+        $out['rule'] = array('batteries' => array(), 'upgradeEnabled' => false, 'upgradePairs' => array(), 'customEnabled' => false, 'customPairs' => array());
+        $out['webUrl'] = '';
+        if ($profiles) {
+            $out['webUrl'] = Context::getContext()->link->getProductLink((int) $profiles[0]['row']['id_product']);
+        }
         if ($mid === '') {
             return $out;
         }
@@ -297,6 +329,14 @@ class EcoRepairLinks
                 continue;
             }
             $out['linked'] = true;
+            $out['rule'] = array(
+                'batteries' => isset($r['batteries']) && is_array($r['batteries']) ? array_values($r['batteries']) : array(),
+                'upgradeEnabled' => !empty($r['upgradeEnabled']),
+                'upgradePairs' => isset($r['upgradePairs']) && is_array($r['upgradePairs']) ? array_values($r['upgradePairs']) : array(),
+                'customEnabled' => !empty($r['customBatteryEnabled']),
+                'customPairs' => isset($r['customPairs']) && is_array($r['customPairs']) ? array_values($r['customPairs']) : array(),
+            );
+            $out['webUrl'] = Context::getContext()->link->getProductLink((int) $pr['row']['id_product']);
             $out['volt'] = (float) $r['originalVoltage'];
             $out['minAh'] = (float) $r['minAh'];
             $out['maxAh'] = (float) $r['maxAh'];
@@ -322,6 +362,46 @@ class EcoRepairLinks
         return $out;
     }
 
+    /** Da de alta la marca y el modelo del taller en el catálogo del configurador de baterías. */
+    public static function batAddCatalog($idModel)
+    {
+        $m = self::model($idModel);
+        if (!$m || !self::batOn()) {
+            return array('ok' => false, 'error' => 'El configurador de baterías no está instalado.');
+        }
+        if (self::batModelId($m) !== '') {
+            return array('ok' => true, 'battery' => self::battery($idModel));
+        }
+        $db = Db::getInstance();
+        $p = _DB_PREFIX_;
+        $slug = function ($s) {
+            $s = Tools::strtolower(Tools::replaceAccentedChars((string) $s));
+
+            return trim(preg_replace('/[^a-z0-9]+/', '-', $s), '-');
+        };
+        $brandId = '';
+        $nb = self::norm($m['brand']);
+        foreach ($db->executeS("SELECT brand_id, name, aliases_json FROM `{$p}epw_battery_brand`") ?: array() as $b) {
+            $names = array(self::norm($b['name']));
+            foreach ((array) json_decode((string) $b['aliases_json'], true) as $a) {
+                $names[] = self::norm($a);
+            }
+            if (in_array($nb, $names, true)) {
+                $brandId = $b['brand_id'];
+                break;
+            }
+        }
+        if ($brandId === '') {
+            $brandId = Tools::substr($slug($m['brand']), 0, 80) ?: 'marca-' . (int) $m['id_ecorepair_brand'];
+            $db->insert('epw_battery_brand', array('brand_id' => pSQL($brandId), 'name' => pSQL(Tools::substr($m['brand'], 0, 100)), 'aliases_json' => pSQL('[]')), false, true, Db::INSERT_IGNORE);
+        }
+        $modelId = Tools::substr($brandId . '-' . ($slug($m['name']) ?: 'modelo-' . (int) $idModel), 0, 180);
+        $db->insert('epw_battery_model', array('model_id' => pSQL($modelId), 'brand_id' => pSQL($brandId), 'name' => pSQL(Tools::substr($m['name'], 0, 180)),
+            'source' => pSQL('Taller'), 'evidence' => pSQL('shop_owner')), false, true, Db::INSERT_IGNORE);
+
+        return array('ok' => true, 'battery' => self::battery($idModel));
+    }
+
     /** Guarda en el taller y, si el modelo existe en el configurador, también allí (voltaje, Ah, conectores y notas). */
     public static function saveBattery($idModel, array $d)
     {
@@ -340,6 +420,23 @@ class EcoRepairLinks
             'ctrl' => array_values(array_filter(array_map('strval', isset($d['ctrl']) && is_array($d['ctrl']) ? $d['ctrl'] : array()), function ($x) { return preg_match('/^[a-z0-9_]{1,24}$/', $x); })),
             'charge' => array_values(array_filter(array_map('strval', isset($d['charge']) && is_array($d['charge']) ? $d['charge'] : array()), function ($x) { return preg_match('/^[a-z0-9_]{1,24}$/', $x); })),
             'notes' => Tools::substr(trim(strip_tags(isset($d['notes']) ? (string) $d['notes'] : '')), 0, 800),
+        );
+        $pairList = function ($k) use ($d) {
+            $out = array();
+            foreach (isset($d[$k]) && is_array($d[$k]) ? array_slice($d[$k], 0, 400) : array() as $x) {
+                if (is_string($x) && preg_match('/^\d{1,3}(\.\d+)?_\d{1,3}(\.\d+)?$/', $x)) {
+                    $out[] = $x;
+                }
+            }
+
+            return array_values(array_unique($out));
+        };
+        $web = array(
+            'batteries' => $pairList('batteries'),
+            'upgradeEnabled' => !empty($d['upgradeEnabled']),
+            'upgradePairs' => $pairList('upgradePairs'),
+            'customEnabled' => !empty($d['customEnabled']),
+            'customPairs' => $pairList('customPairs'),
         );
         if ($clean['minAh'] !== '' && $clean['maxAh'] !== '' && $clean['minAh'] > $clean['maxAh']) {
             return array('ok' => false, 'error' => 'Los Ah mínimos no pueden ser más que los máximos.');
@@ -376,6 +473,29 @@ class EcoRepairLinks
                 if ($clean['notes'] !== '') {
                     $r['fitNotes'] = $clean['notes'];
                 }
+                // Baterías de la web: solo combinaciones que existen en este producto
+                $valid = array();
+                foreach ($p['volts'] as $v) {
+                    foreach (isset($p['capacities']) ? $p['capacities'] : array() as $c) {
+                        $valid[] = $v . '_' . $c;
+                    }
+                }
+                $orig = (float) $clean['volt'];
+                $std = array();
+                foreach ($valid as $k) {
+                    list($v, $c) = explode('_', $k);
+                    if ((float) $v === $orig && (float) $c >= (float) $clean['minAh'] && (float) $c <= (float) $clean['maxAh']) {
+                        $std[] = $k;
+                    }
+                }
+                $chosen = array_values(array_intersect($std, $web['batteries']));
+                $r['batteries'] = count($chosen) === count($std) ? array() : $chosen;
+                $up = array_values(array_filter(array_intersect($valid, $web['upgradePairs']), function ($k) use ($orig) { return (float) explode('_', $k)[0] > $orig; }));
+                $r['upgradePairs'] = $up;
+                $r['upgradeEnabled'] = $web['upgradeEnabled'] && count($up) > 0;
+                $cu = array_values(array_intersect($valid, $web['customPairs']));
+                $r['customPairs'] = $cu;
+                $r['customBatteryEnabled'] = $web['customEnabled'] && count($cu) > 0;
                 $p['modelRules'][$mid] = $r;
                 Db::getInstance()->update('epw_battery_profile', array('config_json' => pSQL(json_encode($p)), 'date_upd' => date('Y-m-d H:i:s')),
                     'id_product = ' . (int) $pr['row']['id_product'] . ' AND id_shop = ' . (int) $pr['row']['id_shop']);
