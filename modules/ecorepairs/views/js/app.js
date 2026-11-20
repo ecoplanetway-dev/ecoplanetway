@@ -452,9 +452,9 @@ window.ECOR.ready(function () {
             '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-qdel="' + i + '" aria-label="Quitar">' + icon('trash', true) + '</button></div>';
         }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(d.lines.reduce(function (a, l) { return a + (+l.total || 0); }, 0))) + '</b></div>'
           : '<p class="er-muted" style="margin:0">Añade piezas abajo o mano de obra.</p>') +
-        '<details class="er-app-lab"><summary>' + icon('wrench', true) + 'Añadir mano de obra</summary><div class="er-row" style="flex-wrap:nowrap;gap:8px;margin-top:8px">' +
-          '<input class="er-input" id="er-app-labn" maxlength="128" placeholder="Qué trabajo (cambio de rueda…)"><input class="er-input er-num" id="er-app-labp" inputmode="decimal" placeholder="€" style="max-width:90px">' +
-          '<button type="button" class="er-btn er-btn-pri" id="er-app-labadd">' + icon('plus', true) + '</button></div></details>' +
+        '<div class="er-app-addrow"><button type="button" class="er-btn" data-qform="labour">' + icon('wrench', true) + 'Mano de obra</button>' +
+          '<button type="button" class="er-btn" data-qform="part">' + icon('plus', true) + 'Producto suelto</button></div>' +
+        '<div class="er-app-qform" id="er-app-qform" hidden></div>' +
         (R.draft && d.lines.length ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-qsend">' + icon('check') + 'Enviar presupuesto al cliente</button>' +
           '<p class="er-muted er-small" style="margin:0">Le llega el enlace por email (si tiene) para aceptarlo. Después puedes avisarle por WhatsApp.</p>' : '') + '</div>';
     }
@@ -555,12 +555,30 @@ window.ECOR.ready(function () {
         saveLines(lines);
         return;
       }
+      if ((t = e.target.closest('[data-qform]'))) {
+        // Formulario corto: mano de obra (ya con «Mano de obra» y 20 €) o producto suelto que no está en la tienda
+        var kind = t.getAttribute('data-qform'), box = el.querySelector('#er-app-qform');
+        box.hidden = false;
+        box.setAttribute('data-kind', kind);
+        box.innerHTML = '<div class="er-sub">' + (kind === 'labour' ? 'Mano de obra' : 'Producto que no está en la tienda') + '</div>' +
+          '<input class="er-input" id="er-app-labn" maxlength="128" value="' + (kind === 'labour' ? 'Mano de obra' : '') + '" placeholder="' + (kind === 'labour' ? 'Mano de obra' : 'Nombre del producto') + '">' +
+          '<div class="er-row" style="flex-wrap:nowrap;gap:8px">' +
+            (kind === 'part' ? '<label class="er-app-qf"><span>Cant.</span><input class="er-input er-num" id="er-app-labq" inputmode="numeric" value="1"></label>' : '') +
+            '<label class="er-app-qf er-grow"><span>Precio con IVA</span><input class="er-input er-num" id="er-app-labp" inputmode="decimal" value="' + (kind === 'labour' ? '20' : '') + '" placeholder="0,00"><em>€</em></label></div>' +
+          '<div class="er-row" style="gap:8px;flex-wrap:nowrap"><button type="button" class="er-btn er-btn-ghost" data-qcancel>Cancelar</button><button type="button" class="er-btn er-btn-pri er-grow" id="er-app-labadd">' + icon('plus', true) + 'Añadir al presupuesto</button></div>';
+        var fi = box.querySelector(kind === 'labour' ? '#er-app-labp' : '#er-app-labn');
+        fi.focus(); if (fi.select) fi.select();
+        return;
+      }
+      if (e.target.closest('[data-qcancel]')) { var bx = el.querySelector('#er-app-qform'); bx.hidden = true; bx.innerHTML = ''; return; }
       if (e.target.closest('#er-app-labadd')) {
-        var ln = el.querySelector('#er-app-labn').value.trim(), lp = el.querySelector('#er-app-labp').value.trim();
-        if (!ln || lp === '') { E.toast('Escribe el trabajo y el precio.', true); return; }
-        api('quoteLabour', { id: r.id }, { name: ln, price: lp }).then(function (res) {
+        var fb = el.querySelector('#er-app-qform'), knd = fb.getAttribute('data-kind') || 'labour';
+        var ln = el.querySelector('#er-app-labn').value.trim() || (knd === 'labour' ? 'Mano de obra' : ''), lp = el.querySelector('#er-app-labp').value.trim();
+        var lq = el.querySelector('#er-app-labq') ? el.querySelector('#er-app-labq').value : 1;
+        if (!ln || lp === '') { E.toast(knd === 'labour' ? 'Escribe el precio.' : 'Escribe el nombre y el precio.', true); return; }
+        api('quoteLabour', { id: r.id }, { name: ln, price: lp, qty: lq, kind: knd }).then(function (res) {
           if (!res.ok) { E.toast(res.error, true); return; }
-          R = res; drawRepair('parts'); E.toast('Mano de obra añadida');
+          R = res; drawRepair('parts'); E.toast(knd === 'labour' ? 'Mano de obra añadida' : 'Producto añadido');
         });
         return;
       }

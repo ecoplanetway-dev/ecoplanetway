@@ -211,9 +211,12 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                     }
                     $price = round((float) $rawPrice, 2);
                     if ($name === '' || $price <= 0) {
-                        $this->out(array('ok' => false, 'error' => 'Escribe qué trabajo es y su precio (por ejemplo 35 o 35,50).'));
+                        $this->out(array('ok' => false, 'error' => 'Escribe el nombre y el precio (por ejemplo 20 o 20,50).'));
                     }
-                    $res = EcoRepairQuote::appendToDraft($r, array(array('type' => 'labour', 'name' => $name, 'qty' => 1, 'price' => $price, 'tax_rate' => 21)),
+                    // «labour»: mano de obra · «part»: producto suelto que no está en la tienda
+                    $kind = Tools::getValue('kind') === 'part' ? 'part' : 'labour';
+                    $qty = max(1, min(999, (int) Tools::getValue('qty', 1)));
+                    $res = EcoRepairQuote::appendToDraft($r, array(array('type' => $kind, 'id_product' => 0, 'id_product_attribute' => 0, 'reference' => '', 'name' => $name, 'qty' => $qty, 'price' => $price, 'tax_rate' => 21)),
                         $this->emp(), $this->staff['name'] . ' (móvil)');
                     $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
                     // no break

@@ -130,3 +130,12 @@ body.er-appbody { -webkit-tap-highlight-color: transparent; overscroll-behavior-
 .ecor .er-app-lab > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #0B6E4B; min-height: 40px; }
 .ecor .er-app-lab > summary::-webkit-details-marker { display: none; }
 @media (max-width: 400px) { .ecor .er-app-qrow { grid-template-columns: minmax(0, 1fr) auto; } .ecor .er-app-qt { grid-column: 1; text-align: left; } }
+.ecor .er-app-addrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ecor .er-app-addrow .er-btn { min-height: 46px; justify-content: center; gap: 6px; font-weight: 700; }
+.ecor .er-app-qform { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; border-radius: 12px; background: #F7F8FA; border: 1px solid #E6E8EC; }
+.ecor .er-app-qform[hidden] { display: none; }
+.ecor .er-app-qf { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0 10px; height: 46px; border: 1px solid #DDE1E6; border-radius: 10px; background: #fff; }
+.ecor .er-app-qf span { font-size: 12px; color: #8A909C; font-weight: 600; white-space: nowrap; }
+.ecor .er-app-qf input { border: 0 !important; box-shadow: none !important; padding: 0 !important; height: 100%; min-width: 0; width: 100%; background: transparent; font-weight: 700; font-size: 16px; }
+.ecor .er-app-qf em { font-style: normal; color: #8A909C; }
+.ecor .er-app-qf:not(.er-grow) { width: 96px; flex: none; }
