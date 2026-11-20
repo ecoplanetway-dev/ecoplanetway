@@ -127,6 +127,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'links' => $this->links(),
                 'token' => $this->token,
                 'avatars' => EcoRepairPhoto::avatars(),
+                'printPoll' => 1,
             )),
             'ecor_data' => '{}',
         ));
@@ -451,6 +452,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'printReceipt' => array('ajaxPrintReceipt', 'view', false),
             'printLabel' => array('ajaxPrintLabel', 'view', false),
             'printTag' => array('ajaxPrintTag', 'view', false),
+            'printPoll' => array('ajaxPrintPoll', 'view', false),
             'searchProducts' => array('ajaxSearchProducts', 'view', false),
             'productUpdate' => array('ajaxProductUpdate', 'edit', true),
             'quoteCreate' => array('ajaxQuoteCreate', 'edit', true),
@@ -1637,6 +1639,12 @@ class AdminEcoRepairsController extends ModuleAdminController
     protected function ajaxPrintReceipt()
     {
         $this->outputPrint('print_receipt.tpl');
+    }
+
+    /** El panel pregunta cada pocos segundos si desde el móvil han mandado algo a imprimir. */
+    protected function ajaxPrintPoll()
+    {
+        $this->jsonOut(array('ok' => true, 'jobs' => EcoRepairPrintQueue::take((int) $this->context->shop->id)));
     }
 
     protected function ajaxPrintTag()

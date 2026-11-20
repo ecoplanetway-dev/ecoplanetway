@@ -220,7 +220,12 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                         $this->emp(), $this->staff['name'] . ' (móvil)');
                     $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
                     // no break
+                case 'printAsk':
+                    $r = $this->findRepair();
+                    $this->out(EcoRepairPrintQueue::add($r, (string) Tools::getValue('type'), $this->staff['name']));
+                    // no break
                 case 'quoteNew':
+
                     $r = $this->findRepair();
                     $this->open($r);
                     $qi = $this->quoteInfo((int) $r['id_ecorepair']);
@@ -868,6 +873,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'camera' => $s . '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
             'user' => $s . '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
             'layers' => $s . '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>',
+            'print' => $s . '<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg>',
             'phone' => $s . '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
             'mail' => $s . '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
             'copy' => $s . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',

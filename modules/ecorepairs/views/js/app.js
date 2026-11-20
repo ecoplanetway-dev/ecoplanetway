@@ -277,6 +277,7 @@ window.ECOR.ready(function () {
         return;
       }
       if (e.target.closest('[data-batt]')) { openBattery(); return; }
+      if (e.target.closest('[data-print]')) { printAsk(); return; }
       if (e.target.closest('[data-qdetail]') && !e.target.closest('[data-qnew]')) { quoteDetail(); return; }
       var qn = e.target.closest('[data-qnew]');
       if (qn) {
@@ -394,8 +395,33 @@ window.ECOR.ready(function () {
       '<div class="er-app-quick">' +
         (c && c.phone ? '<a class="er-btn er-app-q-call" href="tel:' + esc(tel) + '">' + icon('phone') + '<span>Llamar</span></a>' : '') +
         (c && c.phone ? '<button type="button" class="er-btn er-btn-wa" data-wa>' + icon('whatsapp') + '<span>WhatsApp</span></button>' : '') +
+        '<button type="button" class="er-btn" data-print>' + icon('print') + '<span>Imprimir</span></button>' +
         (r.id_model ? '<button type="button" class="er-btn er-ink" data-batt>' + icon('battery') + '<span>Batería</span><em class="er-ink-tag' + (tag ? ' ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>' : '') +
       '</div></div>';
+  }
+  /* Imprimir desde el móvil: se manda al ordenador de la tienda, que abre la ventana de imprimir */
+  function printAsk() {
+    var r = R.repair;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg" style="max-width:420px"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + icon('print') + ' Imprimir ' + esc(r.reference) + '</h2>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+      '<p class="er-muted er-small" style="margin:0">Se abre la ventana de imprimir en el ordenador de la tienda (con el panel del taller abierto).</p>' +
+      '<button type="button" class="er-btn er-btn-lg er-app-pbtn" data-pt="receipt">' + icon('user') + '<span><b>Resguardo del cliente</b><small>Con los datos, el QR de seguimiento y las condiciones</small></span></button>' +
+      '<button type="button" class="er-btn er-btn-lg er-app-pbtn" data-pt="tag">' + icon('qr') + '<span><b>Etiqueta del patín</b><small>Para pegar al equipo, con el QR del taller</small></span></button></div>';
+    app.appendChild(wrap);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      var b = e.target.closest('[data-pt]');
+      if (!b) return;
+      b.disabled = true;
+      api('printAsk', { id: r.id }, { type: b.getAttribute('data-pt') }).then(function (res) {
+        b.disabled = false;
+        if (!res.ok) { E.toast(res.error, true); return; }
+        wrap.remove();
+        E.toast('Enviado al ordenador de la tienda para imprimir');
+      });
+    });
   }
   function openBattery() {
     var r = R.repair;

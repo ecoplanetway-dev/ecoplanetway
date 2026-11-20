@@ -246,6 +246,47 @@
     });
   }
 
+  /*
+   * Impresión mandada desde el móvil: el panel abierto en el ordenador mira la cola cada pocos segundos
+   * y abre la ventana de imprimir. Si el navegador bloquea la ventana, avisa (aviso en la página y del sistema)
+   * para abrirla con un clic. Consejo: permitir ventanas emergentes para esta web.
+   */
+  function startPrintPoll() {
+    if (!boot.printPoll || !boot.links || !boot.links.ajax) return;
+    var busy = false;
+    function urlFor(j) { return ajaxUrl(j.type === 'tag' ? 'printTag' : 'printReceipt', { id_ecorepair: j.rid }); }
+    function label(j) { return (j.type === 'tag' ? 'Etiqueta del patín' : 'Resguardo del cliente') + ' · ' + j.ref + (j.who ? ' (' + j.who + ')' : ''); }
+    function banner(j) {
+      var b = document.createElement('div');
+      b.className = 'er-printq';
+      b.innerHTML = icon('print') + '<span><b>Imprimir</b> ' + esc(label(j)) + '</span><button type="button" class="er-btn er-btn-sm er-btn-pri">Abrir</button><button type="button" class="er-btn er-btn-sm er-btn-ghost" aria-label="Cerrar">✕</button>';
+      (root() || document.body).appendChild(b);
+      b.querySelector('.er-btn-pri').addEventListener('click', function () { window.open(urlFor(j), '_blank'); b.remove(); });
+      b.querySelector('.er-btn-ghost').addEventListener('click', function () { b.remove(); });
+      if (window.Notification && Notification.permission === 'granted') {
+        try { var n = new Notification('Imprimir · ' + j.ref, { body: label(j), tag: 'ecor-' + j.id }); n.onclick = function () { window.focus(); window.open(urlFor(j), '_blank'); b.remove(); n.close(); }; } catch (e) { }
+      }
+    }
+    function poll() {
+      if (busy) return;
+      busy = true;
+      api('printPoll', {}).then(function (res) {
+        busy = false;
+        (res && res.jobs || []).forEach(function (j) {
+          var w = null;
+          try { w = window.open(urlFor(j), '_blank'); } catch (e) { w = null; }
+          if (!w) banner(j);
+        });
+      }, function () { busy = false; });
+    }
+    if (window.Notification && Notification.permission === 'default') {
+      document.addEventListener('click', function ask() { document.removeEventListener('click', ask); try { Notification.requestPermission(); } catch (e) { } });
+    }
+    setInterval(poll, 6000);
+    setTimeout(poll, 1500);
+  }
+  setTimeout(function () { ready(startPrintPoll); }, 0);
+
   /** Reduce una foto en el navegador antes de subirla (menos datos y orientación correcta). */
   function shrinkImage(file, maxSide) {
     // Las fotos del móvil pesan 3-10 MB (y en iPhone pueden ser HEIC): se reducen siempre a JPEG de ~1600 px
