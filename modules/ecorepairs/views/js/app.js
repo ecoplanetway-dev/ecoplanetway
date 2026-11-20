@@ -619,8 +619,8 @@ window.ECOR.ready(function () {
         }
       }
       function drawCodes(q) {
-        var norm = q.trim().toUpperCase().replace(/^E[-\s]?/, '');
-        var list = kb.codes.filter(function (c) { return !norm || c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(norm) === 0; });
+        var norm = q.trim();
+        var list = E.findCodes(kb.codes, norm);
         el.querySelector('#er-kb-codes').innerHTML = list.length ? list.map(function (c) {
           return '<details class="er-kb-item er-code-item"' + (norm && list.length <= 2 ? ' open' : '') + '><summary><span class="er-code-n">' + esc(c.code) + '</span><b>' + esc(c.title) + '</b></summary>' +
             (c.causes ? '<div class="er-kb-body">' + esc(c.causes) + '</div>' : '') + (c.parts ? '<div class="er-small"><b>Piezas:</b> ' + esc(c.parts) + '</div>' : '') +

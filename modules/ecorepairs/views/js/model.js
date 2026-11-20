@@ -129,8 +129,8 @@ window.ECOR.ready(function () {
     return '<details class="er-kb-item"' + (type === 'menu' ? ' open' : '') + '><summary>' + head + '<span style="margin-left:auto">' + tools(type, it) + '</span></summary>' + body + '</details>';
   }
   function drawCodes() {
-    var n = q.trim().toUpperCase().replace(/^E[-\s]?/, '');
-    var list = kb.codes.filter(function (c) { return !n || c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(n) === 0; });
+    var n = q.trim();
+    var list = E.findCodes(kb.codes, n);
     app.querySelector('#er-kl').innerHTML = list.length ? list.map(function (c) {
       return item('code', c, '<span class="er-code-n">' + esc(c.code) + '</span><b>' + esc(c.title) + '</b>' + (c.verified ? ' <span class="er-tag er-t-ok">Revisado</span>' : ' <span class="er-tag er-t-warn">Por revisar</span>') +
         (c.scope === 'brand' && D.model ? ' <span class="er-tag er-t-neu">De la marca</span>' : ''),

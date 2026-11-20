@@ -493,6 +493,34 @@
     });
     return ok ? Math.min(70, score) : 0;
   }
+  /**
+   * Buscador de códigos de error tolerante: «E10», «e-10», «10», «error 10», «err010» encuentran lo mismo;
+   * también busca por el significado, las causas y las piezas (sin acentos, con alguna letra mal). Ordena por parecido.
+   */
+  function codeKey(s) {
+    var k = String(s || '').toUpperCase().replace(/\b(ERROR|ERR|C[OÓ]DIGO|CODE|FALLO|FAULT|ALARMA)\b/g, '').replace(/[^A-Z0-9]/g, '');
+    k = k.replace(/^E(?=\d)/, '');
+    return k.replace(/(^|[A-Z])0+(?=\d)/g, '$1');
+  }
+  function findCodes(codes, q) {
+    q = String(q || '').trim();
+    if (!q) return (codes || []).slice();
+    var qk = codeKey(q), qd = q.replace(/\D+/g, '').replace(/^0+(?=\d)/, '');
+    var onlyCode = /^[a-z]{0,6}[\s\-#:]*\d+[a-z]?$/i.test(q.replace(/\s+/g, ' ').trim());
+    return (codes || []).map(function (c) {
+      var ck = codeKey(c.code), cd = String(c.code || '').replace(/\D+/g, '').replace(/^0+(?=\d)/, ''), sc = 0;
+      if (qk && ck === qk) sc = 100;
+      else if (qd && cd && qd === cd && onlyCode) sc = 95;
+      else if (qk && ck.indexOf(qk) === 0) sc = 85;
+      else if (qk && qk.length >= 2 && ck.indexOf(qk) > -1) sc = 60;
+      if (!onlyCode || !sc) {
+        var t = fuzzyScore(q, (c.title || c.name || '') + ' ' + (c.causes || c.notes || '') + ' ' + (c.parts || ''));
+        if (t) sc = Math.max(sc, Math.round(t * 0.7));
+      }
+      return { c: c, s: sc };
+    }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; }).map(function (x) { return x.c; });
+  }
+
   /** models: [{brand, model, ...}] → los mejores para q */
   function findModels(models, q, limit) {
     return models.map(function (m) { var sc = fuzzyScore(q, m.brand + ' ' + m.model); return { m: m, s: sc ? sc + (m.id_model ? 1 : 0) : 0 }; })
@@ -1078,6 +1106,7 @@
     initials: initials,
     avatarColor: avatarColor,
     avatar: avatar,
+    findCodes: findCodes,
     techSelect: techSelect,
     statusChip: statusChip,
     dialog: dialog,

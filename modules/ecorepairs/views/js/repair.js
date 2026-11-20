@@ -290,8 +290,8 @@ window.ECOR.ready(function () {
         return '<button type="button" data-kt="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + ' <b>' + n[t[0]] + '</b></button>';
       }).join('') + '</div><div class="er-kbd-list">';
       if (tab === 'codes') {
-        var nq = q.toUpperCase().replace(/^E[-\s]?/, '');
-        var list = kb.codes.filter(function (c) { return !nq || c.code.toUpperCase().replace(/^E[-\s]?/, '').indexOf(nq) === 0; });
+        var nq = q.trim();
+        var list = E.findCodes(kb.codes, nq);
         html += '<label class="er-search" style="margin-bottom:8px">' + icon('search') + '<input class="er-input" id="er-kbd-q" placeholder="Código que sale en la pantalla" value="' + esc(q) + '" data-novoice></label>' +
           (list.length ? list.map(function (c) {
             return item('<span class="er-code-n">' + esc(c.code) + '</span><b>' + esc(c.title) + '</b>', (c.causes ? '<div class="er-kb-body">' + esc(c.causes) + '</div>' : '') + (c.parts ? '<div class="er-small"><b>Piezas:</b> ' + esc(c.parts) + '</div>' : ''));

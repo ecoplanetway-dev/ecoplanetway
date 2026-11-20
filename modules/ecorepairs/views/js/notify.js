@@ -8,7 +8,9 @@
    * «Abrir en WhatsApp Web» usa siempre la misma pestaña; «WhatsApp de PC» abre la aplicación.
    */
   function notify(params) {
-    return E.api('notifyPreview', params).then(function (res) {
+    // POST: la app del taller solo acepta POST (con GET daba error en el móvil)
+    var mobile = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    return E.api('notifyPreview', params, {}).then(function (res) {
       if (!res.ok) { E.toast(res.error, true); return null; }
       return new Promise(function (resolve) {
         var key = res.default, texts = {};
@@ -29,8 +31,9 @@
             '<span><b>Mostrar al técnico</b><small>Añade «Tu patín lo ha reparado ' + esc(res.tech.name) + '» y el enlace con su foto</small></span></label>' : '') +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
-            '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="web">' + icon('whatsapp') + 'Abrir en WhatsApp Web</button>' +
-            '<button type="button" class="er-btn er-btn-lg" data-open="app">' + icon('whatsapp') + 'Abrir en WhatsApp de PC</button>' +
+            (mobile ? '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="mobile">' + icon('whatsapp') + 'Abrir WhatsApp</button>'
+              : '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="web">' + icon('whatsapp') + 'Abrir en WhatsApp Web</button>' +
+                '<button type="button" class="er-btn er-btn-lg" data-open="app">' + icon('whatsapp') + 'Abrir en WhatsApp de PC</button>') +
             '<button type="button" class="er-btn er-btn-ghost" data-copy>' + icon('copy', true) + 'Copiar texto</button>' +
           '</div></div>';
         (E.root() || document.body).appendChild(wrap);
@@ -73,10 +76,16 @@
             var p = phone(), err = wrap.querySelector('#er-wa-err');
             if (p.length < 10) { err.textContent = 'Revisa el teléfono.'; err.hidden = false; return; }
             if (!ta.value.trim()) { err.textContent = 'Escribe el mensaje.'; err.hidden = false; return; }
-            var q = 'phone=' + p + '&text=' + encodeURIComponent(ta.value.trim());
-            if (t.getAttribute('data-open') === 'web') window.open('https://web.whatsapp.com/send?' + q, 'ecor-whatsapp');
-            else window.location.href = 'whatsapp://send?' + q;
+            var q = 'phone=' + p + '&text=' + encodeURIComponent(ta.value.trim()), how = t.getAttribute('data-open');
             var body = Object.assign({ template: key, phone: p, body: ta.value.trim() }, params);
+            if (how === 'mobile') {
+              // En el móvil: abre la aplicación de WhatsApp del teléfono (se guarda en el historial antes de salir)
+              var url = 'https://wa.me/' + p + '?text=' + encodeURIComponent(ta.value.trim());
+              E.api('logMessage', params, body).then(function (r2) { close(r2 && r2.ok ? r2 : { ok: true }); window.location.href = url; }, function () { window.location.href = url; });
+              return;
+            }
+            if (how === 'web') window.open('https://web.whatsapp.com/send?' + q, 'ecor-whatsapp');
+            else window.location.href = 'whatsapp://send?' + q;
             E.api('logMessage', params, body).then(function (r2) { close(r2 && r2.ok ? r2 : { ok: true }); });
             E.toast('Mensaje abierto en WhatsApp. Queda guardado en el historial.');
           }

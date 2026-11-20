@@ -44,7 +44,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.9.4';
+        $this->version = '1.9.5';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
