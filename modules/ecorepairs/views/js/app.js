@@ -256,6 +256,7 @@ window.ECOR.ready(function () {
           '<div class="er-row" style="margin-top:6px">' + statusChip(st, r.status) + (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') + (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '') + (r.warranty ? '<span class="er-tag er-t-gar">Garantía</span>' : '') + '</div></div></div>' +
         (r.id_employee_tech ? '<div class="er-app-tech">' + icon('user', true) + 'Técnico: <b>' + esc(r.tech_name) + '</b>' + (mine ? ' (tú)' : '') + '</div>'
           : me.tech && !closed ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-claim>' + icon('check') + 'Asignármela</button>' : '') +
+        customerBox(r, closed) +
         (R.repeat ? '<div class="er-banner ' + (R.repeat.same ? 'er-bad' : 'er-warn') + '">' + icon('refresh') + '<div><b>Repetida:</b> vuelve ' + R.repeat.days + ' días después de ' + esc(R.repeat.reference) +
           (R.repeat.same ? ' por la misma avería' : ' (otra avería)') + (R.repeat.tech ? ' · técnico ' + esc(R.repeat.tech) : '') + '.</div></div>' : '') +
         (R.kbCount && R.kbCount.faults ? '<a class="er-banner er-info" href="' + base + '/manual">' + icon('book') + '<div>Este modelo tiene <b>' + R.kbCount.faults + ' fallo' + (R.kbCount.faults === 1 ? '' : 's') + ' conocido' + (R.kbCount.faults === 1 ? '' : 's') + '</b> con solución.</div></a>' : '') +
@@ -268,6 +269,13 @@ window.ECOR.ready(function () {
       var list = R.photos.map(function (p) { return { src: p.full, caption: p.type === 'device' ? 'Foto del equipo' : 'Foto' }; });
       if (r.cover && !list.length) list.push({ src: r.cover });
       E.viewer(list, 0);
+    });
+    main.querySelector('.er-app-rep').addEventListener('click', function (e) {
+      if (e.target.closest('[data-wa]')) {
+        E.notify({ id_ecorepair: r.id }).then(function (res) { if (res) E.toast('Mensaje guardado en el historial'); });
+        return;
+      }
+      if (e.target.closest('[data-batt]')) { openBattery(); }
     });
     var claim = main.querySelector('[data-claim]');
     if (claim) claim.addEventListener('click', function () {
@@ -308,7 +316,7 @@ window.ECOR.ready(function () {
         E.UnlockPanel(host, { list: R.unlock || [], admin: false, onAdd: canWork ? function (u, btn) { quoteAdd('unlockAdd', u.id, btn, 'Deslimitación añadida al presupuesto'); } : null });
       } else {
         host.innerHTML = '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div><div id="er-pt"></div>';
-        var pt = partsTab(host.querySelector('#er-pt'), canWork);
+        var pt = partsTab(host.querySelector('#er-pt'), canWork || (me.reception && !closed));
         E.PartsDiagram(host.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, sections: R.sections, map: R.modelMap, photo: R.modelPhoto, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
           onAdd: canWork ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
       }
@@ -317,14 +325,48 @@ window.ECOR.ready(function () {
     else workTab(el, canWork);
   }
 
+  /* Cliente: datos completos y accesos rápidos (llamar, WhatsApp, batería) */
+  function customerBox(r, closed) {
+    var c = R.customer, bt = R.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';
+    var tel = c && c.phone ? String(c.phone).replace(/[^\d+]/g, '') : '';
+    return '<div class="er-panel er-app-cust"><h3>' + icon('user') + 'Cliente</h3>' +
+      (c ? '<div class="er-app-cname">' + esc(c.name) + (c.company ? ' <span class="er-muted er-small">· ' + esc(c.company) + '</span>' : '') + '</div>' +
+        '<div class="er-app-cdata">' +
+          (c.phone ? '<a href="tel:' + esc(tel) + '">' + icon('phone', true) + esc(c.phone) + '</a>' : '<span class="er-muted">Sin teléfono</span>') +
+          (c.email ? '<a href="mailto:' + esc(c.email) + '">' + icon('mail', true) + esc(c.email) + '</a>' : '') +
+          '<span class="er-muted er-small">' + c.repairs + ' reparaci' + (c.repairs === 1 ? 'ón' : 'ones') + (c.orders ? ' · ' + c.orders + ' pedido' + (c.orders === 1 ? '' : 's') : '') +
+            (c.whatsapp ? ' · acepta WhatsApp' : '') + '</span></div>' : '<p class="er-muted" style="margin:0">Sin datos del cliente.</p>') +
+      '<div class="er-app-quick">' +
+        (c && c.phone ? '<a class="er-btn er-app-q-call" href="tel:' + esc(tel) + '">' + icon('phone') + '<span>Llamar</span></a>' : '') +
+        (c && c.phone ? '<button type="button" class="er-btn er-btn-wa" data-wa>' + icon('whatsapp') + '<span>WhatsApp</span></button>' : '') +
+        (r.id_model ? '<button type="button" class="er-btn er-ink" data-batt>' + icon('battery') + '<span>Batería</span><em class="er-ink-tag' + (tag ? ' ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>' : '') +
+      '</div></div>';
+  }
+  function openBattery() {
+    var r = R.repair;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-b2-dlg"><div id="er-batd"></div></div>';
+    app.appendChild(wrap);
+    function close() { wrap.remove(); drawRepair(location.hash.split('/')[2] || 'work'); }
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) close(); });
+    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: R.battery || {}, canEdit: true, noNewConnector: true, id_model: r.id_model, title: r.device_name, onClose: close,
+      catalogCall: function () { return api('batteryCatalog', { id: r.id }); },
+      onSave: function (d) { return api('batterySave', { id: r.id }, { data: JSON.stringify(d) }).then(function (res) { if (res.ok) R.battery = res.battery; return res; }); } });
+  }
+
   function workTab(el, canWork) {
     var r = R.repair;
+    var canDiag = !(r.status === 'delivered' || r.status === 'cancelled') && (canWork || me.reception);
     var btn = function (s, label) {
       return '<button type="button" class="er-btn er-btn-lg' + (r.status === s ? ' er-btn-pri' : '') + '" data-st="' + s + '"' + (canWork ? '' : ' disabled') + '><span class="er-dot" style="background:' + esc(R.statuses[s].color) + '"></span>' + label + '</button>';
     };
     el.innerHTML =
       '<div class="er-panel"><h3>' + icon('alert') + 'Avería</h3><div>' + esc(r.fault || 'Sin indicar') + '</div>' +
-        (r.diagnosis ? '<div class="er-sub" style="margin:4px 0 0">Diagnóstico</div><div>' + esc(r.diagnosis) + '</div>' : '') +
+        '<div class="er-sub" style="margin:8px 0 0">Diagnóstico del técnico</div>' +
+        (canDiag ? '<textarea class="er-input" id="er-app-diag" rows="4" maxlength="5000" data-voice-list placeholder="Qué le pasa y qué hay que hacer">' + esc(r.diagnosis || '') + '</textarea>' +
+          '<div class="er-row" style="justify-content:flex-end"><button type="button" class="er-btn er-btn-pri" id="er-app-diag-save">' + icon('check', true) + 'Guardar diagnóstico</button></div>'
+          : '<div>' + (r.diagnosis ? esc(r.diagnosis) : '<span class="er-muted">Sin diagnóstico todavía.</span>') + '</div>') +
         ((r.accessories || []).length ? '<div class="er-muted er-small">Entregado con: ' + esc(r.accessories.join(', ')) + '</div>' : '') +
         ((r.damages || []).length ? '<div class="er-muted er-small">Daños previos: ' + esc(r.damages.join(', ')) + '</div>' : '') + '</div>' +
       (me.tech ? '<div class="er-panel"><h3>Estado</h3><div class="er-app-states">' + btn('diagnosis', 'Diagnóstico') + btn('repair', 'En reparación') +
@@ -363,6 +405,14 @@ window.ECOR.ready(function () {
         E.pickPhoto(el.querySelector('#er-app-file'), k === 'gallery');
         return;
       }
+      if (e.target.closest('#er-app-diag-save')) {
+        var dg = el.querySelector('#er-app-diag');
+        api('diagnosis', { id: r.id }, { value: dg.value }).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('work'); E.toast('Diagnóstico guardado');
+        });
+        return;
+      }
       if (e.target.closest('#er-app-note-add')) {
         var inp = el.querySelector('#er-app-note'), v = inp.value.trim();
         if (!v) { inp.focus(); return; }
@@ -389,12 +439,37 @@ window.ECOR.ready(function () {
   function partsTab(el, canWork) {
     var r = R.repair, cart = [];
     function stockTag(s) { return s <= 0 ? '<span class="er-tag er-t-bad">Sin stock</span>' : '<span class="er-tag er-t-ok">' + s + ' en stock</span>'; }
+    function quoteBox() {
+      if (!canWork) return '';
+      var d = R.draft || { label: '', lines: [] };
+      return '<div class="er-panel er-app-quote"><h3>' + icon('box') + (R.draft ? 'Presupuesto ' + esc(d.label || '') + '<span class="er-r">Borrador</span>' : (R.lines.length ? 'Presupuesto adicional' : 'Presupuesto')) + '</h3>' +
+        (d.lines.length ? '<div class="er-app-ql">' + d.lines.map(function (l, i) {
+          return '<div class="er-app-qrow"><span class="er-grow"><b>' + esc(l.name) + '</b>' + (l.type === 'labour' ? ' <span class="er-tag er-t-neu">Mano de obra</span>' : '') +
+            (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '<small class="er-num">' + esc(E.fmtMoney(l.price)) + ' / ud.</small></span>' +
+            '<span class="er-app-qty"><button type="button" class="er-btn er-btn-sm er-icon-btn" data-qdec="' + i + '" aria-label="Menos">−</button><b class="er-num">' + esc(l.qty_text) + '</b>' +
+            '<button type="button" class="er-btn er-btn-sm er-icon-btn" data-qinc="' + i + '" aria-label="Más">+</button></span>' +
+            '<b class="er-num er-app-qt">' + esc(E.fmtMoney(l.total)) + '</b>' +
+            '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-qdel="' + i + '" aria-label="Quitar">' + icon('trash', true) + '</button></div>';
+        }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(d.lines.reduce(function (a, l) { return a + (+l.total || 0); }, 0))) + '</b></div>'
+          : '<p class="er-muted" style="margin:0">Añade piezas abajo o mano de obra.</p>') +
+        '<details class="er-app-lab"><summary>' + icon('wrench', true) + 'Añadir mano de obra</summary><div class="er-row" style="flex-wrap:nowrap;gap:8px;margin-top:8px">' +
+          '<input class="er-input" id="er-app-labn" maxlength="128" placeholder="Qué trabajo (cambio de rueda…)"><input class="er-input er-num" id="er-app-labp" inputmode="decimal" placeholder="€" style="max-width:90px">' +
+          '<button type="button" class="er-btn er-btn-pri" id="er-app-labadd">' + icon('plus', true) + '</button></div></details>' +
+        (R.draft && d.lines.length ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-qsend">' + icon('check') + 'Enviar presupuesto al cliente</button>' +
+          '<p class="er-muted er-small" style="margin:0">Le llega el enlace por email (si tiene) para aceptarlo. Después puedes avisarle por WhatsApp.</p>' : '') + '</div>';
+    }
+    function saveLines(lines, msg) {
+      api('quoteLines', { id: r.id }, { lines: JSON.stringify(lines) }).then(function (res) {
+        if (!res.ok) { E.toast(res.error, true); return; }
+        R = res; drawRepair('parts'); if (msg) E.toast(msg);
+      });
+    }
     function draw(results) {
-      el.innerHTML =
-        '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
+      el.innerHTML = quoteBox() +
+        (R.draft && canWork && R.quoteState === 'draft' ? '' : '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
           (R.lines.length ? '<div class="er-mini">' + R.lines.map(function (l) {
             return '<div><span class="er-grow" style="white-space:normal">' + esc(l.qty_text + ' × ' + l.name) + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.total)) + '</b></div>';
-          }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>' +
+          }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>') +
         (canWork ? '<div class="er-panel"><h3>' + icon('search') + 'Añadir piezas</h3>' +
           '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-app-q" type="search" placeholder="Nombre, referencia o EAN" autocomplete="off"></label>' +
           '<div class="er-app-res" id="er-app-res">' + (results || []).map(function (p, i) {
@@ -468,6 +543,38 @@ window.ECOR.ready(function () {
         var pr = results[+t.getAttribute('data-req')];
         api('request', { id: r.id }, { name: pr.name, qty: 1, price: pr.price, id_product: pr.id_product, id_product_attribute: pr.id_product_attribute }).then(function (res) {
           E.toast(res.ok ? 'Encargo creado: ' + pr.name : res.error, !res.ok);
+        });
+        return;
+      }
+      var d = R.draft;
+      if (d && (t = e.target.closest('[data-qinc],[data-qdec],[data-qdel]'))) {
+        var lines = d.lines.map(function (l) { return Object.assign({}, l); }), k;
+        if ((k = t.getAttribute('data-qinc')) !== null) lines[+k].qty = (+lines[+k].qty || 0) + 1;
+        else if ((k = t.getAttribute('data-qdec')) !== null) { lines[+k].qty = (+lines[+k].qty || 0) - 1; if (lines[+k].qty <= 0) lines.splice(+k, 1); }
+        else { k = t.getAttribute('data-qdel'); lines.splice(+k, 1); }
+        saveLines(lines);
+        return;
+      }
+      if (e.target.closest('#er-app-labadd')) {
+        var ln = el.querySelector('#er-app-labn').value.trim(), lp = el.querySelector('#er-app-labp').value.trim();
+        if (!ln || lp === '') { E.toast('Escribe el trabajo y el precio.', true); return; }
+        api('quoteLabour', { id: r.id }, { name: ln, price: lp }).then(function (res) {
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('parts'); E.toast('Mano de obra añadida');
+        });
+        return;
+      }
+      if ((t = e.target.closest('#er-app-qsend'))) {
+        E.dialog({ title: 'Enviar presupuesto', text: 'Ya no se podrá cambiar. Si hace falta, se hace una versión nueva desde la tienda.', ok: 'Enviar' }).then(function (y) {
+          if (!y) return;
+          t.disabled = true;
+          api('quoteSend', { id: r.id }).then(function (res) {
+            t.disabled = false;
+            if (!res.ok) { E.toast(res.error, true); return; }
+            R = res; drawRepair('parts');
+            E.toast(res.emailed ? 'Presupuesto enviado por email' : 'Presupuesto enviado. Avísale por WhatsApp con la plantilla «Presupuesto».');
+            if (R.customer && R.customer.phone) setTimeout(function () { E.notify({ id_ecorepair: r.id }); }, 400);
+          });
         });
         return;
       }

@@ -74,7 +74,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         );
         $this->context->smarty->assign(array(
             'css' => array($base . 'views/css/admin.css' . $v, $base . 'views/css/app.css' . $v),
-            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/parts.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
+            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/parts.js' . $v, $base . 'views/js/notify.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
             'boot' => json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'data' => json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'shopName' => Configuration::get('PS_SHOP_NAME'),
@@ -146,7 +146,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             $this->out(array('ok' => false, 'error' => 'Recarga la página.', 'login' => true), 403);
         }
 
-        $tech = array('home', 'claim', 'status', 'search', 'addParts', 'request');
+        $tech = array('home', 'claim', 'status', 'request'); // buscar y añadir piezas al presupuesto: también recepción
         $reception = array('customers', 'customerCreate', 'create', 'addCatalog', 'tag');
         if (in_array($action, $tech, true) && !(int) $this->staff['role_tech'] && $action !== 'home') {
             $this->out(array('ok' => false, 'error' => 'Solo para técnicos.'), 403);
@@ -163,6 +163,69 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                     // no break
                 case 'home':
                     $this->out($this->home());
+                    // no break
+                case 'diagnosis':
+                    $r = $this->findRepair();
+                    $this->open($r);
+                    $res = EcoRepair::updateField((int) $r['id_ecorepair'], 'diagnosis', Tools::substr(trim(strip_tags((string) Tools::getValue('value'))), 0, 5000), $this->emp());
+                    $this->out($res['ok'] ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
+                case 'batterySave':
+                    $r = $this->findRepair();
+                    $this->out(EcoRepairLinks::saveBattery((int) $r['id_model'], json_decode((string) Tools::getValue('data'), true) ?: array()));
+                    // no break
+                case 'batteryCatalog':
+                    $r = $this->findRepair();
+                    $this->out(EcoRepairLinks::batAddCatalog((int) $r['id_model']));
+                    // no break
+                case 'notifyPreview':
+                    $this->out($this->notifyPreview($this->repairById()));
+                    // no break
+                case 'logMessage':
+                    $r = $this->repairById();
+                    if ((string) Tools::getValue('template') === 'reminder') {
+                        Db::getInstance()->update('ecorepair', array('date_reminder' => date('Y-m-d H:i:s')), 'id_ecorepair = ' . (int) $r['id_ecorepair']);
+                    }
+                    EcoRepairMessage::log((int) $r['id_ecorepair'], 0, (int) $r['id_customer'], 'whatsapp', (string) Tools::getValue('template'),
+                        EcoRepairMessage::waPhone(Tools::getValue('phone')), (string) Tools::getValue('body'), $this->emp());
+                    $this->out(array('ok' => true));
+                    // no break
+                case 'quoteLines':
+                    $r = $this->findRepair();
+                    $this->open($r);
+                    $q = $this->draftQuote((int) $r['id_ecorepair']);
+                    if (!$q) {
+                        $this->out(array('ok' => false, 'error' => 'No hay presupuesto en borrador.'));
+                    }
+                    $res = EcoRepairQuote::saveDraft($q, json_decode((string) Tools::getValue('lines'), true), (string) $q['notes']);
+                    $this->out($res['ok'] ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
+                case 'quoteLabour':
+                    $r = $this->findRepair();
+                    $this->open($r);
+                    $name = Tools::substr(trim(strip_tags((string) Tools::getValue('name'))), 0, 128);
+                    $price = round((float) str_replace(',', '.', (string) Tools::getValue('price')), 2);
+                    if ($name === '' || $price < 0) {
+                        $this->out(array('ok' => false, 'error' => 'Escribe qué trabajo es y su precio.'));
+                    }
+                    $res = EcoRepairQuote::appendToDraft($r, array(array('type' => 'labour', 'name' => $name, 'qty' => 1, 'price' => $price, 'tax_rate' => 21)),
+                        $this->emp(), $this->staff['name'] . ' (móvil)');
+                    $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
+                case 'quoteSend':
+                    $r = $this->findRepair();
+                    $this->open($r);
+                    $q = $this->draftQuote((int) $r['id_ecorepair']);
+                    if (!$q) {
+                        $this->out(array('ok' => false, 'error' => 'No hay presupuesto en borrador para enviar.'));
+                    }
+                    $res = EcoRepairQuote::send($q, $this->emp());
+                    if (!$res['ok']) {
+                        $this->out($res);
+                    }
+                    $fresh = EcoRepairQuote::get((int) $q['id_ecorepair_quote']);
+                    $emailed = EcoRepairMessage::quoteEmail($r, $res['link'], EcoRepairQuote::money($fresh['total_tax_incl']), $this->emp(), $this->trackingUrl($r['tracking_code']));
+                    $this->out(array('ok' => true, 'link' => $res['link'], 'emailed' => $emailed) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])));
                     // no break
                 case 'all':
                     $this->out($this->allRepairs((string) Tools::getValue('q'), (string) Tools::getValue('st')));
@@ -413,6 +476,81 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         return array('ok' => true, 'mine' => $mine, 'free' => $free, 'statuses' => EcoRepairStatus::all());
     }
 
+    protected function customerLite($idCustomer)
+    {
+        $c = $idCustomer ? EcoRepairCustomer::info($idCustomer) : false;
+        if (!$c) {
+            return null;
+        }
+
+        return array('name' => isset($c['name']) ? $c['name'] : trim($c['firstname'] . ' ' . $c['lastname']), 'phone' => (string) $c['phone'],
+            'email' => (string) $c['email'], 'company' => (string) $c['company'], 'whatsapp' => (int) $c['consent_whatsapp'],
+            'repairs' => (int) $c['repairs_count'], 'orders' => (int) $c['orders_count'], 'since' => (string) $c['date_add']);
+    }
+
+    protected function draftLite($idRepair)
+    {
+        $q = $this->draftQuote($idRepair);
+        if (!$q) {
+            return null;
+        }
+
+        return array('id' => (int) $q['id_ecorepair_quote'], 'label' => EcoRepairQuote::label($q), 'lines' => EcoRepairQuote::lines((int) $q['id_ecorepair_quote']),
+            'total' => round((float) $q['total_tax_incl'], 2));
+    }
+
+    protected function repairById()
+    {
+        $r = EcoRepair::get((int) (Tools::getValue('id_ecorepair') ?: Tools::getValue('id')));
+        if (!$r || (int) $r['id_shop'] !== (int) $this->context->shop->id) {
+            $this->out(array('ok' => false, 'error' => 'No se encontró la reparación.'), 404);
+        }
+
+        return $r;
+    }
+
+    protected function open(array $r)
+    {
+        if (in_array($r['status'], array(EcoRepairStatus::DELIVERED, EcoRepairStatus::CANCELLED), true)) {
+            $this->out(array('ok' => false, 'error' => 'La reparación está cerrada.'));
+        }
+    }
+
+    /** Presupuesto en borrador de la reparación (el último), o null. */
+    protected function draftQuote($idRepair)
+    {
+        $draft = null;
+        foreach (EcoRepairQuote::forRepair($idRepair) as $q) {
+            if ($q['status'] === EcoRepairQuote::DRAFT) {
+                $draft = $q;
+            }
+        }
+
+        return $draft;
+    }
+
+    /** Lo mismo que el panel: plantillas de WhatsApp ya rellenas y el técnico (opcional, con su foto). */
+    protected function notifyPreview(array $repair)
+    {
+        $tpl = EcoRepairMessage::templates();
+        $vals = EcoRepairMessage::values($repair, $this->trackingUrl($repair['tracking_code']));
+        $out = array();
+        foreach ($tpl as $k => $t) {
+            if ($k !== 'request') {
+                $out[$k] = array('name' => $t['name'], 'text' => EcoRepairMessage::render($t['text'], $vals));
+            }
+        }
+        $default = array('delivered' => 'review', 'received' => 'received', 'quote' => 'quote', 'ready' => (int) $repair['days_in_status'] >= (int) Configuration::get('ECOREPAIRS_PICKUP_DAYS') ? 'reminder' : 'ready');
+        $c = EcoRepairCustomer::info((int) $repair['id_customer']);
+        $tech = EcoRepairPhoto::techFor((int) $repair['id_employee_tech']);
+        if ($tech) {
+            $tech['link'] = $this->trackingUrl($repair['tracking_code']);
+        }
+
+        return array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
+            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received', 'tech' => $tech);
+    }
+
     /** Todas las reparaciones del taller, con buscador y filtro por estado (para localizarlas desde el móvil). */
     protected function allRepairs($q, $st)
     {
@@ -511,6 +649,8 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'statuses' => EcoRepairStatus::all(),
             'checklistItems' => EcoRepair::checklistItems(),
             'checklist' => $r['checklist'],
+            'customer' => $this->customerLite((int) $r['id_customer']),
+            'draft' => $this->draftLite($id),
         ) + $this->modelBundle((int) $r['id_brand'], (int) $r['id_model'], isset($r['model_image']) ? $r['model_image'] : '');
     }
 
@@ -688,6 +828,11 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'camera' => $s . '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
             'user' => $s . '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
             'layers' => $s . '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>',
+            'phone' => $s . '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+            'mail' => $s . '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+            'copy' => $s . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+            'link' => $s . '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
+            'settings' => $s . '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
             'wrench' => $s . '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
             'alert' => $s . '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>',
             'clock' => $s . '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',

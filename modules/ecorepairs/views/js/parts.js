@@ -969,7 +969,7 @@
       return Object.keys(list).map(function (k) {
         return '<button type="button" class="er-b2-k" data-bc="' + kind + ':' + k + '" aria-pressed="' + (chosen.indexOf(k) > -1) + '"' + dis + '><q></q>' +
           (imgs[k] ? '<img src="' + esc(imgs[k]) + '" alt="">' : '<u></u>') + '<span>' + esc(list[k]) + '</span></button>';
-      }).join('') + (opts.canEdit && b.module ? '<button type="button" class="er-b2-k er-b2-add" data-bnew="' + (kind === 'ctrl' ? 'controller' : 'charge') + '">' + icon('plus', true) + (kind === 'ctrl' ? 'Conector' : 'Toma') + '</button>' : '');
+      }).join('') + (opts.canEdit && b.module && !opts.noNewConnector ? '<button type="button" class="er-b2-k er-b2-add" data-bnew="' + (kind === 'ctrl' ? 'controller' : 'charge') + '">' + icon('plus', true) + (kind === 'ctrl' ? 'Conector' : 'Toma') + '</button>' : '');
     }
     function sw(key, title, sub) {
       return '<label class="er-b2-sw"><span>' + title + (sub ? '<small>' + sub + '</small>' : '') + '</span><input type="checkbox" class="er-sw" data-bt="' + key + '"' + (st[key] ? ' checked' : '') + dis + '></label>';
@@ -1067,7 +1067,7 @@
       }
       if ((t = e.target.closest('[data-bcat]'))) {
         t.disabled = true;
-        E.api('batteryCatalog', {}, { id_model: opts.id_model || 0 }).then(function (res) {
+        (opts.catalogCall ? opts.catalogCall() : E.api('batteryCatalog', {}, { id_model: opts.id_model || 0 })).then(function (res) {
           t.disabled = false;
           if (!res.ok) { E.toast(res.error || 'No se pudo añadir.', true); return; }
           var keep = st; b = res.battery; buildKeys(); st = keep; render();
