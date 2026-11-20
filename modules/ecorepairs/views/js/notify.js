@@ -34,7 +34,7 @@
               : '<small class="er-muted er-wa-techhelp">' + esc(res.tech.name) + ' no tiene foto. Súbela en Ajustes → Personal y app.</small>') + '</div>' : '') +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
-            (mobile ? '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="mobile">' + icon('whatsapp') + 'Abrir WhatsApp</button>'
+            (mobile ? '<a class="er-btn er-btn-wa er-btn-lg" data-open="mobile" href="https://wa.me/">' + icon('whatsapp') + 'Abrir WhatsApp</a>'
               : '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="web">' + icon('whatsapp') + 'Abrir en WhatsApp Web</button>' +
                 '<button type="button" class="er-btn er-btn-lg" data-open="app">' + icon('whatsapp') + 'Abrir en WhatsApp de PC</button>') +
             '<button type="button" class="er-btn er-btn-ghost" data-copy>' + icon('copy', true) + 'Copiar texto</button>' +
@@ -119,16 +119,15 @@
           }
           if ((t = e.target.closest('[data-open]'))) {
             var p = phone(), err = wrap.querySelector('#er-wa-err');
-            if (p.length < 10) { err.textContent = 'Revisa el teléfono.'; err.hidden = false; return; }
-            if (!ta.value.trim()) { err.textContent = 'Escribe el mensaje.'; err.hidden = false; return; }
+            if (p.length < 10) { e.preventDefault(); err.textContent = 'Revisa el teléfono.'; err.hidden = false; return; }
+            if (!ta.value.trim()) { e.preventDefault(); err.textContent = 'Escribe el mensaje.'; err.hidden = false; return; }
             var q = 'phone=' + p + '&text=' + encodeURIComponent(ta.value.trim()), how = t.getAttribute('data-open');
             var body = Object.assign({ template: key, phone: p, body: ta.value.trim() }, params);
             if (how === 'mobile') {
-              // En el móvil: abre la aplicación de WhatsApp del teléfono (se guarda en el historial antes de salir)
-              var url = 'https://wa.me/' + p + '?text=' + encodeURIComponent(ta.value.trim());
+              // En el móvil: el botón es un enlace normal a wa.me y lo abre el propio toque
+              // (así el iPhone abre WhatsApp directamente, sin preguntar). El historial se guarda a la vez.
+              t.href = 'https://wa.me/' + p + '?text=' + encodeURIComponent(ta.value.trim());
               var withPhoto = techCb && techCb.checked && res.tech && res.tech.avatar;
-              // Con foto: WhatsApp se abre aparte para que, al volver, siga aquí el «Paso 2»
-              var win = withPhoto ? window.open(url, '_blank') : null;
               E.api('logMessage', params, body).then(function (r2) {
                 if (withPhoto) {
                   // Paso 2: al volver de WhatsApp, mandar la foto del técnico al mismo chat
@@ -137,10 +136,9 @@
                     '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-sharetech>' + icon('whatsapp') + 'Enviar la foto del técnico</button>' +
                     '<button type="button" class="er-btn er-btn-ghost" data-x>Terminar</button></div>';
                 } else {
-                  close(r2 && r2.ok ? r2 : { ok: true });
+                  setTimeout(function () { close(r2 && r2.ok ? r2 : { ok: true }); }, 400);
                 }
-                if (!win) window.location.href = url;
-              }, function () { if (!win) window.location.href = url; });
+              });
               return;
             }
             if (how === 'web') window.open('https://web.whatsapp.com/send?' + q, 'ecor-whatsapp');
