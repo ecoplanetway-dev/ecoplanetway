@@ -523,7 +523,8 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         return array('id' => (int) $last['id_ecorepair_quote'], 'label' => EcoRepairQuote::label($last), 'status' => $last['status'],
             'total' => round((float) $last['total_tax_incl'], 2), 'note' => (string) $last['answer_note'], 'channel' => (string) $last['channel'],
             'date' => (string) ($last['date_answer'] ?: $last['date_sent']), 'link' => $last['token'] ? EcoRepairQuote::link($last['token']) : '',
-            'hasDraft' => (bool) $this->draftQuote($idRepair));
+            'hasDraft' => (bool) $this->draftQuote($idRepair), 'lines' => EcoRepairQuote::lines((int) $last['id_ecorepair_quote']),
+            'notes' => (string) $last['notes']);
     }
 
     protected function draftLite($idRepair)

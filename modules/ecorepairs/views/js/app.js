@@ -277,6 +277,7 @@ window.ECOR.ready(function () {
         return;
       }
       if (e.target.closest('[data-batt]')) { openBattery(); return; }
+      if (e.target.closest('[data-qdetail]') && !e.target.closest('[data-qnew]')) { quoteDetail(); return; }
       var qn = e.target.closest('[data-qnew]');
       if (qn) {
         E.dialog({ title: 'Presupuesto nuevo', text: 'Se copia el anterior en borrador para que lo cambies y lo vuelvas a enviar.', ok: 'Hacerlo' }).then(function (y) {
@@ -301,7 +302,7 @@ window.ECOR.ready(function () {
     var el = main.querySelector('#er-tab');
     if (tab === 'parts') {
       var sub = R._sub || 'parts';
-      el.innerHTML = '<div class="er-row" style="flex-wrap:nowrap">' + E.unlockButton(R.unlock || [], 'data-sub="unlock" style="flex:1;justify-content:center"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
+      el.innerHTML = '<div class="er-app-ub">' + E.unlockButton(R.unlock || [], 'data-sub="unlock"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
         E.incompatButton(R.incompat || [], false) + '</div>' +
         (R.battery && E.batterySummary(R.battery) ? '<div class="er-banner">' + icon('battery') + '<div><b>Batería:</b> ' + esc(E.batterySummary(R.battery)) +
           ((R.battery.ctrl || []).length ? ' · ' + esc(R.battery.ctrl.map(function (k) { return (R.battery.connectors.controller || {})[k] || k; }).join(', ')) : '') + '</div></div>' : '') +
@@ -344,11 +345,40 @@ window.ECOR.ready(function () {
     var t = { accepted: ['er-ok', 'check', 'Presupuesto aceptado'], rejected: ['er-bad', 'x', 'Presupuesto rechazado'], sent: ['er-warn', 'clock', 'Presupuesto enviado · esperando respuesta'] }[q.status];
     if (!t) return '';
     var who = q.channel === 'link' ? ' por el cliente' : q.channel === 'store' ? ' en la tienda' : '';
-    return '<div class="er-banner ' + t[0] + ' er-app-qban">' + icon(t[1]) + '<div><b>' + t[2] + who + '</b> · ' + esc(q.label) + ' · ' + esc(E.fmtMoney(q.total)) +
+    var partial = q.status === 'accepted' && /^Acepta solo una parte/i.test(q.note || '');
+    if (partial) t[2] = 'Presupuesto aceptado en parte';
+    return '<div class="er-banner ' + t[0] + ' er-app-qban" data-qdetail role="button" tabindex="0">' + icon(t[1]) + '<div class="er-grow"><b>' + t[2] + who + '</b> · ' + esc(q.label) + ' · ' + esc(E.fmtMoney(q.total)) +
       (q.date ? '<div class="er-small">' + esc(E.fmtDateTime(q.date)) + '</div>' : '') +
-      (q.note ? '<div class="er-small"><b>' + (q.status === 'rejected' ? 'Motivo' : 'Nota') + ':</b> ' + esc(q.note) + '</div>' : '') +
+      (partial ? '<div class="er-app-qout">' + icon('x', true) + '<span><b>No quiere:</b> ' + esc(q.note.replace(/^Acepta solo una parte\.\s*No quiere:\s*/i, '')) + '</span></div>'
+        : q.note ? '<div class="er-small"><b>' + (q.status === 'rejected' ? 'Motivo' : 'Nota') + ':</b> ' + esc(q.note) + '</div>' : '') +
+      '<div class="er-small er-app-qmore">Toca para ver todo lo que hay que hacer ›</div>' +
       (!closed && !q.hasDraft && (q.status === 'rejected' || q.status === 'sent') ? '<button type="button" class="er-btn er-btn-sm" data-qnew>' + icon('refresh', true) + 'Hacer presupuesto nuevo</button>' : '') +
       (q.hasDraft ? '<div class="er-small">Hay un presupuesto nuevo en borrador (pestaña Presupuesto).</div>' : '') + '</div></div>';
+  }
+  /* Ventana con el presupuesto respondido: qué hay que hacer, lo que no quiere y el total */
+  function quoteDetail() {
+    var q = R.quoteInfo;
+    if (!q) return;
+    var partial = q.status === 'accepted' && /^Acepta solo una parte/i.test(q.note || '');
+    var lines = q.lines || [], tot = lines.reduce(function (a, l) { return a + (l.warranty ? 0 : +l.total || 0); }, 0);
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-app-qdlg"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' +
+      (q.status === 'accepted' ? 'Hay que hacer' : q.status === 'rejected' ? 'Presupuesto rechazado' : 'Presupuesto enviado') + '</h2>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+      '<div class="er-muted er-small">' + esc(q.label + ' · ' + R.repair.reference + ' · ' + R.repair.device_name) + '</div>' +
+      '<div class="er-app-qd">' + (lines.length ? lines.map(function (l) {
+        return '<div class="er-app-qdrow">' + (q.status === 'accepted' ? '<span class="er-app-qdok">' + icon('check', true) + '</span>' : '') +
+          '<span class="er-grow"><b>' + esc(l.qty_text + ' × ' + l.name) + '</b>' + (l.type === 'labour' ? ' <span class="er-tag er-t-neu">Mano de obra</span>' : '') +
+          (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.warranty ? 0 : l.total)) + '</b></div>';
+      }).join('') : '<p class="er-muted">Sin líneas.</p>') + '</div>' +
+      '<div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(tot)) + '</b></div>' +
+      (partial ? '<div class="er-app-qout">' + icon('x', true) + '<span><b>No quiere hacer:</b> ' + esc(q.note.replace(/^Acepta solo una parte\.\s*No quiere:\s*/i, '')) + '</span></div>'
+        : q.note ? '<div class="er-banner er-warn" style="margin:0">' + icon('alert') + '<div>' + esc(q.note) + '</div></div>' : '') +
+      (q.notes ? '<div class="er-sub" style="margin:0">Observaciones</div><div class="er-small" style="white-space:pre-wrap">' + esc(q.notes) + '</div>' : '') +
+      '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-pri" data-x>Entendido</button></div></div>';
+    app.appendChild(wrap);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-x]')) wrap.remove(); });
   }
   /* Cliente: datos completos y accesos rápidos (llamar, WhatsApp, batería) */
   function customerBox(r, closed) {
@@ -477,7 +507,7 @@ window.ECOR.ready(function () {
             '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-qdel="' + i + '" aria-label="Quitar">' + icon('trash', true) + '</button></div>';
         }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(d.lines.reduce(function (a, l) { return a + (+l.total || 0); }, 0))) + '</b></div>'
           : '<p class="er-muted" style="margin:0">Añade piezas abajo o mano de obra.</p>') +
-        '<div class="er-app-addrow"><button type="button" class="er-btn" data-qform="labour">' + icon('wrench', true) + 'Mano de obra</button>' +
+        '<div class="er-app-addrow"><button type="button" class="er-btn" data-qlab20>' + icon('wrench', true) + 'Mano de obra · 20 €</button>' +
           '<button type="button" class="er-btn" data-qform="part">' + icon('plus', true) + 'Producto suelto</button></div>' +
         '<div class="er-app-qform" id="er-app-qform" hidden></div>' +
         (R.draft && d.lines.length ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-qsend">' + icon('check') + 'Enviar presupuesto al cliente</button>' +
@@ -494,7 +524,8 @@ window.ECOR.ready(function () {
         (R.draft && canWork && R.quoteState === 'draft' ? '' : '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
           (R.lines.length ? '<div class="er-mini">' + R.lines.map(function (l) {
             return '<div><span class="er-grow" style="white-space:normal">' + esc(l.qty_text + ' × ' + l.name) + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.total)) + '</b></div>';
-          }).join('') + '</div>' : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>') +
+          }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(R.lines.reduce(function (a, l) { return a + (l.warranty ? 0 : +l.total || 0); }, 0))) + '</b></div>'
+            : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>') +
         (canWork ? '<div class="er-panel"><h3>' + icon('search') + 'Añadir piezas</h3>' +
           '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-app-q" type="search" placeholder="Nombre, referencia o EAN" autocomplete="off"></label>' +
           '<div class="er-app-res" id="er-app-res">' + (results || []).map(function (p, i) {
@@ -580,13 +611,23 @@ window.ECOR.ready(function () {
         saveLines(lines);
         return;
       }
+      if ((t = e.target.closest('[data-qlab20]'))) {
+        // Mano de obra directa de 20 €; para otro importe: «Producto suelto»
+        t.disabled = true;
+        api('quoteLabour', { id: r.id }, { name: 'Mano de obra', price: '20', qty: 1, kind: 'labour' }).then(function (res) {
+          t.disabled = false;
+          if (!res.ok) { E.toast(res.error, true); return; }
+          R = res; drawRepair('parts'); E.toast('Mano de obra de 20 € añadida');
+        });
+        return;
+      }
       if ((t = e.target.closest('[data-qform]'))) {
         // Formulario corto: mano de obra (ya con «Mano de obra» y 20 €) o producto suelto que no está en la tienda
         var kind = t.getAttribute('data-qform'), box = el.querySelector('#er-app-qform');
         box.hidden = false;
         box.setAttribute('data-kind', kind);
         box.innerHTML = '<div class="er-sub">' + (kind === 'labour' ? 'Mano de obra' : 'Producto que no está en la tienda') + '</div>' +
-          '<input class="er-input" id="er-app-labn" maxlength="128" value="' + (kind === 'labour' ? 'Mano de obra' : '') + '" placeholder="' + (kind === 'labour' ? 'Mano de obra' : 'Nombre del producto') + '">' +
+          '<input class="er-input" id="er-app-labn" maxlength="128" value="' + (kind === 'labour' ? 'Mano de obra' : '') + '" placeholder="' + (kind === 'labour' ? 'Mano de obra' : 'Nombre (por ejemplo: Mano de obra)') + '">' +
           '<div class="er-row" style="flex-wrap:nowrap;gap:8px">' +
             (kind === 'part' ? '<label class="er-app-qf"><span>Cant.</span><input class="er-input er-num" id="er-app-labq" inputmode="numeric" value="1"></label>' : '') +
             '<label class="er-app-qf er-grow"><span>Precio con IVA</span><input class="er-input er-num" id="er-app-labp" inputmode="decimal" value="' + (kind === 'labour' ? '20' : '') + '" placeholder="0,00"><em>€</em></label></div>' +
