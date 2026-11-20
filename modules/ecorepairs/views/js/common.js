@@ -706,6 +706,240 @@
     });
   }
 
+
+  /* ---------- Entrada por voz con confirmaciones (nueva reparación) ---------- */
+  var NUMW = { cero: '0', uno: '1', una: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5', seis: '6', siete: '7', ocho: '8', nueve: '9', diez: '10', once: '11', doce: '12',
+    trece: '13', catorce: '14', quince: '15', dieciseis: '16', diecisiete: '17', dieciocho: '18', diecinueve: '19', veinte: '20', treinta: '30', cuarenta: '40', cincuenta: '50',
+    sesenta: '60', setenta: '70', ochenta: '80', noventa: '90', cien: '100', trescientos: '300', trescientossesentaycinco: '365' };
+  var LETW = { be: 'b', ce: 'c', de: 'd', efe: 'f', ge: 'g', hache: 'h', jota: 'j', ka: 'k', ele: 'l', eme: 'm', ene: 'n', pe: 'p', cu: 'q', erre: 'r', ese: 's', te: 't', uve: 'v', equis: 'x', zeta: 'z', igriega: 'y' };
+  /** «eme tres seis cinco» → «m 3 6 5», «cuatro pro» → «4 pro», «ge dos» → «g 2» (el buscador junta los espacios) */
+  function speechToModel(t) {
+    t = fold(t).replace(/i griega/g, 'igriega').replace(/uve doble/g, 'w').replace(/trescientos sesenta y cinco/g, '365');
+    return t.split(/\s+/).map(function (w) { return NUMW[w] || LETW[w] || w; }).join(' ').replace(/\b(\d+) y (\d)\b/g, function (m, a, b) { return String(+a + +b); });
+  }
+  function isYes(t) { return /^(si|sí|claro|vale|correcto|eso es|exacto|afirmativo|ok|okay|es ese|ese)\b/.test(fold(t).trim()); }
+  function isNo(t) { return /^(no|nada|ninguno|ninguna|incorrecto|negativo|no es|otro)\b/.test(fold(t).trim()); }
+  var ORD = { primero: 0, primera: 0, uno: 0, '1': 0, segundo: 1, segunda: 1, dos: 1, '2': 1, tercero: 2, tercera: 2, tres: 2, '3': 2, cuarto: 3, cuatro: 3, '4': 3 };
+
+  /** Ventana de voz: pregunta, escucha y entiende sí/no, «el segundo» o el nombre de una opción. */
+  function VoiceDialog(title) {
+    var wrap = document.createElement('div'), closed = false, cur = null;
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-voice"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + ICONS_EXTRA.mic + esc(title) + '</h2>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-vx aria-label="Cerrar">' + icon('x') + '</button></div><div id="er-vd"></div></div>';
+    (root() || document.body).appendChild(wrap);
+    var body = wrap.querySelector('#er-vd');
+    function stop() { if (listen.stop) listen.stop(); if (window.speechSynthesis) window.speechSynthesis.cancel(); }
+    var api = {
+      cancelled: false,
+      /** opts: { hint, choices: [texto], yesno, optional } → promesa { text, index } ({} si «no / saltar») */
+      ask: function (q, opts) {
+        opts = opts || {};
+        var choices = opts.yesno ? ['Sí', 'No'] : (opts.choices || []);
+        return new Promise(function (resolve) {
+          if (closed) { resolve(null); return; }
+          var tries = 0, done = false;
+          function finish(v) { if (done) return; done = true; stop(); resolve(v); }
+          body.innerHTML = '<div class="er-voice-q">' + esc(q) + '</div><div class="er-muted er-small">' + esc(opts.hint || (opts.optional !== false && !choices.length ? 'Di «no» si no hay nada que apuntar.' : '')) + '</div>' +
+            '<button type="button" class="er-voice-mic" data-vm aria-label="Hablar">' + ICONS_EXTRA.mic + '</button><div class="er-voice-a" data-va></div>' +
+            (choices.length ? '<div class="er-voice-ch">' + choices.map(function (c, i) { return '<button type="button" class="er-btn' + (opts.yesno && i === 0 ? ' er-btn-pri' : '') + '" data-vc="' + i + '">' + (choices.length > 2 || !opts.yesno ? '<b>' + (i + 1) + '</b> ' : '') + esc(c) + '</button>'; }).join('') + '</div>' : '') +
+            '<div class="er-row" style="flex-wrap:nowrap;margin-top:10px"><input class="er-input" data-vt placeholder="O escríbelo aquí" data-novoice><button type="button" class="er-btn er-btn-pri" data-vok>Siguiente</button></div>' +
+            '<div class="er-dlg-act" style="justify-content:space-between"><button type="button" class="er-btn er-btn-ghost" data-vskip>No / saltar</button></div>';
+          var a = body.querySelector('[data-va]'), mic = body.querySelector('[data-vm]');
+          function interpret(t) {
+            if (!t) return false;
+            if (choices.length) {
+              if (opts.yesno) { if (isYes(t)) { finish({ text: 'Sí', index: 0 }); return true; } if (isNo(t)) { finish({ text: 'No', index: 1 }); return true; } return false; }
+              var f = fold(t).replace(/^(el|la|es el|es la|opcion|numero)\s+/, '').trim(), w = f.split(/\s+/)[0];
+              if (ORD[w] !== undefined && ORD[w] < choices.length) { finish({ text: choices[ORD[w]], index: ORD[w] }); return true; }
+              if (isNo(t) && opts.noIndex !== undefined) { finish({ text: choices[opts.noIndex], index: opts.noIndex }); return true; }
+              var best = -1, bs = 0;
+              choices.forEach(function (c, i) { var sc = fuzzyScore(speechToModel(t), c); if (sc > bs) { bs = sc; best = i; } });
+              if (best > -1 && bs >= 60) { finish({ text: choices[best], index: best }); return true; }
+              return false;
+            }
+            // Solo «no», «nada», «no tiene»… cuentan como vacío: «no carga» o «no enciende» son averías
+            if (/^(no|nada|ninguno|ninguna|no tiene|no trae|no hay|sin nada|no tiene nada|no trae nada)\.?$/.test(fold(t).trim())) { finish({}); return true; }
+            finish({ text: t }); return true;
+          }
+          function go() {
+            if (done || closed || !SR) return;
+            speak(tries ? 'No te he entendido. ' + q : q).then(function () {
+              if (done || closed) return '';
+              mic.classList.add('on');
+              return listen(function (t) { a.textContent = t; });
+            }).then(function (t) {
+              mic.classList.remove('on');
+              if (done || closed) return;
+              a.textContent = t || '';
+              if (!interpret(t) && t && tries < 1) { tries++; go(); }
+            });
+          }
+          cur = { go: go };
+          body.onclick = function (e) {
+            var t;
+            if ((t = e.target.closest('[data-vc]'))) { var i = +t.getAttribute('data-vc'); finish({ text: choices[i], index: i }); return; }
+            if (e.target.closest('[data-vskip]')) { finish(choices.length && opts.noIndex !== undefined ? { text: choices[opts.noIndex], index: opts.noIndex } : {}); return; }
+            if (e.target.closest('[data-vok]')) { var v = body.querySelector('[data-vt]').value.trim(); if (v) { if (!interpret(v)) finish({ text: v }); } return; }
+            if (e.target.closest('[data-vm]')) { if (mic.classList.contains('on')) stop(); else { tries = 0; go(); } }
+          };
+          body.querySelector('[data-vt]').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); body.querySelector('[data-vok]').click(); } };
+          if (!SR) a.textContent = 'Este navegador no reconoce la voz: toca una opción o escríbelo.';
+          go();
+        });
+      },
+      summary: function (rows) {
+        return new Promise(function (resolve) {
+          body.innerHTML = '<div class="er-voice-q">¿Está todo bien?</div><div class="er-mini er-voice-sum">' + rows.map(function (r) {
+            return '<div><span class="er-muted" style="min-width:110px">' + esc(r[0]) + '</span><b class="er-grow" style="white-space:normal">' + esc(r[1] || '—') + '</b></div>';
+          }).join('') + '</div><div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-vno>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-vyes>Sí, rellenar</button></div>';
+          body.onclick = function (e) {
+            if (e.target.closest('[data-vyes]')) { stop(); resolve(true); }
+            if (e.target.closest('[data-vno]')) { stop(); resolve(false); }
+          };
+          speak('¿Está todo bien?').then(function () { return closed ? '' : listen(); }).then(function (t) { if (closed) return; if (isYes(t || '')) resolve(true); else if (isNo(t || '')) resolve(false); });
+        });
+      },
+      close: function () { closed = true; stop(); wrap.remove(); }
+    };
+    wrap.addEventListener('click', function (e) { if (e.target.closest('[data-vx]')) { api.cancelled = true; api.close(); } });
+    return api;
+  }
+
+  /**
+   * Nueva reparación por voz. ctx: { catalog, accessories, damages, askCustomer, askDevice, preset: {cat} }
+   * Devuelve promesa con el resultado (o null si se cancela).
+   */
+  function voiceRepair(ctx) {
+    var V = VoiceDialog('Nueva reparación por voz'), R = { faults: [], acc: [], accNew: [], dmg: [], dmgNew: [], notes: [], cat: ctx.presetCat || null };
+    function cap(t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
+    function chain() {
+      var p = Promise.resolve();
+      if (ctx.askCustomer) {
+        p = p.then(function () { return V.ask('¿Nombre del cliente?', { optional: false }); }).then(function (a) { if (!a) throw 0; R.firstname = cap(a.text); })
+          .then(function () { return V.ask('¿Y sus apellidos?'); }).then(function (a) { if (!a) throw 0; R.lastname = cap(a.text); })
+          .then(function askPhone() {
+            return V.ask('¿Su teléfono?', { hint: 'Dilo número a número o seguido.' }).then(function (a) {
+              if (!a) throw 0;
+              var ph = phoneFromText(a.text || '');
+              if (!ph) return;
+              return V.ask('He entendido ' + ph.split('').join(' ') + '. ¿Es correcto?', { yesno: true }).then(function (c) {
+                if (!c) throw 0;
+                if (c.index === 0) { R.phone = ph; return; }
+                return V.ask('Dímelo otra vez, despacio.').then(function (b) { if (!b) throw 0; R.phone = phoneFromText(b.text || ''); });
+              });
+            });
+          });
+      }
+      if (ctx.askDevice) {
+        var cats = ctx.catalog.filter(function (c) { return c.icon !== 'moto'; });
+        p = p.then(function () { return V.ask('¿Es patinete, bicicleta o batería?', { choices: cats.map(function (c) { return c.name; }).concat(['Otro']) }); })
+          .then(function (a) {
+            if (!a) throw 0;
+            R.cat = a.index !== undefined && a.index < cats.length ? cats[a.index] : (ctx.catalog.filter(function (c) { return fuzzyScore(a.text || '', c.name) >= 60; })[0] || null);
+          })
+          .then(function () { return R.cat ? deviceStep() : null; });
+      }
+      p = p.then(function () { return V.ask('¿Número de serie?'); }).then(function (a) { if (!a) throw 0; if (a.text) R.serial = a.text.replace(/\s+/g, '').toUpperCase(); })
+        .then(function () { return V.ask('¿Cuántos kilómetros tiene?'); }).then(function (a) { if (!a) throw 0; if (a.text) R.km = phoneFromText(speechToModel(a.text)).slice(0, 9); })
+        .then(faultStep)
+        .then(function () { return listStep('¿Qué trae con el equipo?', ctx.accessories, 'acc', 'accNew', 'Por ejemplo: cargador y llave.'); })
+        .then(function () { return listStep('¿Tiene algún daño previo?', ctx.damages, 'dmg', 'dmgNew'); })
+        .then(function () { return V.ask('¿Es urgente?', { yesno: true }); }).then(function (a) { if (!a) throw 0; R.urgent = a.index === 0; })
+        .then(function () {
+          return V.summary([['Cliente', [R.firstname, R.lastname].filter(Boolean).join(' ')], ['Teléfono', R.phone], ['Equipo', R.label || (R.cat ? R.cat.name : '')],
+            ['Nº de serie', R.serial], ['Kilómetros', R.km], ['Avería', [R.faults.join(', '), R.fault].filter(Boolean).join(' · ')],
+            ['Trae', R.acc.join(', ')], ['Daños', R.dmg.join(', ')], ['Urgente', R.urgent ? 'Sí' : 'No'], ['Notas', R.notes.join(' · ')]]);
+        });
+      return p;
+    }
+    function deviceStep() {
+      var idx = [];
+      R.cat.brands.forEach(function (b) { b.models.forEach(function (m) { idx.push({ b: b, m: m, brand: b.name, model: m.name, id_model: m.id }); }); });
+      function setModel(x) { R.brand = x.b; R.model = x.m; R.label = x.b.name + (x.m ? ' ' + x.m.name : ''); }
+      return V.ask('¿Qué marca y modelo es?', { optional: false }).then(function (a) {
+        if (!a) throw 0;
+        if (!a.text) return;
+        var cand = findModels(idx, speechToModel(a.text), 4);
+        if (!cand.length) return brandStep();
+        return V.ask('¿Es ' + cand[0].brand + ' ' + cand[0].model + '?', { yesno: true }).then(function (c) {
+          if (!c) throw 0;
+          if (c.index === 0) { setModel(cand[0]); return; }
+          var rest = cand.slice(1);
+          if (!rest.length) return brandStep();
+          return V.ask('¿Cuál de estos es?', { choices: rest.map(function (x) { return x.brand + ' ' + x.model; }).concat(['Ninguno']), noIndex: rest.length }).then(function (d) {
+            if (!d) throw 0;
+            if (d.index < rest.length) { setModel(rest[d.index]); return; }
+            return brandStep();
+          });
+        });
+      });
+      function brandStep() {
+        var brands = R.cat.brands;
+        return V.ask('¿Qué marca es?').then(function (a) {
+          if (!a) throw 0;
+          if (!a.text) return;
+          var bs = brands.map(function (b) { return { b: b, s: fuzzyScore(a.text, b.name) }; }).filter(function (x) { return x.s > 0; }).sort(function (x, y) { return y.s - x.s; }).slice(0, 3);
+          if (!bs.length) { R.notes.push('Marca dicha: ' + a.text); return; }
+          var pick = bs.length === 1 ? Promise.resolve({ index: 0 }) : V.ask('¿Cuál de estas marcas?', { choices: bs.map(function (x) { return x.b.name; }).concat(['Ninguna']), noIndex: bs.length });
+          return pick.then(function (c) {
+            if (!c) throw 0;
+            if (c.index >= bs.length) return;
+            var b = bs[c.index].b;
+            R.brand = b; R.label = b.name;
+            if (!b.models.length) return;
+            return V.ask('¿Qué modelo de ' + b.name + '?').then(function (m) {
+              if (!m) throw 0;
+              if (!m.text) return;
+              var mc = findModels(b.models.map(function (x) { return { b: b, m: x, brand: b.name, model: x.name, id_model: x.id }; }), speechToModel(m.text), 3);
+              if (!mc.length) { R.notes.push('Modelo dicho: ' + m.text); return; }
+              return V.ask('¿Cuál es?', { choices: mc.map(function (x) { return x.brand + ' ' + x.model; }).concat(['Ninguno']), noIndex: mc.length }).then(function (d) {
+                if (!d) throw 0;
+                if (d.index < mc.length) setModel(mc[d.index]); else R.notes.push('Modelo dicho: ' + m.text);
+              });
+            });
+          });
+        });
+      }
+    }
+    function faultStep() {
+      return V.ask('¿Qué le pasa?', { optional: false }).then(function (a) {
+        if (!a) throw 0;
+        if (!a.text) return;
+        R.fault = cap(a.text);
+        var list = R.cat ? R.cat.faults.map(function (f) { return f.name; }) : [];
+        var found = pickFromText(a.text, list);
+        if (found.length) { R.faults = found; return; }
+        var best = list.map(function (n) { return { n: n, s: fuzzyScore(a.text, n) }; }).sort(function (x, y) { return y.s - x.s; })[0];
+        if (!best || best.s < 40) return;
+        return V.ask('¿Lo marco como «' + best.n + '»?', { yesno: true }).then(function (c) { if (!c) throw 0; if (c.index === 0) R.faults = [best.n]; });
+      });
+    }
+    /** Lo que se nombra de la lista se marca; lo que no está se pregunta si se añade a la lista. */
+    function listStep(q, options, key, newKey, hint) {
+      return V.ask(q, { hint: hint }).then(function (a) {
+        if (!a) throw 0;
+        if (!a.text) return;
+        var found = pickFromText(a.text, options);
+        R[key] = found.slice();
+        var rest = fold(a.text);
+        found.forEach(function (f) { fold(f).split(/\s+/).forEach(function (w) { rest = rest.replace(new RegExp('\\b' + w.slice(0, Math.max(4, w.length - 2)) + '[a-z]*', 'g'), ' '); }); });
+        var parts = rest.split(/,|\by\b|\bcon\b|\btrae\b|\btiene\b|\bun\b|\buna\b|\bel\b|\bla\b|\blos\b|\blas\b|\bde\b/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length >= 3; });
+        var pc = Promise.resolve();
+        parts.slice(0, 3).forEach(function (pt) {
+          pc = pc.then(function () {
+            return V.ask('No tengo «' + pt + '» en la lista. ¿Lo añado?', { yesno: true }).then(function (c) {
+              if (!c) throw 0;
+              if (c.index === 0) { R[key].push(cap(pt)); R[newKey].push(cap(pt)); } else R.notes.push(cap(pt));
+            });
+          });
+        });
+        return pc;
+      });
+    }
+    return chain().then(function (ok) { V.close(); return ok ? R : null; }, function () { V.close(); return null; });
+  }
+
   /* Efecto al pulsar: el brillo sale desde donde se toca */
   document.addEventListener('pointerdown', function (e) {
     var b = e.target.closest && e.target.closest('.ecor .er-btn, .ecor .er-chip, .ecor .er-opt, .ecor .er-tile');
@@ -752,6 +986,8 @@
     pickFromText: pickFromText,
     phoneFromText: phoneFromText,
     trimImage: trimImage,
-    dropZone: dropZone
+    dropZone: dropZone,
+    voiceRepair: voiceRepair,
+    speechToModel: speechToModel
   };
 })();

@@ -700,52 +700,38 @@ window.ECOR.ready(function () {
       });
     }
     function voice() {
-      E.voiceEntry([
-        { key: 'name', q: '¿Cómo se llama el cliente?' }, { key: 'phone', q: '¿Cuál es su teléfono?' },
-        { key: 'device', q: '¿Qué marca y modelo es?' }, { key: 'serial', q: '¿Número de serie?' }, { key: 'km', q: '¿Cuántos kilómetros tiene?' },
-        { key: 'fault', q: '¿Qué le pasa?' }, { key: 'acc', q: '¿Qué trae con el patín?', hint: 'Por ejemplo: cargador y llave. Di «no» si no trae nada.' },
-        { key: 'dmg', q: '¿Tiene algún daño previo?' }, { key: 'urgent', q: '¿Es urgente?', hint: 'Di sí o no.' }
-      ], 'Nueva reparación por voz').then(function (a) {
-        if (!a) return;
-        function cap(t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
-        if (a.serial) st.serial = a.serial.replace(/\s+/g, '').toUpperCase();
-        if (a.km) st.km = E.phoneFromText(a.km).slice(0, 9);
-        if (a.fault) st.fault = cap(a.fault);
-        if (a.acc) { var al = E.pickFromText(a.acc, D.accessories || []); st.accessories = al.length ? al : [cap(a.acc)]; }
-        if (a.dmg) { var dl = E.pickFromText(a.dmg, D.damages || []); st.damages = dl.length ? dl : [cap(a.dmg)]; }
-        st.urgent = !!(a.urgent && /^s[ií]/.test(E.fold(a.urgent)));
-        loadCatalog().then(function (cat) {
-          if (a.device) {
-            var idx = [];
-            cat.forEach(function (c) { c.brands.forEach(function (b) {
-              idx.push({ c: c, b: b, m: null, brand: b.name, model: '' });
-              b.models.forEach(function (m) { idx.push({ c: c, b: b, m: m, brand: b.name, model: m.name, id_model: m.id }); });
-            }); });
-            var best = E.findModels(idx, a.device, 1)[0];
-            if (best) {
-              var fl = st.fault ? E.pickFromText(st.fault, best.c.faults.map(function (f) { return f.name; })) : [];
-              st.device = { id_category: best.c.id, id_brand: best.b.id, id_model: best.m ? best.m.id : 0, faults: fl, label: best.brand + (best.m ? ' ' + best.model : '') };
-            } else E.toast('No encontré «' + a.device + '»: elígelo en el paso 2.', true);
-          }
-          var phone = E.phoneFromText(a.phone || ''), name = cap(a.name);
-          var q = phone.length >= 6 ? phone : name;
-          if (!q) { draw(); return; }
-          api('customers', { q: q }, null).then(function (res) {
-            var list = (res.customers || []).filter(function (c) {
-              return phone.length >= 6 ? String(c.phone || '').replace(/\D/g, '').indexOf(phone.slice(-9)) > -1 : E.fuzzyScore(name, c.name) >= 80;
-            });
-            if (list.length === 1) { st.customer = list[0]; st.step = st.device ? 3 : 2; E.toast('Cliente: ' + list[0].name + '. Revisa y sigue.'); draw(); return; }
-            st.step = 1; draw();
-            var form = nv.querySelector('#er-cform');
-            if (form) {
-              form.hidden = false;
-              var parts = name.split(/\s+/);
-              form.querySelector('[data-c="firstname"]').value = parts.shift() || '';
-              form.querySelector('[data-c="lastname"]').value = parts.join(' ');
-              form.querySelector('[data-c="phone"]').value = phone;
-            }
-            E.toast(list.length > 1 ? 'Hay varios clientes parecidos: elígelo o crea uno nuevo.' : 'Cliente nuevo: revisa y pulsa «Guardar cliente».');
+      loadCatalog().then(function (cat) {
+        return E.voiceRepair({ catalog: cat, accessories: D.accessories || [], damages: D.damages || [], askCustomer: !st.customer, askDevice: !st.tag,
+          presetCat: st.tag && st.device ? cat.filter(function (c) { return c.id === st.device.id_category; })[0] : null });
+      }).then(function (R) {
+        if (!R) return;
+        if (R.serial) st.serial = R.serial;
+        if (R.km) st.km = R.km;
+        st.fault = [R.fault, R.notes.length ? 'Notas: ' + R.notes.join(', ') : ''].filter(Boolean).join('\n');
+        if (R.acc.length) st.accessories = R.acc;
+        if (R.dmg.length) st.damages = R.dmg;
+        (R.accNew || []).forEach(function (v) { if ((D.accessories || []).indexOf(v) < 0) D.accessories.push(v); });
+        (R.dmgNew || []).forEach(function (v) { if ((D.damages || []).indexOf(v) < 0) D.damages.push(v); });
+        st.urgent = !!R.urgent;
+        if (R.cat && !st.tag) st.device = { id_category: R.cat.id, id_brand: R.brand ? R.brand.id : 0, id_model: R.model ? R.model.id : 0, faults: R.faults, label: R.label || R.cat.name };
+        else if (st.device) st.device.faults = R.faults;
+        var phone = R.phone || '', name = [R.firstname, R.lastname].filter(Boolean).join(' ');
+        var q = phone.length >= 6 ? phone : name;
+        if (!q || st.customer) { st.step = st.customer ? 3 : 1; draw(); return; }
+        api('customers', { q: q }, null).then(function (res) {
+          var list = (res.customers || []).filter(function (c) {
+            return phone.length >= 6 ? String(c.phone || '').replace(/\D/g, '').indexOf(phone.slice(-9)) > -1 : E.fuzzyScore(name, c.name) >= 80;
           });
+          if (list.length === 1) { st.customer = list[0]; st.step = 3; E.toast('Cliente: ' + list[0].name + '. Revisa y sigue.'); draw(); return; }
+          st.step = 1; draw();
+          var form = nv.querySelector('#er-cform');
+          if (form) {
+            form.hidden = false;
+            form.querySelector('[data-c="firstname"]').value = R.firstname || '';
+            form.querySelector('[data-c="lastname"]').value = R.lastname || '';
+            form.querySelector('[data-c="phone"]').value = phone;
+          }
+          E.toast(list.length > 1 ? 'Hay varios clientes parecidos: elígelo o crea uno nuevo.' : 'Cliente nuevo: revisa y pulsa «Guardar cliente».');
         });
       });
     }
