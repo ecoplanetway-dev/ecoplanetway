@@ -41,23 +41,17 @@ class EcoRepairPrintQueue
         return array('ok' => true);
     }
 
-    /** Trabajos pendientes de esta tienda; se quitan de la cola al entregarlos (los imprime el primer ordenador que los recoge). */
+    /**
+     * Trabajos pendientes; se quitan de la cola al entregarlos (los imprime el primer ordenador que los recoge).
+     * No se filtra por tienda: con varias tiendas, el panel suele estar en «Todas las tiendas» y el taller es uno.
+     */
     public static function take($idShop)
     {
         $q = self::load();
-        $mine = array();
-        $rest = array();
-        foreach ($q as $j) {
-            if ((int) $j['shop'] === (int) $idShop) {
-                $mine[] = $j;
-            } else {
-                $rest[] = $j;
-            }
-        }
-        if ($mine) {
-            self::save($rest);
+        if ($q) {
+            self::save(array());
         }
 
-        return $mine;
+        return $q;
     }
 }
