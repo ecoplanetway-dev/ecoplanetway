@@ -20,11 +20,12 @@ window.ECOR.ready(function () {
   var SECS = [
     { k: 'catalog', i: 'device', t: 'Catálogo', s: 'Categorías, marcas, modelos y fotos', w: 'marca modelo foto categoria averia frecuente importar',
       h: '<p class="er-sg-intro">Lo que se oculta deja de salir al crear reparaciones, pero no se borra. Con <b>📖</b> abres la ficha del modelo (piezas, deslimitar, precios, códigos).</p>' +
-        '<div id="er-cat-grid" class="er-wide-2 er-catgrid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
+        '<div id="er-cat-grid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
         (canEdit ? '<div class="er-row" style="margin-top:12px"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
           '<div class="er-row"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
     { k: 'reception', i: 'plus', t: 'Recepción', s: 'Datos del cliente, accesorios y daños', w: 'telefono email obligatorio accesorios cargador daños condiciones resguardo firma',
-      h: sg('Datos del cliente', 'Qué es obligatorio al crear un cliente nuevo. Nombre y apellidos siempre lo son.', '<div class="er-fg">' + fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') + '</div>') +
+      h: sg('Averías frecuentes', 'Salen como botones al elegir el equipo. Cada categoría tiene las suyas.', '<div id="er-flt"></div>') +
+        sg('Datos del cliente', 'Qué es obligatorio al crear un cliente nuevo. Nombre y apellidos siempre lo son.', '<div class="er-fg">' + fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') + '</div>') +
         sg('Entregado con el equipo', 'Salen como botones en «Nueva reparación». Uno por línea.', ta('ECOREPAIRS_ACCESSORIES')) +
         sg('Daños previos', 'Para dejar constancia de cómo llega el equipo. Uno por línea.', ta('ECOREPAIRS_DAMAGES')) +
         sg('Condiciones del resguardo', 'Salen impresas y el cliente las acepta al firmar. Revísalas con tu gestor.', ta('ECOREPAIRS_CONDITIONS', 6)) },
@@ -147,24 +148,88 @@ window.ECOR.ready(function () {
         '<button type="button" class="er-btn er-icon-btn" data-add="' + type + '" data-parent="' + parentId + '" aria-label="Añadir">' + icon('plus') + '</button></div>' : '') + '</div>';
   }
 
+  var catQ = '', azSel = '', mFilter = 'all', fltCat = 0;
+  function modelCard(it, b) {
+    var src = E.modelImg(it.image);
+    return '<div class="er-mcard' + (it.active ? '' : ' off') + '">' +
+      '<div class="er-mcard-ph">' + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '<span>Sin foto' + (canEdit ? ' · arrástrala aquí' : '') + '</span>') + '</div>' +
+      '<div class="er-mcard-t"><b>' + esc(it.name) + '</b>' + (it.active ? '' : '<span class="er-tag er-t-warn">Oculto</span>') +
+      '<details class="er-mmenu"><summary aria-label="Opciones">⋯</summary><div>' +
+        '<a href="' + esc(E.boot.links.model + '&id_brand=' + b.id + '&id_model=' + it.id) + '">' + icon('book', true) + 'Abrir ficha (piezas, códigos…)</a>' +
+        (canEdit ? '<button type="button" data-imgup="' + it.id + '">' + icon('camera', true) + 'Subir foto</button>' +
+          '<button type="button" data-imgurl="' + it.id + '">' + icon('link', true) + 'Foto desde enlace</button>' +
+          '<a target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(b.name + ' ' + it.name) + '">' + icon('search', true) + 'Buscar imagen</a>' +
+          (it.image ? '<button type="button" data-imgdel="' + it.id + '">' + icon('x', true) + 'Quitar foto</button>' : '') +
+          '<button type="button" data-ren="model" data-id="' + it.id + '" data-name="' + esc(it.name) + '">' + icon('pen', true) + 'Renombrar</button>' +
+          '<button type="button" data-act="model" data-id="' + it.id + '" data-v="' + (it.active ? 0 : 1) + '">' + (it.active ? 'Ocultar' : 'Mostrar') + '</button>' : '') +
+      '</div></details></div></div>';
+  }
   function renderCatalog() {
     var c = cat(), b = brand();
-    var html = column('Categorías', 'category', catalog, 0, true, sel.cat, function (it) { return icon(it.icon || 'other', true) + ' '; });
+    var html = '<div class="er-cat-top"><div class="er-cat-cats">' + catalog.map(function (x) {
+      return '<button type="button" class="er-cchip' + (x.id === sel.cat ? ' on' : '') + (x.active ? '' : ' off') + '" data-sel="category" data-id="' + x.id + '">' + icon(x.icon || 'other', true) + esc(x.name) + ' <b>' + x.brands.length + '</b></button>';
+    }).join('') + (canEdit ? '<span class="er-inl"><input class="er-input" data-newname="category" maxlength="64" placeholder="Nueva categoría" style="width:150px"><button type="button" class="er-btn er-icon-btn" data-add="category" data-parent="0" aria-label="Añadir">' + icon('plus') + '</button></span>' : '') + '</div>' +
+      '<label class="er-search er-cat-q">' + icon('search') + '<input class="er-input" id="er-catq" type="search" placeholder="Buscar marca o modelo en todo el catálogo" autocomplete="off" value="' + esc(catQ) + '" data-novoice></label></div>';
+    if (catQ.length >= 2) {
+      var hits = [];
+      catalog.forEach(function (cc) { cc.brands.forEach(function (bb) {
+        var sb = E.fuzzyScore(catQ, bb.name);
+        if (sb) hits.push({ s: sb + 1, c: cc, b: bb, m: null });
+        bb.models.forEach(function (mm) { var sm = E.fuzzyScore(catQ, bb.name + ' ' + mm.name); if (sm) hits.push({ s: sm, c: cc, b: bb, m: mm }); });
+      }); });
+      hits.sort(function (x, y) { return y.s - x.s; });
+      html += '<div class="er-cat-hits">' + (hits.length ? hits.slice(0, 16).map(function (h) {
+        return '<button type="button" data-hit="' + h.c.id + ':' + h.b.id + '">' + icon(h.c.icon || 'other', true) + '<b>' + esc(h.b.name + (h.m ? ' ' + h.m.name : '')) + '</b><span class="er-muted er-small">' + esc(h.c.name + (h.m ? '' : ' · marca')) + '</span></button>';
+      }).join('') : '<div class="er-empty">Nada con «' + esc(catQ) + '».</div>') + '</div>';
+    }
     if (c) {
-      html += '<div class="er-stack" style="gap:12px">' + column('Marcas de ' + c.name, 'brand', c.brands, c.id, true, sel.brand, null, 'Sin marcas') +
-        (canEdit ? '<label class="er-field">Icono de ' + esc(c.name) + '<select class="er-input" id="er-cat-icon">' + Object.keys(D.icons).map(function (k) {
-          return '<option value="' + k + '"' + (c.icon === k ? ' selected' : '') + '>' + esc(D.icons[k]) + '</option>';
-        }).join('') + '</select></label>' : '') + '</div>';
-      html += b ? column('Modelos de ' + b.name, 'model', b.models, b.id, false, 0, function (it) {
-          var src = E.modelImg(it.image);
-          return src ? '<img class="er-mthumb" src="' + esc(src) + '" alt="">' : '<span class="er-mthumb er-mthumb-empty">' + icon('camera', true) + '</span>';
-        }, 'Sin modelos')
-                : '<div><div class="er-sub">Modelos</div><div class="er-empty">Elige una marca</div></div>';
-      html += column('Averías frecuentes de ' + c.name, 'fault', c.faults, c.id, false, 0, null, 'Sin averías');
+      var brands = c.brands.slice().sort(function (x, y) { return x.name.localeCompare(y.name); });
+      var letters = {};
+      brands.forEach(function (x) { letters[x.name.charAt(0).toUpperCase()] = true; });
+      var list = '', last = '';
+      brands.forEach(function (x) {
+        var L = x.name.charAt(0).toUpperCase();
+        if (L !== last) { list += '<div class="er-bl-l" data-letter="' + esc(L) + '">' + esc(L) + '</div>'; last = L; }
+        list += '<button type="button" class="er-bl-b' + (x.id === sel.brand ? ' on' : '') + (x.active ? '' : ' off') + '" data-sel="brand" data-id="' + x.id + '"><span>' + esc(x.name) + '</span><small>' + x.models.length + '</small></button>';
+      });
+      html += '<div class="er-cat-grid2"><div class="er-bl"><div class="er-az">' + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(function (L) {
+          return '<button type="button" data-az="' + L + '"' + (letters[L] ? '' : ' disabled') + '>' + L + '</button>';
+        }).join('') + '</div><div class="er-bl-list" id="er-bl-list">' + (list || '<div class="er-empty">Sin marcas</div>') + '</div>' +
+        (canEdit ? '<div class="er-row" style="flex-wrap:nowrap;padding:8px"><input class="er-input" data-newname="brand" maxlength="64" placeholder="Nueva marca"><button type="button" class="er-btn er-icon-btn" data-add="brand" data-parent="' + c.id + '" aria-label="Añadir">' + icon('plus') + '</button></div>' : '') +
+        (canEdit ? '<label class="er-field" style="padding:0 8px 8px">Icono de ' + esc(c.name) + '<select class="er-input" id="er-cat-icon">' + Object.keys(D.icons).map(function (k) {
+          return '<option value="' + k + '"' + (c.icon === k ? ' selected' : '') + '>' + esc(D.icons[k]) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
+      if (b) {
+        var models = b.models.filter(function (m) { return mFilter === 'all' ? m.active : mFilter === 'nophoto' ? m.active && !m.image : !m.active; });
+        var nNo = b.models.filter(function (m) { return m.active && !m.image; }).length, nOff = b.models.filter(function (m) { return !m.active; }).length;
+        html += '<div class="er-ml"><div class="er-ml-h"><b>' + esc(b.name) + '</b><span class="er-muted er-small">' + b.models.length + ' modelos · ' + (b.models.length - nNo - nOff) + ' con foto</span><span class="er-grow"></span>' +
+          '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.model + '&id_brand=' + b.id + '&id_model=0') + '">' + icon('book', true) + 'Ficha de la marca</a>' +
+          (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-ren="brand" data-id="' + b.id + '" data-name="' + esc(b.name) + '">' + icon('pen', true) + 'Renombrar</button>' +
+            '<button type="button" class="er-btn er-btn-sm" data-act="brand" data-id="' + b.id + '" data-v="' + (b.active ? 0 : 1) + '">' + (b.active ? 'Ocultar marca' : 'Mostrar marca') + '</button>' : '') + '</div>' +
+          '<div class="er-row er-ml-f">' + [['all', 'Todos'], ['nophoto', 'Sin foto ' + nNo], ['off', 'Ocultos ' + nOff]].map(function (f) {
+            return '<button type="button" class="er-c2' + (mFilter === f[0] ? ' on' : '') + '" data-mf="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
+          '<div class="er-mgrid">' + models.map(function (m) { return modelCard(m, b); }).join('') +
+          (canEdit && mFilter === 'all' ? '<div class="er-mcard er-mcard-add"><input class="er-input" data-newname="model" maxlength="64" placeholder="Nuevo modelo"><button type="button" class="er-btn er-btn-sm er-btn-pri" data-add="model" data-parent="' + b.id + '">' + icon('plus', true) + 'Añadir modelo</button></div>' : '') +
+          (!models.length && mFilter !== 'all' ? '<div class="er-empty">Ninguno.</div>' : '') + '</div></div>';
+      } else {
+        html += '<div class="er-ml"><div class="er-empty">Elige una marca a la izquierda o búscala arriba.</div></div>';
+      }
+      html += '</div>';
     }
     $('#er-cat-grid').innerHTML = html;
+    var qi = $('#er-catq');
+    if (qi && document.activeElement && document.activeElement.id === 'er-catq-was') { qi.focus(); }
+    renderFaults();
   }
-
+  /* Averías frecuentes (en Recepción) */
+  function renderFaults() {
+    var el = $('#er-flt');
+    if (!el) return;
+    if (!fltCat || !catalog.filter(function (x) { return x.id === fltCat; })[0]) fltCat = catalog[0] ? catalog[0].id : 0;
+    var c = catalog.filter(function (x) { return x.id === fltCat; })[0];
+    el.innerHTML = '<div class="er-cat-cats" style="margin-bottom:8px">' + catalog.map(function (x) {
+      return '<button type="button" class="er-cchip' + (x.id === fltCat ? ' on' : '') + '" data-fcat="' + x.id + '">' + icon(x.icon || 'other', true) + esc(x.name) + '</button>'; }).join('') + '</div>' +
+      (c ? column('Averías de ' + c.name, 'fault', c.faults, c.id, false, 0, null, 'Sin averías') : '');
+  }
   function catalogCall(action, body) {
     return E.api(action, {}, body).then(function (res) {
       if (!res.ok) { E.toast(res.error || 'No se pudo guardar.', true); return false; }
@@ -176,11 +241,16 @@ window.ECOR.ready(function () {
     });
   }
 
-  $('#er-cat-grid').addEventListener('click', function (e) {
+  function catClick(e) {
     var t;
+    if ((t = e.target.closest('[data-hit]'))) { var hp = t.getAttribute('data-hit').split(':'); sel.cat = +hp[0]; sel.brand = +hp[1]; catQ = ''; mFilter = 'all'; renderCatalog(); return; }
+    if ((t = e.target.closest('[data-az]'))) { var el = $('#er-bl-list'), h = el && el.querySelector('[data-letter="' + t.getAttribute('data-az') + '"]'); if (h) el.scrollTop = h.offsetTop - el.offsetTop; return; }
+    if ((t = e.target.closest('[data-mf]'))) { mFilter = t.getAttribute('data-mf'); renderCatalog(); return; }
+    if ((t = e.target.closest('[data-fcat]'))) { fltCat = +t.getAttribute('data-fcat'); renderFaults(); return; }
     if ((t = e.target.closest('[data-sel]'))) {
       var type = t.getAttribute('data-sel'), id = +t.getAttribute('data-id');
       if (type === 'category') { sel.cat = id; sel.brand = 0; } else { sel.brand = id; }
+      mFilter = 'all';
       renderCatalog();
       return;
     }
@@ -206,13 +276,28 @@ window.ECOR.ready(function () {
         if (url) catalogCall('modelImage', { id: mid, url: url }).then(function (res) { if (res) E.toast('Foto guardada'); });
       });
     }
+  }
+  $('#er-cat-grid').addEventListener('click', catClick);
+  if ($('#er-flt')) {
+    $('#er-flt').addEventListener('click', catClick);
+    $('#er-flt').addEventListener('keydown', function (e) {
+      var inp = e.target.closest('[data-newname]');
+      if (inp && e.key === 'Enter') { e.preventDefault(); var btn = inp.parentNode.querySelector('[data-add]'); addItem(btn.getAttribute('data-add'), +btn.getAttribute('data-parent')); }
+    });
+  }
+  $('#er-cat-grid').addEventListener('input', function (e) {
+    if (e.target.id !== 'er-catq') return;
+    catQ = e.target.value.trim();
+    var pos = e.target.selectionStart;
+    renderCatalog();
+    var qi = $('#er-catq'); qi.focus(); try { qi.setSelectionRange(pos, pos); } catch (er) {}
   });
   var imgTarget = 0;
   // Arrastrar la foto encima de la línea del modelo
   E.dropZone($('#er-cat-grid'), function (e) {
-    var row = e.target.closest && e.target.closest('.er-pick-row');
+    var row = e.target.closest && e.target.closest('.er-mcard');
     var up = row ? row.querySelector('[data-imgup]') : null;
-    if (!up || !canEdit) { E.toast('Suelta la foto encima de la línea del modelo.', true); return null; }
+    if (!up || !canEdit) { E.toast('Suelta la foto encima de la tarjeta del modelo.', true); return null; }
     imgTarget = up.getAttribute('data-imgup');
     return $('#er-img-file');
   });
