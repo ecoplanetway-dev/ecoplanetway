@@ -151,6 +151,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             case 'imgKey':
                 // Clave vacía = no cambiarla (no se envía al navegador); «clear» la borra
                 $res = array('ok' => true);
+                EcoRepairImageSearch::saveProvider((string) Tools::getValue('provider'));
                 if (trim((string) Tools::getValue('key')) !== '' || Tools::getValue('clear')) {
                     $res = EcoRepairImageSearch::saveKey(Tools::getValue('clear') ? '' : (string) Tools::getValue('key'));
                 }

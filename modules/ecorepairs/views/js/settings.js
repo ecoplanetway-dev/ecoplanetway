@@ -414,58 +414,125 @@ window.ECOR.ready(function () {
     return d ? d + ' d ' + h + ' h ' + m + ' min' : h + ' h ' + m + ' min ' + ss + ' s';
   }
   function useHtml() {
-    if (!netUse.hasKey) return '<span class="er-muted er-small">Falta la clave de Brave Search · pulsa «Clave y límite»</span>';
-    return '<b class="' + (netUse.left ? '' : 'er-t-badtxt') + '">' + netUse.left + '</b><span> de ' + netUse.limit + ' búsquedas gratis este mes</span>' +
+    if (!netUse.hasKey) return '<span class="er-muted er-small">Sin clave: se abre Google Imágenes y pegas la foto · con clave (SerpApi) salen solas</span>';
+    return '<b class="' + (netUse.left ? '' : 'er-t-badtxt') + '">' + netUse.left + '</b><span> de ' + netUse.limit + ' búsquedas gratis este mes (' + (netUse.provider === 'brave' ? 'Brave' : 'SerpApi') + ')</span>' +
       '<span class="er-netclock">' + icon('clock', true) + 'Se renuevan en <b data-netclock>' + countdown() + '</b></span>';
   }
   function drawUse() { app.querySelectorAll('#er-netuse, .er-netuse-dlg').forEach(function (el) { el.innerHTML = useHtml(); }); }
   setInterval(function () { app.querySelectorAll('[data-netclock]').forEach(function (el) { el.textContent = countdown(); }); }, 1000);
   setTimeout(drawUse, 0);
+  var STEPS = {
+    serpapi: '<ol class="er-small er-netsteps"><li>Entra en <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noopener">serpapi.com</a> y crea una cuenta gratis.</li><li>Plan <b>Free</b>: 250 búsquedas al mes (máx. 50 por hora).</li><li>En «Your Account» → <b>Private API Key</b>, cópiala y pégala aquí.</li></ol>',
+    brave: '<ol class="er-small er-netsteps"><li>Entra en <a href="https://api-dashboard.search.brave.com" target="_blank" rel="noopener">api-dashboard.search.brave.com</a>.</li><li>Plan <b>Search</b> (pide tarjeta; trae unos 5 $ gratis al mes, unas 1.000 búsquedas). Pon un tope de gasto de 0 $.</li><li>En «API Keys» crea una clave y pégala aquí.</li></ol>'
+  };
   function netKeyDialog() {
     var wrap = document.createElement('div');
     wrap.className = 'er-modal';
+    var prov = netUse.provider || 'serpapi';
     wrap.innerHTML = '<div class="er-dlg" style="max-width:560px"><h2>Fotos desde internet</h2>' +
-      '<p class="er-muted er-small" style="margin:0">Se buscan con <b>Brave Search</b> (Google ya no da claves nuevas). Cada mes regala unos 5 $ de crédito, unas <b>1.000 búsquedas</b>; una búsqueda = un modelo.</p>' +
-      '<ol class="er-small er-netsteps"><li>Entra en <a href="https://api-dashboard.search.brave.com" target="_blank" rel="noopener">api-dashboard.search.brave.com</a> y crea una cuenta.</li><li>Elige el plan <b>Search</b> (pide tarjeta, pero con el crédito gratis no se cobra si no te pasas).</li><li>En «API Keys» crea una clave y pégala aquí.</li><li>Recomendado: pon en Brave un tope de gasto de 0 $ para no pagar nunca.</li></ol>' +
+      '<p class="er-muted er-small" style="margin:0">Sin clave también funciona: se abre Google Imágenes y pegas la foto. Con clave, las fotos salen solas en el módulo.</p>' +
+      '<label class="er-field">Servicio<select class="er-input" id="er-np"><option value="serpapi"' + (prov === 'serpapi' ? ' selected' : '') + '>SerpApi · Google Imágenes (250 gratis/mes, sin tarjeta)</option>' +
+        '<option value="brave"' + (prov === 'brave' ? ' selected' : '') + '>Brave Search (unas 1.000 gratis/mes, pide tarjeta)</option></select></label>' +
+      '<div id="er-nsteps">' + STEPS[prov] + '</div>' +
       '<label class="er-field">Clave de la API<input class="er-input" id="er-nk" autocomplete="off" placeholder="' + (netUse.hasKey ? 'Guardada ✓ · escribe otra para cambiarla' : 'Pega aquí la clave') + '"></label>' +
       '<div class="er-fg"><label class="er-field">Búsquedas gratis al mes<input class="er-input" id="er-nl" inputmode="numeric" value="' + netUse.limit + '"></label>' +
       '<label class="er-field">Día del mes en que se renuevan<input class="er-input" id="er-nd" inputmode="numeric" value="' + netUse.day + '"></label></div>' +
+      '<p class="er-muted er-small" style="margin:0">El día de renovación es el de tu alta en el servicio (míralo en su panel).</p>' +
       '<div class="er-err" id="er-nerr" hidden></div>' +
       '<div class="er-dlg-act">' + (netUse.hasKey ? '<button type="button" class="er-btn er-btn-ghost er-danger" data-nclear>Quitar clave</button>' : '') +
         '<button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar</button></div></div>';
     app.appendChild(wrap);
+    wrap.querySelector('#er-np').addEventListener('change', function (e) {
+      wrap.querySelector('#er-nsteps').innerHTML = STEPS[e.target.value];
+      wrap.querySelector('#er-nl').value = e.target.value === 'brave' ? 1000 : 250;
+    });
     wrap.addEventListener('click', function (e) {
       if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
       var clear = e.target.closest('[data-nclear]');
       if (!clear && !e.target.closest('[data-ok]')) return;
-      E.api('imgKey', {}, { key: wrap.querySelector('#er-nk').value.trim(), clear: clear ? 1 : 0, limit: wrap.querySelector('#er-nl').value, day: wrap.querySelector('#er-nd').value }).then(function (res) {
+      E.api('imgKey', {}, { provider: wrap.querySelector('#er-np').value, key: wrap.querySelector('#er-nk').value.trim(), clear: clear ? 1 : 0, limit: wrap.querySelector('#er-nl').value, day: wrap.querySelector('#er-nd').value }).then(function (res) {
         if (!res.ok) { var er = wrap.querySelector('#er-nerr'); er.textContent = res.error; er.hidden = false; return; }
         netUse = res.usage; clockSkew = Date.now() / 1000 - netUse.now; drawUse(); wrap.remove(); E.toast(clear ? 'Clave quitada' : 'Guardado');
       });
     });
   }
-  /* Recorre los modelos (sin foto, o los indicados) y en cada uno enseña las fotos encontradas para elegir con un toque */
+  function kindWord(catName) {
+    var k = String(catName || '').toLowerCase();
+    return k.indexOf('bici') > -1 ? 'bicicleta eléctrica' : k.indexOf('moto') > -1 ? 'moto eléctrica' : k.indexOf('bater') > -1 ? 'batería' : 'patinete eléctrico';
+  }
+  /*
+   * Recorre los modelos (sin foto, o los indicados). Con clave: enseña las fotos encontradas y se elige con un toque.
+   * Sin clave («pegar a mano»): abre Google Imágenes y se pega la foto copiada (Ctrl+V) o su enlace.
+   */
   function netSearch(ids) {
-    if (!netUse.hasKey) { netKeyDialog(); return; }
     var list = [];
     catalog.forEach(function (c) { c.brands.forEach(function (b) { b.models.forEach(function (m) {
-      if (ids ? ids.indexOf(m.id) > -1 : (b.active && m.active && !m.image)) list.push({ id: m.id, name: b.name + ' ' + m.name });
+      if (ids ? ids.indexOf(m.id) > -1 : (c.active && b.active && m.active && !m.image)) list.push({ id: m.id, name: b.name + ' ' + m.name, q: b.name + ' ' + m.name + ' ' + kindWord(c.name) });
     }); }); });
     if (!list.length) { E.toast('No hay modelos sin foto.'); return; }
-    var i = 0, done = 0;
+    var i = 0, done = 0, manual = !netUse.hasKey || !netUse.left;
     var wrap = document.createElement('div');
     wrap.className = 'er-modal';
     wrap.innerHTML = '<div class="er-dlg er-net-dlg"><div class="er-net-h"><h2 id="er-net-t"></h2><button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
-      '<div class="er-netuse er-netuse-dlg"></div><div class="er-net-body" id="er-net-b"></div>' +
+      '<div class="er-row" style="gap:8px;align-items:center"><div class="er-netuse er-netuse-dlg"></div><span class="er-grow"></span><button type="button" class="er-btn er-btn-sm er-btn-ghost" data-nmode></button></div>' +
+      '<div class="er-net-body" id="er-net-b"></div>' +
       '<div class="er-dlg-act"><span class="er-muted er-small" id="er-net-n" style="margin-right:auto"></span><button type="button" class="er-btn er-btn-ghost" data-x>Terminar</button><button type="button" class="er-btn" data-skip>Saltar este</button></div></div>';
     app.appendChild(wrap);
     var body = wrap.querySelector('#er-net-b'), res = null;
+    function close() { wrap.remove(); document.removeEventListener('paste', onPaste); if (done) renderCatalog(); }
+    function saved(r) {
+      body.classList.remove('er-busy');
+      if (!r.ok) { E.toast(r.error || 'No se pudo guardar esa foto. Prueba otra.', true); return; }
+      if (r.choose) { E.toast('Ese enlace es una página. Copia la imagen (botón derecho → «Copiar imagen») y pégala.', true); return; }
+      if (r.catalog) { catalog = r.catalog; countNoPhoto(); }
+      done++; i++; step();
+    }
+    function sendFile(file) {
+      if (!file || !/^image\//.test(file.type)) { E.toast('Eso no es una imagen.', true); return; }
+      body.classList.add('er-busy');
+      E.shrinkImage(file, 1600).then(function (small) {
+        var fd = new FormData();
+        fd.append('id', list[i].id);
+        fd.append('image', small, small.name || 'foto.jpg');
+        return E.api('modelImage', {}, fd);
+      }).then(saved);
+    }
+    function sendUrl(u) {
+      body.classList.add('er-busy');
+      E.api('modelImage', {}, { id: list[i].id, url: u }).then(saved);
+    }
+    function onPaste(e) {
+      if (!manual || !document.body.contains(wrap)) return;
+      var items = (e.clipboardData || {}).items || [];
+      for (var k = 0; k < items.length; k++) {
+        if (items[k].kind === 'file' && /^image\//.test(items[k].type)) { e.preventDefault(); sendFile(items[k].getAsFile()); return; }
+      }
+      var txt = (e.clipboardData && e.clipboardData.getData('text')) || '';
+      if (/^https?:\/\//i.test(txt.trim()) && !e.target.closest('#er-net-url')) { e.preventDefault(); sendUrl(txt.trim()); }
+    }
+    document.addEventListener('paste', onPaste);
+    function drawManual() {
+      var m = list[i];
+      body.innerHTML = '<div class="er-net-man">' +
+        '<a class="er-btn er-ink" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(m.q + ' fondo blanco') + '" target="_blank" rel="noopener">' + icon('search') + 'Buscar en Google Imágenes ↗</a>' +
+        '<ol class="er-small er-netsteps"><li>Elige una foto del patín de perfil y ábrela.</li><li>Botón derecho sobre la foto → <b>«Copiar imagen»</b>.</li><li>Vuelve aquí y pulsa <b>Ctrl+V</b> (en el móvil, mantén pulsado el recuadro → Pegar).</li></ol>' +
+        '<div class="er-net-paste" id="er-net-pz" tabindex="0" contenteditable="true" aria-label="Pega aquí la foto">' + icon('camera') + '<span>Pega aquí la foto (Ctrl+V) o arrástrala</span></div>' +
+        '<div class="er-row" style="flex-wrap:nowrap;gap:8px"><input class="er-input" id="er-net-url" placeholder="…o pega el enlace de la imagen" autocomplete="off"><button type="button" class="er-btn" data-nurl>Guardar</button></div></div>';
+      var pz = body.querySelector('#er-net-pz');
+      pz.addEventListener('input', function () { pz.innerHTML = icon('camera') + '<span>Pega aquí la foto (Ctrl+V) o arrástrala</span>'; });
+      pz.addEventListener('dragover', function (e) { e.preventDefault(); pz.classList.add('on'); });
+      pz.addEventListener('dragleave', function () { pz.classList.remove('on'); });
+      pz.addEventListener('drop', function (e) { e.preventDefault(); pz.classList.remove('on'); var f = e.dataTransfer.files[0]; if (f) sendFile(f); else { var u = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text'); if (u) sendUrl(u.trim()); } });
+    }
     function step() {
-      if (i >= list.length) { wrap.remove(); E.toast(done ? done + ' fotos guardadas' : 'Terminado'); return; }
+      if (i >= list.length) { close(); E.toast(done ? done + ' fotos guardadas' : 'Terminado'); return; }
       var m = list[i];
       wrap.querySelector('#er-net-t').textContent = m.name;
       wrap.querySelector('#er-net-n').textContent = (i + 1) + ' de ' + list.length + (done ? ' · ' + done + ' guardadas' : '');
+      var mb = wrap.querySelector('[data-nmode]');
+      mb.textContent = manual ? (netUse.hasKey ? 'Buscar con la clave' : 'Configurar clave') : 'Pegar a mano';
       drawUse();
+      if (manual) { drawManual(); return; }
       body.innerHTML = '<div class="er-empty">Buscando fotos…</div>';
       E.api('imgSearch', {}, { id: m.id }).then(function (r) {
         res = r;
@@ -474,27 +541,26 @@ window.ECOR.ready(function () {
         r.results = r.results || [];
         body.innerHTML = r.results.length ? '<div class="er-net-grid">' + r.results.map(function (x, k) {
           return '<button type="button" data-npick="' + k + '" title="' + esc(x.title) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy" referrerpolicy="no-referrer"></button>';
-        }).join('') + '</div>' : '<div class="er-empty">No se encontraron fotos. Pulsa «Saltar este».</div>';
+        }).join('') + '</div>' : '<div class="er-empty">No se encontraron fotos. Pulsa «Saltar este» o «Pegar a mano».</div>';
         body.querySelectorAll('img').forEach(function (im) { im.addEventListener('error', function () { im.parentNode.remove(); }); });
       });
     }
     wrap.addEventListener('click', function (e) {
-      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); if (done) renderCatalog(); return; }
+      if (e.target === wrap || e.target.closest('[data-x]')) { close(); return; }
       if (e.target.closest('[data-skip]')) { i++; step(); return; }
+      if (e.target.closest('[data-nmode]')) {
+        if (manual && !netUse.hasKey) { netKeyDialog(); return; }
+        manual = !manual; step(); return;
+      }
+      if (e.target.closest('[data-nurl]')) { var u = body.querySelector('#er-net-url').value.trim(); if (u) sendUrl(u); return; }
       var b = e.target.closest('[data-npick]');
       if (!b || !res || !res.results) return;
       var x = res.results[+b.getAttribute('data-npick')], id = list[i].id;
       body.classList.add('er-busy');
-      // Primero la foto original; si esa web no la deja bajar, la versión de Brave (500 px)
+      // Primero la foto original; si esa web no la deja bajar, la miniatura
       E.api('modelImage', {}, { id: id, url: x.url || x.thumb }).then(function (r) {
         return r.ok || !x.thumb || x.thumb === x.url ? r : E.api('modelImage', {}, { id: id, url: x.thumb });
-      }).then(function (r) {
-        body.classList.remove('er-busy');
-        if (!r.ok) { E.toast(r.error || 'No se pudo guardar esa foto. Prueba otra.', true); return; }
-        if (r.choose) { E.toast('Esa es una página, prueba otra foto.', true); return; }
-        if (r.catalog) { catalog = r.catalog; countNoPhoto(); }
-        done++; i++; step();
-      });
+      }).then(saved);
     });
     step();
   }

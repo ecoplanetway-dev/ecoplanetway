@@ -1640,3 +1640,8 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-net-grid button:hover { border-color: #14161A; box-shadow: 0 0 0 3px var(--er-lime, #D4FF2A); }
 .ecor .er-net-grid img { max-width: 100%; max-height: 100%; object-fit: contain; }
 @media (max-width: 760px) { .ecor .er-net-grid { grid-template-columns: 1fr 1fr; } }
+.ecor .er-net-man { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.ecor .er-net-man > .er-btn { align-self: flex-start; min-height: 48px; }
+.ecor .er-net-paste { min-height: 150px; border: 2px dashed #C9CDD4; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #8A909C; font-size: 14px; font-weight: 600; outline: none; cursor: text; caret-color: transparent; }
+.ecor .er-net-paste:focus, .ecor .er-net-paste.on { border-color: #14161A; color: #14161A; box-shadow: 0 0 0 3px var(--er-lime, #D4FF2A); }
+.ecor .er-net-paste .er-i { width: 28px; height: 28px; }
