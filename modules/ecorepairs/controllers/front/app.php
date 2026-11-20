@@ -204,9 +204,14 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                     $r = $this->findRepair();
                     $this->open($r);
                     $name = Tools::substr(trim(strip_tags((string) Tools::getValue('name'))), 0, 128);
-                    $price = round((float) str_replace(',', '.', (string) Tools::getValue('price')), 2);
-                    if ($name === '' || $price < 0) {
-                        $this->out(array('ok' => false, 'error' => 'Escribe qué trabajo es y su precio.'));
+                    // Acepta «35», «35,50», «35.50 €», «€35»…
+                    $rawPrice = preg_replace('/[^0-9,\.]/', '', (string) Tools::getValue('price'));
+                    if (strpos($rawPrice, ',') !== false) {
+                        $rawPrice = str_replace(array('.', ','), array('', '.'), $rawPrice);
+                    }
+                    $price = round((float) $rawPrice, 2);
+                    if ($name === '' || $price <= 0) {
+                        $this->out(array('ok' => false, 'error' => 'Escribe qué trabajo es y su precio (por ejemplo 35 o 35,50).'));
                     }
                     $res = EcoRepairQuote::appendToDraft($r, array(array('type' => 'labour', 'name' => $name, 'qty' => 1, 'price' => $price, 'tax_rate' => 21)),
                         $this->emp(), $this->staff['name'] . ' (móvil)');

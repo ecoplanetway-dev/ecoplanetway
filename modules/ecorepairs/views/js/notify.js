@@ -49,6 +49,21 @@
           return base + techLine + (base.indexOf(res.tech.link) > -1 ? '' : '\n' + res.tech.link);
         }
         var techCb = wrap.querySelector('#er-wa-tech');
+        // En el móvil la foto del técnico se manda como imagen con «Compartir» (se prepara antes para que el botón funcione al primer toque)
+        var techFile = null;
+        if (mobile && res.tech && res.tech.avatar && navigator.canShare && window.fetch) {
+          var path = res.tech.avatar;
+          try { path = new URL(res.tech.avatar, location.href).pathname; } catch (er) { }
+          fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
+            if (!b) return;
+            var f = new File([b], 'tecnico-' + String(res.tech.name || 'taller').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.' + ((b.type.split('/')[1] || 'png').replace('jpeg', 'jpg')), { type: b.type || 'image/png' });
+            if (navigator.canShare({ files: [f] })) techFile = f;
+          }).catch(function () { });
+        }
+        function shareTech() {
+          if (!techFile) { E.toast('Este móvil no deja compartir la foto. Guárdala desde el seguimiento y pégala en el chat.', true); return; }
+          navigator.share({ files: [techFile] }).then(function () { close({ ok: true }); }).catch(function () { });
+        }
         if (techCb) techCb.addEventListener('change', function () { ta.value = withTech(ta.value, techCb.checked); texts[key] = ta.value; });
         function close(v) { wrap.remove(); resolve(v); }
         function phone() {
@@ -67,6 +82,7 @@
             return;
           }
           if (e.target.closest('[data-dict]')) { e.preventDefault(); E.dictate(ta); return; }
+          if (e.target.closest('[data-sharetech]')) { shareTech(); return; }
           if (e.target.closest('[data-copy]')) {
             ta.select();
             try { document.execCommand('copy'); E.toast('Texto copiado'); } catch (er) { }
@@ -81,7 +97,19 @@
             if (how === 'mobile') {
               // En el móvil: abre la aplicación de WhatsApp del teléfono (se guarda en el historial antes de salir)
               var url = 'https://wa.me/' + p + '?text=' + encodeURIComponent(ta.value.trim());
-              E.api('logMessage', params, body).then(function (r2) { close(r2 && r2.ok ? r2 : { ok: true }); window.location.href = url; }, function () { window.location.href = url; });
+              var withPhoto = techCb && techCb.checked && techFile;
+              E.api('logMessage', params, body).then(function (r2) {
+                if (withPhoto) {
+                  // Paso 2: al volver de WhatsApp, mandar la foto del técnico al mismo chat
+                  wrap.querySelector('.er-wa-act').innerHTML = '<div class="er-wa-step2"><b>Paso 2 · La foto de ' + esc(res.tech.name) + '</b>' +
+                    '<span class="er-muted er-small">Cuando hayas enviado el texto, vuelve aquí, pulsa el botón, elige WhatsApp y el chat de ' + esc(res.name || 'el cliente') + '.</span>' +
+                    '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-sharetech>' + icon('whatsapp') + 'Enviar la foto del técnico</button>' +
+                    '<button type="button" class="er-btn er-btn-ghost" data-x>Terminar</button></div>';
+                } else {
+                  close(r2 && r2.ok ? r2 : { ok: true });
+                }
+                window.location.href = url;
+              }, function () { window.location.href = url; });
               return;
             }
             if (how === 'web') window.open('https://web.whatsapp.com/send?' + q, 'ecor-whatsapp');

@@ -318,7 +318,7 @@ window.ECOR.ready(function () {
         host.innerHTML = '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div><div id="er-pt"></div>';
         var pt = partsTab(host.querySelector('#er-pt'), canWork || (me.reception && !closed));
         E.PartsDiagram(host.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, sections: R.sections, map: R.modelMap, photo: R.modelPhoto, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
-          onAdd: canWork ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
+          onAdd: (canWork || (me.reception && !closed)) ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
       }
     }
     else if (tab === 'codes' || tab === 'manual') kbTab(el, r.id_brand, r.id_model, r.device_name, tab, r.id);
