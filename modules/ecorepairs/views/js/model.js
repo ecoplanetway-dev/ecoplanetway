@@ -25,7 +25,7 @@ window.ECOR.ready(function () {
         '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
       '</div>' +
-      '<div class="er-filters">' + [['parts', 'Piezas', parts.length]].concat(D.id_model ? [['battery', 'Batería', B.battery && (B.battery.volt || B.battery.len) ? '✓' : '']] : []).concat([['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]]).map(function (t) {
+      '<div class="er-filters er-tabsq">' + [['parts', 'Piezas', parts.length]].concat(D.id_model ? [['battery', 'Batería', B.battery && (B.battery.volt || B.battery.len) ? '✓' : '']] : []).concat([['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]]).map(function (t) {
         return '<button type="button" class="er-chip" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '<span class="er-n">' + t[2] + '</span></button>';
       }).join('') + '</div>' +
       '<div class="er-panel" id="er-kb"></div>';
@@ -47,7 +47,7 @@ window.ECOR.ready(function () {
     }
     if (tab === 'battery') {
       el.innerHTML = '<h3>' + icon('battery') + 'Batería de ' + esc(title) + '<span class="er-r">' + esc(E.batterySummary(B.battery)) + '</span></h3><div id="er-bat"></div>';
-      E.BatteryPanel(el.querySelector('#er-bat'), { data: B.battery, canEdit: canEdit, onSave: function (d) {
+      E.BatteryPanel(el.querySelector('#er-bat'), { data: B.battery, canEdit: canEdit, id_model: D.id_model, onSave: function (d) {
         return E.api('batterySave', {}, { id_model: D.id_model, data: JSON.stringify(d) }).then(function (res) { if (res.ok) B.battery = res.battery; return res; });
       } });
       return;

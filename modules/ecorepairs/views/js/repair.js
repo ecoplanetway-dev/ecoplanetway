@@ -674,7 +674,7 @@ window.ECOR.ready(function () {
       '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div><div id="er-batd"></div></div>';
     app.appendChild(wrap);
     wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); renderParts(); } });
-    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: D.battery || {}, canEdit: canEdit, onSave: function (d) {
+    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: D.battery || {}, canEdit: canEdit, id_model: r.id_model, onSave: function (d) {
       return E.api('batterySave', {}, { id_model: r.id_model, data: JSON.stringify(d) }).then(function (res) { if (res.ok) D.battery = res.battery; return res; });
     } });
   }

@@ -507,6 +507,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'spcpPublish' => array('ajaxSpcpPublish', 'edit', true),
             'spcpUnpublish' => array('ajaxSpcpUnpublish', 'delete', true),
             'batterySave' => array('ajaxBatterySave', 'edit', true),
+            'connectorAdd' => array('ajaxConnectorAdd', 'edit', true),
             'supplierCart' => array('ajaxSupplierCart', 'edit', true),
             'printSticker' => array('ajaxPrintSticker', 'view', false),
         );
@@ -1232,6 +1233,16 @@ class AdminEcoRepairsController extends ModuleAdminController
     protected function ajaxBatterySave()
     {
         $this->jsonOut(EcoRepairLinks::saveBattery((int) Tools::getValue('id_model'), json_decode((string) Tools::getValue('data'), true) ?: array()));
+    }
+
+    protected function ajaxConnectorAdd()
+    {
+        $res = EcoRepairLinks::addConnector((string) Tools::getValue('kind'), (string) Tools::getValue('label'), (string) Tools::getValue('info'),
+            isset($_FILES['image']) ? $_FILES['image'] : array());
+        if ($res['ok']) {
+            $res['battery'] = EcoRepairLinks::battery((int) Tools::getValue('id_model'));
+        }
+        $this->jsonOut($res);
     }
 
     protected function ajaxSupplierCart()

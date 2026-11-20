@@ -14,6 +14,7 @@ if (!defined('_PS_VERSION_')) {
 class EcoRepairLinks
 {
     protected static $tables = array();
+    protected static $images = array();
 
     public static function has($table)
     {
@@ -233,6 +234,9 @@ class EcoRepairLinks
                 foreach ($f['options'] as $o) {
                     if ($o['id'] !== 'unknown') {
                         $out[$f['id']][$o['id']] = $o['label'];
+                        if (!empty($o['image'])) {
+                            self::$images[$o['id']] = preg_match('#^https?://#i', $o['image']) ? $o['image'] : __PS_BASE_URI__ . 'modules/epwbatteryconfigurator/' . $o['image'];
+                        }
                     }
                 }
             }
@@ -273,6 +277,7 @@ class EcoRepairLinks
         if ($con['controller'] || $con['charge']) {
             $out['connectors'] = $con;
         }
+        $out['connectorImages'] = self::$images;
         $volts = array();
         foreach ($profiles as $pr) {
             $volts = array_merge($volts, isset($pr['p']['volts']) ? $pr['p']['volts'] : array());
@@ -379,6 +384,81 @@ class EcoRepairLinks
         }
 
         return array('ok' => true, 'synced' => $synced, 'skipped' => $skipped, 'battery' => self::battery($idModel), 'model_id' => $mid);
+    }
+
+    /**
+     * Añade un conector nuevo (toma de carga o hacia la controladora) al configurador de baterías, con su foto.
+     * kind: 'charge' | 'controller'. file: $_FILES['image'].
+     */
+    public static function addConnector($kind, $label, $info, $file)
+    {
+        if (!self::batOn()) {
+            return array('ok' => false, 'error' => 'El configurador de baterías no está instalado.');
+        }
+        $kind = $kind === 'controller' ? 'controller' : 'charge';
+        $label = Tools::substr(trim(strip_tags((string) $label)), 0, 60);
+        $info = Tools::substr(trim(strip_tags((string) $info)), 0, 300);
+        if ($label === '') {
+            return array('ok' => false, 'error' => 'Escribe el nombre del conector (por ejemplo «GX12 · 3 contactos»).');
+        }
+        if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+            return array('ok' => false, 'error' => 'Añade una foto del conector: el configurador la enseña al cliente.');
+        }
+        if ((int) $file['size'] > 2097152) {
+            return array('ok' => false, 'error' => 'La foto es demasiado grande (máximo 2 MB).');
+        }
+        $bytes = Tools::file_get_contents($file['tmp_name']);
+        $info2 = $bytes ? @getimagesizefromstring($bytes) : false;
+        $ext = array('image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp');
+        if (!$info2 || !isset($ext[$info2['mime']])) {
+            return array('ok' => false, 'error' => 'La foto tiene que ser JPG, PNG o WEBP.');
+        }
+        $dir = _PS_MODULE_DIR_ . 'epwbatteryconfigurator/uploads/';
+        if (!is_dir($dir) || !is_writable($dir)) {
+            return array('ok' => false, 'error' => 'No se puede guardar la foto en el configurador de baterías.');
+        }
+        $name = hash('sha256', $bytes) . '.' . $ext[$info2['mime']];
+        if (file_put_contents($dir . $name, $bytes) === false) {
+            return array('ok' => false, 'error' => 'No se pudo guardar la foto.');
+        }
+        $url = Context::getContext()->link->getMediaLink(__PS_BASE_URI__ . 'modules/epwbatteryconfigurator/uploads/' . $name);
+        $id = trim(preg_replace('/[^a-z0-9]+/', '_', Tools::strtolower(Tools::replaceAccentedChars($label))), '_');
+        $id = Tools::substr($id !== '' ? $id : 'conector', 0, 20);
+        $done = 0;
+        foreach (self::profiles() as $pr) {
+            $p = $pr['p'];
+            if (empty($p['fields']) || !is_array($p['fields'])) {
+                continue;
+            }
+            foreach ($p['fields'] as &$f) {
+                if (!isset($f['id']) || $f['id'] !== $kind) {
+                    continue;
+                }
+                $ids = array_map(function ($o) { return $o['id']; }, $f['options']);
+                $oid = $id;
+                $n = 2;
+                while (in_array($oid, $ids, true)) {
+                    $oid = Tools::substr($id, 0, 17) . '_' . $n++;
+                }
+                $new = array('id' => $oid, 'label' => $label, 'price' => 0, 'info' => $info, 'image' => $url);
+                // «No lo sé / otro» se queda el último
+                $last = end($f['options']);
+                if ($last && $last['id'] === 'unknown') {
+                    array_splice($f['options'], count($f['options']) - 1, 0, array($new));
+                } else {
+                    $f['options'][] = $new;
+                }
+                ++$done;
+            }
+            unset($f);
+            Db::getInstance()->update('epw_battery_profile', array('config_json' => pSQL(json_encode($p)), 'date_upd' => date('Y-m-d H:i:s')),
+                'id_product = ' . (int) $pr['row']['id_product'] . ' AND id_shop = ' . (int) $pr['row']['id_shop']);
+        }
+        if (!$done) {
+            return array('ok' => false, 'error' => 'Ningún producto del configurador tiene esa pregunta de conector.');
+        }
+
+        return array('ok' => true, 'id' => $id, 'image' => $url);
     }
 
     /* ======================== epwcentro (proveedores) ======================== */

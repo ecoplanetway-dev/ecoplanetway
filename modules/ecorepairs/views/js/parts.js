@@ -840,7 +840,54 @@
   function BatteryPanel(el, opts) {
     var b = opts.data;
     function chips(kind, list, chosen) {
-      return Object.keys(list).map(function (k) { return '<button type="button" class="er-opt" data-bc="' + kind + ':' + k + '" aria-pressed="' + (chosen.indexOf(k) > -1) + '"' + (opts.canEdit ? '' : ' disabled') + '>' + esc(list[k]) + '</button>'; }).join('');
+      var imgs = b.connectorImages || {};
+      return Object.keys(list).map(function (k) {
+        return '<button type="button" class="er-opt" data-bc="' + kind + ':' + k + '" aria-pressed="' + (chosen.indexOf(k) > -1) + '"' + (opts.canEdit ? '' : ' disabled') + '>' +
+          (imgs[k] ? '<img src="' + esc(imgs[k]) + '" alt="">' : '') + '<span>' + esc(list[k]) + '</span></button>';
+      }).join('') + (opts.canEdit && b.module ? '<button type="button" class="er-opt er-add" data-bnew="' + (kind === 'ctrl' ? 'controller' : 'charge') + '">' + icon('plus', true) + (kind === 'ctrl' ? 'Añadir conector' : 'Añadir toma de carga') + '</button>' : '');
+    }
+    /* Conector nuevo: nombre + foto, se añade también al configurador de baterías */
+    function newConnector(kind) {
+      var wrap = document.createElement('div');
+      wrap.className = 'er-modal';
+      wrap.innerHTML = '<div class="er-dlg" style="max-width:520px"><h2>' + (kind === 'controller' ? 'Nuevo conector hacia la controladora' : 'Nueva toma de carga') + '</h2>' +
+        '<p class="er-muted er-small" style="margin:0">Se añade también al configurador de baterías de la tienda, con su foto.</p>' +
+        '<label class="er-field">Nombre <span class="er-req">*</span><input class="er-input" id="er-cn-l" maxlength="60" placeholder="GX12 · 3 contactos"></label>' +
+        '<label class="er-field">Descripción para el cliente<input class="er-input" id="er-cn-i" maxlength="300" placeholder="Mide el diámetro y cuenta los contactos"></label>' +
+        '<div class="er-sub">Foto <span class="er-req">*</span></div><div class="er-cn-ph" id="er-cn-ph">' + icon('camera') + '<span>Arrastra la foto aquí o pulsa para elegirla</span></div><input type="file" id="er-cn-f" accept="image/jpeg,image/png,image/webp" class="er-vh">' +
+        '<div class="er-err" id="er-cn-err" hidden></div>' +
+        '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Añadir</button></div></div>';
+      (E.root() || document.body).appendChild(wrap);
+      var file = null, fi = wrap.querySelector('#er-cn-f'), ph = wrap.querySelector('#er-cn-ph');
+      E.dropZone(ph, function () { return fi; });
+      fi.addEventListener('change', function () {
+        file = fi.files[0] || null;
+        if (file) ph.innerHTML = '<img src="' + URL.createObjectURL(file) + '" alt="">';
+      });
+      wrap.addEventListener('click', function (e) {
+        if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+        if (e.target.closest('#er-cn-ph')) { fi.click(); return; }
+        var ok = e.target.closest('[data-ok]');
+        if (!ok) return;
+        var er = wrap.querySelector('#er-cn-err');
+        if (!wrap.querySelector('#er-cn-l').value.trim()) { er.textContent = 'Escribe el nombre.'; er.hidden = false; return; }
+        if (!file) { er.textContent = 'Añade la foto del conector.'; er.hidden = false; return; }
+        ok.disabled = true;
+        E.shrinkImage(file, 1000).then(function (small) {
+          var fd = new FormData();
+          fd.append('kind', kind); fd.append('label', wrap.querySelector('#er-cn-l').value.trim()); fd.append('info', wrap.querySelector('#er-cn-i').value.trim());
+          fd.append('id_model', opts.id_model || 0); fd.append('image', small, small.name || 'conector.jpg');
+          return E.api('connectorAdd', {}, fd);
+        }).then(function (res) {
+          ok.disabled = false;
+          if (!res.ok) { er.textContent = res.error; er.hidden = false; return; }
+          wrap.remove();
+          var keep = { ctrl: (b.ctrl || []).slice(), charge: (b.charge || []).slice() };
+          b = res.battery; b.ctrl = keep.ctrl; b.charge = keep.charge;
+          (kind === 'controller' ? b.ctrl : b.charge).push(res.id);
+          render(); E.toast('Añadido también al configurador de baterías. Pulsa «Guardar» para dejarlo marcado en este modelo.');
+        });
+      });
     }
     function render() {
       var dis = opts.canEdit ? '' : ' disabled';
@@ -854,14 +901,15 @@
           '<label class="er-field">Voltaje<select class="er-input" data-bk="volt"' + dis + '><option value="">—</option>' + (b.volts || []).map(function (v) { return '<option value="' + v + '"' + (+b.volt === +v ? ' selected' : '') + '>' + v + ' V</option>'; }).join('') + '</select></label>' +
           '<label class="er-field">Ah mínimo<input class="er-input" data-bk="minAh" inputmode="decimal" value="' + esc(b.minAh) + '"' + dis + '></label>' +
           '<label class="er-field">Ah máximo que entra<input class="er-input" data-bk="maxAh" inputmode="decimal" value="' + esc(b.maxAh) + '"' + dis + '></label></div>' +
-        '<div class="er-sub">Conector hacia la controladora</div><div class="er-opts">' + chips('ctrl', b.connectors.controller || {}, b.ctrl || []) + '</div>' +
-        '<div class="er-sub">Conector de carga</div><div class="er-opts">' + chips('charge', b.connectors.charge || {}, b.charge || []) + '</div>' +
+        '<div class="er-sub">Conector hacia la controladora</div><div class="er-opts er-bat-con">' + chips('ctrl', b.connectors.controller || {}, b.ctrl || []) + '</div>' +
+        '<div class="er-sub">Conector de carga</div><div class="er-opts er-bat-con">' + chips('charge', b.connectors.charge || {}, b.charge || []) + '</div>' +
         '<label class="er-field">Observaciones (salen también en el configurador)<textarea class="er-input" data-bk="notes" rows="2" maxlength="800"' + dis + '>' + esc(b.notes) + '</textarea></label>' +
         '<div class="er-err" id="er-berr" hidden></div>' +
         (opts.canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" data-bsave>' + icon('check', true) + 'Guardar' + (b.model_id ? ' en el taller y en el configurador' : '') + '</button></div>' : '') + '</div>';
     }
     el.addEventListener('click', function (e) {
       var t;
+      if ((t = e.target.closest('[data-bnew]'))) { newConnector(t.getAttribute('data-bnew')); return; }
       if ((t = e.target.closest('[data-bc]')) && opts.canEdit) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); return; }
       if (!(t = e.target.closest('[data-bsave]'))) return;
       var d = { ctrl: [], charge: [] };
