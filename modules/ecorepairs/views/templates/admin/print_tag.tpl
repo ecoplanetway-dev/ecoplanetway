@@ -12,7 +12,8 @@
   @page { size: 76.2mm 90mm; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-  body { font: 12px/1.25 Arial, Helvetica, sans-serif; }
+  body { font: 12px/1.25 Arial, Helvetica, sans-serif; font-weight: bold; }
+  .t, .t * { color: #000 !important; }
   .t { width: 68mm; margin: 0 auto; padding: 2.5mm 0; display: flex; flex-direction: column; align-items: stretch; gap: 1.4mm; text-align: center; }
   .qr { width: 26mm; height: 26mm; margin: 0 auto; }
   .qr svg { width: 100%; height: 100%; display: block; }
@@ -23,7 +24,7 @@
   .fault { border: 1.5px solid #000; border-radius: 1mm; padding: 1.2mm 1.8mm; font-weight: 700; font-size: 11px; line-height: 1.25; text-align: left; overflow-wrap: anywhere; }
   .fault span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
   .row { margin-top: .6mm; }
-  .row { display: flex; justify-content: space-between; gap: 2mm; border-top: 1px solid #000; padding-top: 1mm; font-size: 11px; text-align: left; }
+  .row { display: flex; justify-content: space-between; gap: 2mm; border-top: 1px solid #000; padding-top: 1mm; font-size: 11.5px; text-align: left; }
   .row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .row b { white-space: nowrap; }
   .noprint { margin: 12px auto; text-align: center; }

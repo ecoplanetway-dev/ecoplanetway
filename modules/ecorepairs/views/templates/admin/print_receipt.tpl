@@ -9,29 +9,31 @@
   @page { size: {if $format == 'a4'}A4{else}76.2mm auto{/if}; margin: {if $format == 'a4'}14mm{else}0{/if}; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-  body { font: 11px/1.3 Arial, Helvetica, sans-serif; }
+  body { font: 12px/1.3 Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Térmica 203 ppp: nada de gris ni letra de menos de 10 px (sale con puntitos) */
+  .doc, .doc * { color: #000 !important; }
   .doc { {if $format == 'a4'}max-width: 100mm; margin: 0 auto; font-size: 12px;{else}width: 68mm; margin: 0 auto; padding: 3mm 0 2mm;{/if} }
   .hd { display: flex; align-items: center; gap: 2.5mm; border-bottom: 1.5px solid #000; padding-bottom: 1.5mm; }
   .hd img { width: 13mm; height: 13mm; object-fit: contain; flex: none; }
-  .hd b { font-size: 12px; display: block; }
-  .hd small { display: block; font-size: 9px; color: #222; line-height: 1.25; }
+  .hd b { font-size: 13px; display: block; }
+  .hd small { display: block; font-size: 11px; font-weight: bold; line-height: 1.25; }
   .ref { display: flex; justify-content: space-between; align-items: baseline; margin: 1.6mm 0 1mm; }
   .ref b { font-size: 17px; letter-spacing: .02em; }
-  .ref span { font-size: 10px; }
+  .ref span { font-size: 11px; font-weight: bold; }
   .kv { display: grid; grid-template-columns: 15mm 1fr; gap: .4mm 2mm; }
-  .kv span { color: #444; }
+  .kv span { font-weight: normal; }
   .kv b, .kv i { font-style: normal; overflow-wrap: anywhere; }
   .box { border: 1px solid #000; border-radius: 1mm; padding: 1.2mm 1.8mm; margin: 1.6mm 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .qrrow { display: flex; gap: 2.5mm; align-items: center; border-top: 1px dashed #777; border-bottom: 1px dashed #777; padding: 1.6mm 0; margin: 1.6mm 0; }
   .qr { width: 19mm; height: 19mm; flex: none; }
   .qr svg { width: 100%; height: 100%; display: block; }
   .code { font-size: 14px; font-weight: bold; letter-spacing: .1em; }
-  .url { font-size: 8.5px; word-break: break-all; }
-  .cond { font-size: 8.5px; color: #222; }
+  .url { font-size: 10.5px; font-weight: bold; word-break: break-all; }
+  .cond { font-size: 10.5px; font-weight: bold; line-height: 1.3; }
   .cond p { margin: 0 0 .5mm; }
   .sig { max-width: 48mm; max-height: 14mm; display: block; margin-top: 1mm; }
   .sigline { border-bottom: 1px solid #000; height: 12mm; }
-  .foot { font-size: 8.5px; margin-top: .8mm; }
+  .foot { font-size: 10.5px; font-weight: bold; margin-top: .8mm; }
   .noprint { margin: 12px auto; text-align: center; }
   .noprint button { font: 600 15px Arial, sans-serif; padding: 10px 18px; border-radius: 10px; border: 1px solid #0B6E4B; background: #0B6E4B; color: #fff; cursor: pointer; }
   @media print { .noprint { display: none; } }
