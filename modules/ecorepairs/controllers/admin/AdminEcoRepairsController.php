@@ -71,6 +71,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/customer.js' . $v, false);
         } elseif ($view === 'quote') {
             $this->addJS($base . 'views/js/repair-form.js' . $v, false);
+            // parts.js: aviso de piezas que no valen al añadir; notify.js: avisar por WhatsApp al enviar
+            $this->addJS($base . 'views/js/parts.js' . $v, false);
+            $this->addJS($base . 'views/js/notify.js' . $v, false);
             $this->addJS($base . 'views/js/quote.js' . $v, false);
         }
     }

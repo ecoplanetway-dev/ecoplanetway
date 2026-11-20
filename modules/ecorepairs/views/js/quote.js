@@ -576,7 +576,8 @@ window.ECOR.ready(function () {
         (q.expired ? '<b>Caducó el ' + esc(E.fmtDate(q.date_expire)) + '.</b> Haz una versión nueva para renovarlo.'
                    : '<b>Esperando respuesta del cliente.</b> Válido hasta el ' + esc(E.fmtDate(q.date_expire)) + '.') + '</div></div>' +
         '<div class="er-row" style="flex-wrap:nowrap"><input class="er-input" readonly value="' + esc(q.link) + '" aria-label="Enlace del presupuesto" id="er-q-link"><button type="button" class="er-btn er-icon-btn" id="er-q-copy" aria-label="Copiar enlace">' + icon('copy') + '</button></div>' +
-        '<p class="er-muted er-small" style="margin:0">El envío por WhatsApp y email se añade en la fase 4. Mientras, copia el enlace.</p>';
+        '<button type="button" class="er-btn er-btn-wa er-btn-block" id="er-q-wa">' + icon('whatsapp') + 'Enviar el enlace por WhatsApp</button>' +
+        '<p class="er-muted er-small" style="margin:0">Si el cliente tiene email, ya le llegó el enlace por email.</p>';
     } else if (q.status === 'accepted') {
       info = '<div class="er-banner er-ok" style="margin:0">' + icon('check') + '<div><b>Aceptado el ' + esc(E.fmtDateTime(q.date_answer)) + '</b><br>' +
         esc(q.channel === 'store' ? 'En tienda' + (q.accepted_by ? ' · atendió ' + q.accepted_by : '') : 'Desde el enlace · IP ' + q.ip) + '</div></div>' +
@@ -633,6 +634,7 @@ window.ECOR.ready(function () {
   }
 
   app.addEventListener('click', function (e) {
+    if (e.target.closest('#er-q-wa')) { if (E.notify) E.notify({ id_ecorepair: r.id }); return; }
     if (e.target.closest('#er-q-copy')) {
       var url = $('#er-q-link').value;
       if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(function () { E.toast('Enlace copiado'); });
@@ -672,11 +674,14 @@ window.ECOR.ready(function () {
       if (!validateLocal()) return;
       flush().then(function (ok) {
         if (!ok) return null;
-        return E.dialog({ title: 'Enviar al cliente', text: 'Se crea el enlace para que acepte o rechace. Desde ahora no se puede editar: si cambia algo, se hace una versión nueva.', ok: 'Crear enlace' });
+        return E.dialog({ title: 'Enviar al cliente', text: 'Se crea el enlace para que acepte o rechace (también quita lo que no quiera). Le llega por email si tiene, y a continuación se abre WhatsApp con el mensaje del presupuesto. Desde ahora no se puede editar: si cambia algo, se hace una versión nueva.', ok: 'Enviar' });
       }).then(function (yes) {
         if (!yes) return;
         call('quoteSend', { id_quote: q.id }, {}).then(function (res) {
-          if (res) E.toast('Enlace creado: cópialo y envíaselo al cliente');
+          if (!res) return;
+          E.toast(res.emailed ? 'Presupuesto enviado por email' : 'Enlace creado');
+          // WhatsApp con la plantilla del presupuesto ya rellena (enlace incluido)
+          if (E.notify) E.notify({ id_ecorepair: r.id });
         });
       });
       return;

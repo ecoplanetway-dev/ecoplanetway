@@ -27,8 +27,11 @@
           '<label class="er-field">Teléfono<input class="er-input er-num" id="er-wa-phone" inputmode="tel" value="' + esc(res.phone) + '"></label>' +
           '<label class="er-field"><span class="er-row" style="flex-wrap:nowrap">Mensaje (puedes cambiarlo antes de abrir WhatsApp)' + (E.hasVoice ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-dict style="margin-left:auto">' + icon('mic', true) + 'Dictar</button>' : '') + '</span>' +
             '<textarea class="er-input" id="er-wa-text" rows="7"></textarea></label>' +
-          (res.tech ? '<label class="er-wa-tech"><input type="checkbox" id="er-wa-tech">' + (res.tech.avatar ? '<img src="' + esc(res.tech.avatar) + '" alt="">' : '') +
-            '<span><b>Mostrar al técnico</b><small>Añade «Tu patín lo ha reparado ' + esc(res.tech.name) + '» y el enlace con su foto</small></span></label>' : '') +
+          (res.tech ? '<div class="er-wa-techbox"><label class="er-wa-tech"><input type="checkbox" id="er-wa-tech">' + (res.tech.avatar ? '<img src="' + esc(res.tech.avatar) + '" alt="">' : '') +
+            '<span><b>Mostrar al técnico</b><small>Añade «Tu patín lo ha reparado ' + esc(res.tech.name) + '» al mensaje</small></span></label>' +
+            (res.tech.avatar ? '<button type="button" class="er-btn er-btn-sm" data-techimg>' + icon(mobile ? 'send' : 'copy', true) + (mobile ? 'Compartir la foto' : 'Copiar la foto') + '</button>' +
+              '<small class="er-muted er-wa-techhelp">' + (mobile ? 'Después de mandar el texto, pulsa «Compartir la foto», elige WhatsApp y el chat del cliente.' : 'Pulsa «Copiar la foto» y en el chat de WhatsApp pulsa Ctrl+V para pegarla.') + '</small>'
+              : '<small class="er-muted er-wa-techhelp">' + esc(res.tech.name) + ' no tiene foto. Súbela en Ajustes → Personal y app.</small>') + '</div>' : '') +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
             (mobile ? '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="mobile">' + icon('whatsapp') + 'Abrir WhatsApp</button>'
@@ -60,6 +63,25 @@
             if (navigator.canShare({ files: [f] })) techFile = f;
           }).catch(function () { });
         }
+        // Ordenador: copia la foto al portapapeles (PNG) para pegarla con Ctrl+V en WhatsApp
+        function copyTech(btn) {
+          var path = res.tech.avatar;
+          try { path = new URL(res.tech.avatar, location.href).pathname; } catch (er) { }
+          if (!navigator.clipboard || !window.ClipboardItem) { window.open(res.tech.avatar, '_blank'); E.toast('Botón derecho sobre la foto → «Copiar imagen» y pégala en el chat.'); return; }
+          // El navegador pide la promesa dentro del clic (si no, no deja copiar)
+          var png = fetch(path, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('foto'); return r.blob(); }).then(function (b) {
+            if (b.type === 'image/png') return b;
+            return new Promise(function (ok, ko) {
+              var im = new Image();
+              im.onload = function () { var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); c.toBlob(function (x) { x ? ok(x) : ko(); }, 'image/png'); };
+              im.onerror = ko; im.src = URL.createObjectURL(b);
+            });
+          });
+          navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).then(function () {
+            if (btn) btn.innerHTML = icon('check', true) + 'Foto copiada';
+            E.toast('Foto copiada: en el chat de WhatsApp pulsa Ctrl+V');
+          }, function () { window.open(res.tech.avatar, '_blank'); E.toast('No se pudo copiar. Botón derecho sobre la foto → «Copiar imagen».', true); });
+        }
         function shareTech() {
           if (!techFile) {
             // Sin «Compartir» de archivos: se abre la foto para mantenerla pulsada → Copiar o Compartir
@@ -88,6 +110,8 @@
           }
           if (e.target.closest('[data-dict]')) { e.preventDefault(); E.dictate(ta); return; }
           if (e.target.closest('[data-sharetech]')) { shareTech(); return; }
+          var ti = e.target.closest('[data-techimg]');
+          if (ti) { if (mobile) shareTech(); else copyTech(ti); return; }
           if (e.target.closest('[data-copy]')) {
             ta.select();
             try { document.execCommand('copy'); E.toast('Texto copiado'); } catch (er) { }

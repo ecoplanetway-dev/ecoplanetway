@@ -1668,3 +1668,6 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .er-printdot.ok { background: #ECFDF5; color: #065F46; }
 .er-printdot.bad { background: #FEF2F2; color: #B91C1C; opacity: 1; }
 @media (max-width: 760px) { .er-printdot { display: none; } }
+.er-modal .er-wa-techbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #E6E8EC; border-radius: 12px; }
+.er-modal .er-wa-techbox .er-wa-tech { border: 0; padding: 0; flex: 1 1 260px; }
+.er-modal .er-wa-techhelp { flex: 1 1 100%; font-size: 12px; }
