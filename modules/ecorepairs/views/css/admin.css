@@ -1266,3 +1266,8 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-flat .er-opt[aria-pressed="true"] { background: #14161A; color: var(--er-lime, #D4FF2A); border-color: #14161A; box-shadow: none; }
 .ecor .er-flat .er-opt[aria-pressed="true"] .er-i { color: var(--er-lime, #D4FF2A); }
 .ecor .er-flat .er-opt.er-add { background: #fff; border: 1px dashed #C9CDD4; color: #8A909C; }
+/* Botón «Ficha del cliente» más visible que «Editar» */
+.ecor .er-btn-cust { background: linear-gradient(135deg, #2F6FE0, #1D4ED8); color: #fff !important; border-color: #1D4ED8; box-shadow: 0 6px 14px -4px rgba(37,99,235,.45); }
+.ecor .er-btn-cust:hover { filter: brightness(1.06); }
+.ecor .er-show-m { display: none; }
+@media (max-width: 760px) { .ecor .er-hide-m { display: none; } .ecor .er-show-m { display: inline; } }

@@ -162,7 +162,7 @@ window.ECOR.ready(function () {
     }).join('');
     $('#er-p-cust').innerHTML = '<h3>' + icon('user') + 'Cliente<span class="er-r">' +
         (D.canEdit ? '<button type="button" class="er-btn er-btn-sm" id="er-cust-edit">' + icon('pen', true) + 'Editar</button> ' : '') +
-        '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(D.customerUrl) + '">' + icon('user', true) + 'Ficha</a></span></h3>' +
+        '<a class="er-btn er-btn-sm er-btn-cust" href="' + esc(D.customerUrl) + '">' + icon('user', true) + '<span class="er-hide-m">Ficha del cliente</span><span class="er-show-m">Ficha</span></a></span></h3>' +
       '<div class="er-person"><span class="er-av">' + esc(E.initials(c.name)) + '</span><div><b>' + esc(c.name || r.customer_name) + '</b>' +
       '<div class="er-muted er-num">' + esc([c.phone, c.email].filter(Boolean).join(' · ') || 'Sin teléfono ni email') + '</div></div></div>' +
       '<div class="er-kv">' +
