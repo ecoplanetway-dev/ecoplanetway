@@ -336,6 +336,20 @@ class EcoRepairPayment
             $items['service'] = array('id_product' => $idService, 'id_product_attribute' => 0, 'qty' => 1, 'amount' => $serviceExcl);
         }
 
+        // Piezas sin stock suficiente (se pidieron para esta reparación): se suben las unidades que faltan
+        // para que el pedido se pueda crear; al validarlo PrestaShop las vuelve a descontar.
+        foreach ($items as $k => $it) {
+            if ($k === 'service') {
+                continue;
+            }
+            $have = (int) StockAvailable::getQuantityAvailableByProduct((int) $it['id_product'], (int) $it['id_product_attribute'], (int) $repair['id_shop']);
+            $need = (int) $it['qty'];
+            if ($have < $need) {
+                StockAvailable::updateQuantity((int) $it['id_product'], (int) $it['id_product_attribute'], $need - $have, (int) $repair['id_shop']);
+                EcoRepairLog::add((int) $repair['id_ecorepair'], (int) $idEmployee, 'note', 'Stock ajustado al cobrar: +' . ($need - $have) . ' ud. de producto ' . (int) $it['id_product'] . ' (no había stock suficiente)');
+            }
+        }
+
         $cart = new Cart();
         $cart->id_customer = $idCustomer;
         $cart->id_address_delivery = $idAddress;
