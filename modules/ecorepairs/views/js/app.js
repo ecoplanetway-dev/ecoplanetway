@@ -618,7 +618,7 @@ window.ECOR.ready(function () {
         });
       }
       if (st.step === 3) {
-        el.innerHTML = '<div class="er-panel"><h3>' + icon('alert') + 'Avería</h3><label class="er-field">Lo que cuenta el cliente<textarea class="er-input" id="er-fault" rows="4">' + esc(st.fault || '') + '</textarea></label>' +
+        el.innerHTML = '<div class="er-panel"><h3>' + icon('alert') + 'Avería</h3><label class="er-field">Lo que cuenta el cliente<textarea class="er-input" id="er-fault" data-voice-list rows="4">' + esc(st.fault || '') + '</textarea></label>' +
           '<div><div class="er-sub">Entregado con el equipo</div><div id="er-acc"></div></div><div><div class="er-sub">Daños previos</div><div id="er-dmg"></div></div>' +
           '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" id="er-urg"' + (st.urgent ? ' checked' : '') + '></label></div>' +
           '<div class="er-panel"><h3>' + icon('camera') + 'Fotos de entrada<span class="er-r">' + st.photos.length + '</span></h3><div class="er-photos">' +

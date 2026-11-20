@@ -33,7 +33,7 @@ window.ECOR.ready(function () {
             '<label class="er-field">Color<input class="er-input" id="er-color" maxlength="64" autocomplete="off"></label>' +
           '</div></div>' +
         '<div class="er-panel"><h3>' + icon('alert') + 'Avería y recepción</h3>' +
-          '<label class="er-field">Lo que cuenta el cliente<textarea class="er-input" id="er-fault" maxlength="5000" placeholder="Por ejemplo: no enciende desde que se mojó"></textarea></label>' +
+          '<label class="er-field">Lo que cuenta el cliente<textarea class="er-input" id="er-fault" data-voice-list maxlength="5000" placeholder="Por ejemplo: no enciende desde que se mojó"></textarea></label>' +
           '<div><div class="er-sub">Entregado con el equipo</div><div id="er-acc"></div></div>' +
           '<div><div class="er-sub">Daños previos</div><div id="er-dmg"></div></div>' +
           '<div><div class="er-sub">Fotos de entrada</div><div class="er-photos" id="er-photos"></div>' +

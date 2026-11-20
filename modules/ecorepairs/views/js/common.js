@@ -527,6 +527,17 @@
     micBtn.style.top = (r.top - hr.top + (micField.tagName === 'TEXTAREA' ? r.height - 40 : (r.height - 34) / 2)) + 'px';
     micBtn.style.left = (r.right - hr.left - 40) + 'px';
   }
+  /** Para avería y diagnóstico: cada frase en su línea con «•» delante. */
+  function insertBullets(field, text) {
+    var parts = String(text || '').split(/[.;]\s+|,?\s+(?:y\s+)?(?:ademas|además|tambien|también|aparte)\s+/i).map(function (x) { return x.trim().replace(/[.,;]+$/, '').replace(/^(y\s+)?(ademas|además|tambien|también|aparte)\s+/i, ''); }).filter(Boolean);
+    if (!parts.length) return;
+    var v = field.value.replace(/\s+$/, '');
+    parts.forEach(function (ph) { v += (v ? '\n' : '') + '• ' + ph.charAt(0).toUpperCase() + ph.slice(1); });
+    field.value = v;
+    try { field.setSelectionRange(v.length, v.length); } catch (e) {}
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
   function insertText(field, text) {
     if (!text) return;
     var v = field.value, a = field.selectionStart == null ? v.length : field.selectionStart, b = field.selectionEnd == null ? v.length : field.selectionEnd;
@@ -549,9 +560,19 @@
         micBtn.innerHTML = ICONS_EXTRA.mic;
         micBtn.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
         micBtn.addEventListener('click', function () {
-          if (micOn) { if (listen.stop) listen.stop(); return; }
+          if (micOn) { micOn = false; micBtn.classList.remove('on'); if (listen.stop) listen.stop(); return; }
           var f = micField;
           micOn = true; micBtn.classList.add('on');
+          if (f && f.hasAttribute('data-voice-list')) {
+            // Escucha seguida: cada frase en una línea nueva, hasta que se vuelva a pulsar
+            (function loop() {
+              listen().then(function (t) {
+                if (t && f) insertBullets(f, t);
+                if (micOn) loop(); else micBtn.classList.remove('on');
+              });
+            })();
+            return;
+          }
           listen().then(function (t) { micOn = false; micBtn.classList.remove('on'); if (f) { f.focus(); insertText(f, t); } });
         });
         micBtn.hidden = true;

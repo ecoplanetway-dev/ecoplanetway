@@ -235,8 +235,8 @@ window.ECOR.ready(function () {
       ((r.faults || []).length ? '<div><div class="er-sub">Averías marcadas</div><div class="er-row">' + r.faults.map(function (f) { return '<span class="er-tag er-t-neu">' + esc(f) + '</span>'; }).join('') + '</div></div>' : '') +
       '<div><div class="er-sub">Entregado con el equipo</div><div id="er-acc"></div></div>' +
       '<div><div class="er-sub">Daños previos</div><div id="er-dmg"></div></div>' +
-      '<label class="er-field">Avería que indica el cliente<textarea class="er-input" data-f="fault_customer" maxlength="5000"' + dis + '>' + esc(r.fault_customer) + '</textarea></label>' +
-      '<label class="er-field">Diagnóstico del técnico<textarea class="er-input" data-f="diagnosis" maxlength="5000" placeholder="Qué le pasa y qué hay que hacer"' + dis + '>' + esc(r.diagnosis) + '</textarea></label>';
+      '<label class="er-field">Avería que indica el cliente<textarea class="er-input" data-voice-list data-f="fault_customer" maxlength="5000"' + dis + '>' + esc(r.fault_customer) + '</textarea></label>' +
+      '<label class="er-field">Diagnóstico del técnico<textarea class="er-input" data-voice-list data-f="diagnosis" maxlength="5000" placeholder="Qué le pasa y qué hay que hacer"' + dis + '>' + esc(r.diagnosis) + '</textarea></label>';
     if (canEdit) {
       E.ChipSet($('#er-acc'), { options: D.accessories, selected: r.accessories, allowOther: true, list: 'accessories', canManage: true, onChange: function (v) { save('accessories', v, $('#er-acc')); } });
       E.ChipSet($('#er-dmg'), { options: D.damages, selected: r.damages, warn: true, allowOther: true, list: 'damages', canManage: true, onChange: function (v) { save('damages', v, $('#er-dmg')); } });
