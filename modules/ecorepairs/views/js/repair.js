@@ -582,6 +582,7 @@ window.ECOR.ready(function () {
         '<span>' + nParts + ' pieza' + (nParts === 1 ? '' : 's') + '</span>' +
         (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
+        (r.id_model ? '<button type="button" class="er-fm-bat" data-batt>' + icon('battery', true) + (E.batterySummary(D.battery) ? 'Batería: ' + esc(E.batterySummary(D.battery)) : 'Batería: sin datos') + '</button>' : '') +
         (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">Ficha del modelo</a>' : '') +
       '</div></div>' +
       E.unlockButton(D.unlock, 'data-unl') +
@@ -591,7 +592,7 @@ window.ECOR.ready(function () {
       (partsOpen ? '<div class="er-fold-body"><div class="er-seg2">' + [['parts', 'Piezas', nParts], ['fixed', 'Precio cerrado', nFix]].map(function (t) {
           return '<button type="button" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>';
         }).join('') + (partsTab === 'unlock' ? '<button type="button" aria-pressed="true">' + icon('bolt', true) + ' Deslimitar</button>' : '') +
-        '</div><div id="er-dwr"></div></div>' : '');
+        '</div>' + (partsTab === 'parts' && D.spcp ? E.spcpBar(D.spcp, canEdit) : '') + '<div id="er-dwr"></div></div>' : '');
     if (!partsOpen) return;
     var host = box.querySelector('#er-dwr');
     if (partsTab !== 'parts') host.classList.add('er-plain');
@@ -621,7 +622,7 @@ window.ECOR.ready(function () {
       } : null });
       return;
     }
-    var dg = E.PartsDiagram(host, { parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, zonesUrl: D.modelUrl && r.id_model ? D.modelUrl + '&tab=parts&from=' + r.id : '', suggested: D.suggestedZones || [], admin: !!D.isAdmin,
+    var dg = E.PartsDiagram(host, { published: D.spcp ? D.spcp.published : null, parts: D.modelParts || [], zones: D.zones, sections: D.sections, map: D.modelMap, photo: D.modelPhoto, zonesUrl: D.modelUrl && r.id_model ? D.modelUrl + '&tab=parts&from=' + r.id : '', suggested: D.suggestedZones || [], admin: !!D.isAdmin,
       incompat: D.incompat || [],
       onIncompat: canEdit ? function () {
         E.incompatDialog({ title: r.device_name, canBrand: !!r.id_model, onSave: function (d) {
@@ -660,8 +661,23 @@ window.ECOR.ready(function () {
     if (t) { partsTab = t.getAttribute('data-ptab'); renderParts(); return; }
     if (e.target.closest('[data-fold]')) { partsOpen = !partsOpen; if (!partsOpen && partsTab === 'unlock') partsTab = 'parts'; renderParts(); return; }
     if (e.target.closest('[data-bell]')) { openBell(); return; }
+    if (e.target.closest('[data-batt]')) { openBattery(); return; }
+    if (e.target.closest('[data-spcppub]')) { E.spcpDialog({ title: r.device_name, id_model: r.id_model, spcp: D.spcp, parts: D.modelParts || [], zones: D.zones, onDone: function (b) { D.spcp = b; renderParts(); } }); return; }
+    if (e.target.closest('[data-spcplink]')) { E.spcpLinkDialog({ title: r.device_name, id_model: r.id_model, spcp: D.spcp, onDone: function (b) { D.spcp = b; renderParts(); } }); return; }
     if (e.target.closest('[data-unl]')) { partsOpen = true; partsTab = 'unlock'; renderParts(); var b = $('#er-p-parts'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
+
+  function openBattery() {
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg" style="max-width:640px"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + icon('battery') + ' Batería · ' + esc(r.device_name) + '</h2>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div><div id="er-batd"></div></div>';
+    app.appendChild(wrap);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); renderParts(); } });
+    E.BatteryPanel(wrap.querySelector('#er-batd'), { data: D.battery || {}, canEdit: canEdit, onSave: function (d) {
+      return E.api('batterySave', {}, { id_model: r.id_model, data: JSON.stringify(d) }).then(function (res) { if (res.ok) D.battery = res.battery; return res; });
+    } });
+  }
 
   function openBell() {
     E.incompatPanel({ title: r.device_name, list: D.incompat || [],

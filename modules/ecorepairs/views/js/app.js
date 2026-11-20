@@ -244,6 +244,8 @@ window.ECOR.ready(function () {
       var sub = R._sub || 'parts';
       el.innerHTML = '<div class="er-row" style="flex-wrap:nowrap">' + E.unlockButton(R.unlock || [], 'data-sub="unlock" style="flex:1;justify-content:center"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
         E.incompatButton(R.incompat || [], false) + '</div>' +
+        (R.battery && E.batterySummary(R.battery) ? '<div class="er-banner">' + icon('battery') + '<div><b>Batería:</b> ' + esc(E.batterySummary(R.battery)) +
+          ((R.battery.ctrl || []).length ? ' · ' + esc(R.battery.ctrl.map(function (k) { return (R.battery.connectors.controller || {})[k] || k; }).join(', ')) : '') + '</div></div>' : '') +
         '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')]].map(function (t) {
         return '<button type="button" data-sub="' + t[0] + '" aria-pressed="' + (sub === t[0]) + '">' + t[1] + '</button>';
       }).join('') + '</div><div id="er-sub"></div>';

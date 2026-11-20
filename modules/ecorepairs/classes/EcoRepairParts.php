@@ -142,9 +142,19 @@ class EcoRepairParts
             WHERE id_ecorepair_brand = ' . (int) $idBrand . ' AND id_ecorepair_model IN (0, ' . (int) $idModel . ')
             ORDER BY position ASC, id_ecorepair_part ASC') ?: array();
 
-        return array_map(function ($r) use ($admin) {
+        $out = array_map(function ($r) use ($admin) {
             return EcoRepairParts::publicRow($r, $admin);
         }, $rows);
+        // Proveedor desde epwcentro (solo el administrador)
+        if ($admin && $out && EcoRepairLinks::epwcOn()) {
+            $sup = EcoRepairLinks::supplierInfo(array_map(function ($p) { return $p['id_product']; }, $out));
+            foreach ($out as &$p) {
+                $p['epwc'] = isset($sup[$p['id_product']]) ? $sup[$p['id_product']] : array();
+            }
+            unset($p);
+        }
+
+        return $out;
     }
 
     public static function publicRow(array $r, $admin)

@@ -134,10 +134,16 @@
     var pr = p.product;
     return '<div class="er-part" data-pi="' + i + '">' + pimg(pr ? pr.image : '') +
       '<div class="er-part-main"><div class="er-row" style="gap:6px"><b>' + esc(p.name) + '</b>' + (p.spec ? '<span class="er-spec">' + esc(p.spec) + '</span>' : '') +
-        (p.scope === 'brand' ? '<span class="er-tag er-t-neu">Toda la marca</span>' : '') + '</div>' +
+        (p.scope === 'brand' ? '<span class="er-tag er-t-neu">Toda la marca</span>' : '') +
+        (opts.published && p.id_product && opts.published[p.id_product] !== undefined ? '<span class="er-tag er-t-ok" title="Publicada como repuesto compatible en la tienda">' + icon('check', true) + 'En la tienda</span>' : '') + '</div>' +
         (pr ? '<div class="er-small er-muted">' + esc(pr.name) + (pr.reference ? ' · ' + esc(pr.reference) : '') + '</div><div class="er-row er-small">' + stockTag(pr.stock) + '<b class="er-num">' + esc(E.fmtMoney(pr.price)) + '</b></div>'
             : '<div class="er-small er-muted">Sin producto de la tienda asociado</div>') +
-        (opts.admin && (p.supplier_url || p.supplier_ref) ? '<div class="er-supplier er-small">' + icon('box', true) + esc((p.supplier_name || 'Proveedor') + (p.supplier_ref ? ' · ' + p.supplier_ref : '') + (p.supplier_price ? ' · ' + E.fmtMoney(p.supplier_price) : '')) +
+        (opts.admin && p.epwc && p.epwc.length ? p.epwc.slice(0, 2).map(function (o) {
+          var av = { 'in': '<span class="er-tag er-t-ok">Disponible</span>', out: '<span class="er-tag er-t-bad">Agotado</span>' }[o.availability] || '<span class="er-tag er-t-neu">Sin dato</span>';
+          return '<div class="er-supplier er-small">' + icon('box', true) + '<b>' + esc(o.source) + '</b>' + (o.cost !== null ? ' · coste ' + esc(E.fmtMoney(o.cost)) : '') + ' ' + av +
+            (o.url ? ' <a href="' + esc(o.url) + '" target="_blank" rel="noopener">Abrir</a>' : '') + '</div>';
+        }).join('') + '<button type="button" class="er-link er-small" data-pcart="' + p.id_product + '">' + icon('package', true) + 'Añadir a la cesta del proveedor</button>' : '') +
+        (opts.admin && !(p.epwc && p.epwc.length) && (p.supplier_url || p.supplier_ref) ? '<div class="er-supplier er-small">' + icon('box', true) + esc((p.supplier_name || 'Proveedor') + (p.supplier_ref ? ' · ' + p.supplier_ref : '') + (p.supplier_price ? ' · ' + E.fmtMoney(p.supplier_price) : '')) +
             (p.supplier_url ? ' <a href="' + esc(p.supplier_url) + '" target="_blank" rel="noopener">Abrir en el proveedor</a>' : '') + '</div>'
           : !opts.admin && p.has_supplier ? '<div class="er-small er-muted">' + icon('box', true) + 'Disponible en proveedor</div>' : '') +
         (p.notes ? '<div class="er-small er-muted">' + esc(p.notes) + '</div>' : '') +
@@ -213,6 +219,14 @@
       if ((t = e.target.closest('[data-padd]'))) { opts.onAdd(parts[+t.getAttribute('data-padd')], t); return; }
       if ((t = e.target.closest('[data-pedit]'))) { opts.onEdit(parts[+t.getAttribute('data-pedit')], null); return; }
       if (e.target.closest('[data-pnew]')) { opts.onEdit(null, st.cat || (st.mode === 'sec' ? secOf(st.sec).cats[0] : 'other')); return; }
+      if ((t = e.target.closest('[data-pcart]'))) {
+        t.disabled = true;
+        E.api('supplierCart', {}, { id_product: t.getAttribute('data-pcart'), qty: 1 }).then(function (res) {
+          t.disabled = false;
+          E.toast(res.ok ? 'Añadida a la cesta de ' + res.source + ' (epwcentro)' : res.error, !res.ok);
+        });
+        return;
+      }
       if (e.target.closest('[data-inew]')) { opts.onIncompat(); return; }
       if ((t = e.target.closest('[data-idel]'))) { opts.onIncompatDelete(+t.getAttribute('data-idel')); }
     });
@@ -698,7 +712,179 @@
     });
   }
 
+
+  /* ---------- Publicar repuestos compatibles en la tienda (spcompatpro) ---------- */
+  /** ctx: { title, id_model, spcp (bundle), parts, onDone(bundle) } */
+  function spcpDialog(ctx) {
+    var B = ctx.spcp, sel = {}, extra = [], models = {}, results = [], timer;
+    var cats = B.categories || [];
+    function guessCat(name) {
+      var best = cats[0] ? cats[0].id : 0, bs = 0;
+      cats.forEach(function (c) { var sc = E.fuzzyScore(c.name, name || ''); if (sc > bs) { bs = sc; best = c.id; } });
+      return best;
+    }
+    var items = (ctx.parts || []).filter(function (p) { return p.id_product && p.product; }).map(function (p) {
+      return { id_product: p.id_product, name: p.product.name, image: p.product.image, cat: guessCat(p.name + ' ' + (ctx.zones && ctx.zones[p.zone] || '')) };
+    });
+    var uniq = {};
+    items = items.filter(function (it) { if (uniq[it.id_product]) return false; uniq[it.id_product] = 1; return true; });
+    items.forEach(function (it) { if (B.published[it.id_product] === undefined) sel[it.id_product] = true; });
+    if (B.linked) models[B.linked] = true;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    function catSel(it) { return '<select class="er-input er-spcp-cat" data-cat="' + it.id_product + '">' + cats.map(function (c) { return '<option value="' + c.id + '"' + (c.id === it.cat ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select>'; }
+    function draw(q) {
+      var all = items.concat(extra);
+      var mq = E.fold(q || '');
+      wrap.innerHTML = '<div class="er-dlg er-spcp"><h2>' + icon('box') + ' Publicar en la tienda · ' + esc(ctx.title) + '</h2>' +
+        '<p class="er-muted er-small" style="margin:0">Salen en la ficha del patín de la tienda como «repuestos compatibles». Puedes lanzarlos a varios patines a la vez.</p>' +
+        '<div class="er-spcp-cols"><div><div class="er-sub">1 · Productos</div><div class="er-mini er-spcp-list">' + (all.length ? all.map(function (it) {
+          var pub = B.published[it.id_product] !== undefined;
+          return '<label class="er-spcp-row"><input type="checkbox" data-pp="' + it.id_product + '"' + (sel[it.id_product] ? ' checked' : '') + '>' + pimg(it.image) +
+            '<span class="er-grow" style="white-space:normal">' + esc(it.name) + (pub ? ' <span class="er-tag er-t-ok">Ya en la tienda</span>' : '') + '</span>' + catSel(it) + '</label>';
+        }).join('') : '<div class="er-empty">Este modelo no tiene piezas con producto de la tienda. Búscalos abajo.</div>') + '</div>' +
+        '<label class="er-search" style="margin-top:8px">' + icon('search') + '<input class="er-input" id="er-spq" placeholder="Añadir otro producto de la tienda" autocomplete="off" data-novoice></label><div class="er-pick" id="er-spr"></div></div>' +
+        '<div><div class="er-sub">2 · Patines de la tienda</div><label class="er-search">' + icon('search') + '<input class="er-input" id="er-smq" placeholder="Buscar patín" value="' + esc(q || '') + '" autocomplete="off" data-novoice></label>' +
+        '<div class="er-mini er-spcp-list er-spcp-models">' + (B.models || []).filter(function (m) { return !mq || E.fold(m.brand + ' ' + m.name).indexOf(mq) > -1 || models[m.id]; }).slice(0, 80).map(function (m) {
+          return '<label class="er-spcp-row"><input type="checkbox" data-pm="' + m.id + '"' + (models[m.id] ? ' checked' : '') + '><span class="er-grow">' + esc((m.brand ? m.brand + ' ' : '') + m.name) + (m.id === B.linked ? ' <span class="er-tag er-t-neu">Este modelo</span>' : '') + (m.active ? '' : ' <span class="er-tag er-t-warn">Oculto</span>') + '</span></label>';
+        }).join('') + '</div></div></div>' +
+        '<div class="er-err" id="er-sperr" hidden></div>' +
+        '<div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>' + icon('check', true) + 'Publicar</button></div></div>';
+      var mi = wrap.querySelector('#er-smq');
+      if (q !== undefined && mi) { mi.focus(); mi.setSelectionRange(mi.value.length, mi.value.length); }
+    }
+    draw();
+    (E.root() || document.body).appendChild(wrap);
+    wrap.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t.hasAttribute('data-pp')) sel[t.getAttribute('data-pp')] = t.checked;
+      if (t.hasAttribute('data-pm')) models[t.getAttribute('data-pm')] = t.checked;
+      if (t.hasAttribute('data-cat')) { var id = +t.getAttribute('data-cat'); items.concat(extra).forEach(function (it) { if (it.id_product === id) it.cat = +t.value; }); }
+    });
+    wrap.addEventListener('input', function (e) {
+      if (e.target.id === 'er-smq') { draw(e.target.value); return; }
+      if (e.target.id !== 'er-spq') return;
+      var v = e.target.value.trim(); clearTimeout(timer);
+      timer = setTimeout(function () {
+        if (v.length < 2) { wrap.querySelector('#er-spr').innerHTML = ''; return; }
+        E.api('searchProducts', { q: v }).then(function (res) {
+          results = res.products || [];
+          wrap.querySelector('#er-spr').innerHTML = results.slice(0, 8).map(function (r, i) { return '<button type="button" data-spa="' + i + '">' + pimg(r.image) + '<span class="er-grow"><b>' + esc(r.name) + '</b></span></button>'; }).join('');
+        });
+      }, 300);
+    });
+    wrap.addEventListener('click', function (e) {
+      var t;
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if ((t = e.target.closest('[data-spa]'))) {
+        var r = results[+t.getAttribute('data-spa')];
+        if (!items.concat(extra).some(function (it) { return it.id_product === r.id_product; })) extra.push({ id_product: r.id_product, name: r.name, image: r.image, cat: guessCat(r.name) });
+        sel[r.id_product] = true; draw(); return;
+      }
+      var ok = e.target.closest('[data-ok]');
+      if (!ok) return;
+      var list = items.concat(extra).filter(function (it) { return sel[it.id_product]; }).map(function (it) { return { id_product: it.id_product, id_category: it.cat }; });
+      var ms = Object.keys(models).filter(function (k) { return models[k]; });
+      var er = wrap.querySelector('#er-sperr');
+      if (!list.length) { er.textContent = 'Marca al menos un producto.'; er.hidden = false; return; }
+      if (!ms.length) { er.textContent = 'Marca al menos un patín de la tienda.'; er.hidden = false; return; }
+      ok.disabled = true;
+      E.api('spcpPublish', {}, { id_model: ctx.id_model, items: JSON.stringify(list), models: JSON.stringify(ms) }).then(function (res) {
+        ok.disabled = false;
+        if (!res.ok) { er.textContent = res.error; er.hidden = false; return; }
+        wrap.remove(); E.toast(res.added ? res.added + ' repuesto(s) publicados en la tienda' : 'Ya estaban todos publicados');
+        ctx.onDone(res.spcp);
+      });
+    });
+  }
+
+  /** Enlazar el modelo del taller con su modelo de la tienda. ctx: { id_model, spcp, title, onDone(bundle) } */
+  function spcpLinkDialog(ctx) {
+    var B = ctx.spcp;
+    E.dialog({ title: 'Patín de la tienda para ' + ctx.title, text: 'Escribe parte del nombre tal como está en Repuestos compatibles.', input: true, inputLabel: 'Buscar', ok: 'Buscar' }).then(function (q) {
+      if (q === false || q === null || q === undefined) return;
+      var f = E.fold(q);
+      var list = (B.models || []).filter(function (m) { return E.fold(m.brand + ' ' + m.name).indexOf(f) > -1; }).slice(0, 12);
+      var wrap = document.createElement('div');
+      wrap.className = 'er-modal';
+      wrap.innerHTML = '<div class="er-dlg" style="max-width:520px"><h2>Elige el patín de la tienda</h2><div class="er-pick">' + (list.length ? list.map(function (m) {
+        return '<button type="button" data-lk="' + m.id + '"><span class="er-grow"><b>' + esc((m.brand ? m.brand + ' ' : '') + m.name) + '</b></span></button>';
+      }).join('') : '<div class="er-empty">Nada con «' + esc(q) + '».</div>') + '</div><div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cerrar</button></div></div>';
+      (E.root() || document.body).appendChild(wrap);
+      wrap.addEventListener('click', function (e) {
+        var t;
+        if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+        if ((t = e.target.closest('[data-lk]'))) {
+          E.api('spcpLink', {}, { id_model: ctx.id_model, spcp: t.getAttribute('data-lk') }).then(function (res) { wrap.remove(); E.toast('Enlazado con la tienda'); ctx.onDone(res.spcp); });
+        }
+      });
+    });
+  }
+
+  /** Barra de tienda: a qué patín está enlazado y botón para publicar. */
+  function spcpBar(B, canEdit) {
+    if (!B) return '';
+    var m = (B.models || []).filter(function (x) { return x.id === B.linked; })[0];
+    return '<div class="er-spcpbar">' + icon('box', true) + '<span class="er-grow">Tienda: ' + (m ? '<b>' + esc((m.brand ? m.brand + ' ' : '') + m.name) + '</b>' + (B.auto ? ' <span class="er-muted er-small">(encontrado por el nombre)</span>' : '') + ' · ' + Object.keys(B.published || {}).length + ' repuestos publicados' : '<b>sin enlazar</b>') + '</span>' +
+      (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-spcplink>' + (m ? 'Cambiar' : 'Enlazar') + '</button><button type="button" class="er-btn er-btn-sm er-btn-pri" data-spcppub>' + icon('plus', true) + 'Publicar en la tienda</button>' : '') + '</div>';
+  }
+
+  /* ---------- Batería del modelo (medidas del hueco + configurador de baterías) ---------- */
+  function batterySummary(b) {
+    if (!b) return '';
+    var dims = b.len && b.wid && b.hei ? b.len + ' × ' + b.wid + ' × ' + b.hei + ' mm' : '';
+    var el = b.volt ? b.volt + ' V' + (b.maxAh ? ' · ' + (b.minAh ? b.minAh + '–' : 'hasta ') + b.maxAh + ' Ah' : '') : '';
+    return [el, dims].filter(Boolean).join(' · ');
+  }
+  /** opts: { data, canEdit, onSave(data) → Promise(res) } */
+  function BatteryPanel(el, opts) {
+    var b = opts.data;
+    function chips(kind, list, chosen) {
+      return Object.keys(list).map(function (k) { return '<button type="button" class="er-opt" data-bc="' + kind + ':' + k + '" aria-pressed="' + (chosen.indexOf(k) > -1) + '"' + (opts.canEdit ? '' : ' disabled') + '>' + esc(list[k]) + '</button>'; }).join('');
+    }
+    function render() {
+      var dis = opts.canEdit ? '' : ' disabled';
+      el.innerHTML = '<div class="er-bat">' +
+        '<div class="er-bat-st">' + (b.linked ? '<span class="er-tag er-t-ok">' + icon('check', true) + 'Unido al configurador de baterías</span>' : b.module ? (b.model_id ? '<span class="er-tag er-t-neu">En el configurador, aún sin datos</span>' : '<span class="er-tag er-t-warn">Este modelo no está en el catálogo del configurador de baterías</span>') : '') + '</div>' +
+        '<div class="er-sub">Hueco de la batería (medidas internas)</div><div class="er-fg er-bat-3">' +
+          '<label class="er-field">Largo (mm)<input class="er-input" data-bk="len" inputmode="decimal" value="' + esc(b.len) + '"' + dis + '></label>' +
+          '<label class="er-field">Ancho (mm)<input class="er-input" data-bk="wid" inputmode="decimal" value="' + esc(b.wid) + '"' + dis + '></label>' +
+          '<label class="er-field">Alto (mm)<input class="er-input" data-bk="hei" inputmode="decimal" value="' + esc(b.hei) + '"' + dis + '></label></div>' +
+        '<div class="er-sub">Batería que le entra</div><div class="er-fg er-bat-3">' +
+          '<label class="er-field">Voltaje<select class="er-input" data-bk="volt"' + dis + '><option value="">—</option>' + (b.volts || []).map(function (v) { return '<option value="' + v + '"' + (+b.volt === +v ? ' selected' : '') + '>' + v + ' V</option>'; }).join('') + '</select></label>' +
+          '<label class="er-field">Ah mínimo<input class="er-input" data-bk="minAh" inputmode="decimal" value="' + esc(b.minAh) + '"' + dis + '></label>' +
+          '<label class="er-field">Ah máximo que entra<input class="er-input" data-bk="maxAh" inputmode="decimal" value="' + esc(b.maxAh) + '"' + dis + '></label></div>' +
+        '<div class="er-sub">Conector hacia la controladora</div><div class="er-opts">' + chips('ctrl', b.connectors.controller || {}, b.ctrl || []) + '</div>' +
+        '<div class="er-sub">Conector de carga</div><div class="er-opts">' + chips('charge', b.connectors.charge || {}, b.charge || []) + '</div>' +
+        '<label class="er-field">Observaciones (salen también en el configurador)<textarea class="er-input" data-bk="notes" rows="2" maxlength="800"' + dis + '>' + esc(b.notes) + '</textarea></label>' +
+        '<div class="er-err" id="er-berr" hidden></div>' +
+        (opts.canEdit ? '<div class="er-row"><button type="button" class="er-btn er-btn-pri" data-bsave>' + icon('check', true) + 'Guardar' + (b.model_id ? ' en el taller y en el configurador' : '') + '</button></div>' : '') + '</div>';
+    }
+    el.addEventListener('click', function (e) {
+      var t;
+      if ((t = e.target.closest('[data-bc]')) && opts.canEdit) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); return; }
+      if (!(t = e.target.closest('[data-bsave]'))) return;
+      var d = { ctrl: [], charge: [] };
+      el.querySelectorAll('[data-bk]').forEach(function (i) { d[i.getAttribute('data-bk')] = i.value; });
+      el.querySelectorAll('[data-bc][aria-pressed="true"]').forEach(function (x) { var a = x.getAttribute('data-bc').split(':'); d[a[0]].push(a[1]); });
+      t.disabled = true;
+      opts.onSave(d).then(function (res) {
+        t.disabled = false;
+        if (!res.ok) { var er = el.querySelector('#er-berr'); er.textContent = res.error; er.hidden = false; return; }
+        b = res.battery; render();
+        E.toast(res.synced ? 'Guardado también en el configurador de baterías' : res.model_id === '' && b.module ? 'Guardado en el taller (el modelo no está en el configurador)' : 'Guardado');
+        if (res.skipped && res.skipped.length) E.toast('No se pudo pasar a: ' + res.skipped.join(', ') + ' (ese voltaje no está en su tabla de precios)', true);
+      });
+    });
+    render();
+  }
+
   E.PartsDiagram = PartsDiagram;
+  E.spcpDialog = spcpDialog;
+  E.spcpLinkDialog = spcpLinkDialog;
+  E.spcpBar = spcpBar;
+  E.BatteryPanel = BatteryPanel;
+  E.batterySummary = batterySummary;
   E.incompatButton = incompatButton;
   E.incompatPanel = incompatPanel;
   E.UnlockPanel = UnlockPanel;

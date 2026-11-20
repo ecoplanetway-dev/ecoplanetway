@@ -371,6 +371,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'sections' => EcoRepairParts::sections(),
             'unlock' => $idBrand ? EcoRepairUnlock::forModel($idBrand, $idModel, false) : array(),
             'fixed' => $idBrand ? EcoRepairFixed::forModel($idBrand, $idModel) : array(),
+            'battery' => $idModel ? EcoRepairLinks::battery($idModel) : null,
         );
     }
 

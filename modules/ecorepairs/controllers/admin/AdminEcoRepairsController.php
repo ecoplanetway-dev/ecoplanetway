@@ -502,6 +502,11 @@ class AdminEcoRepairsController extends ModuleAdminController
             'fixedAdd' => array('ajaxFixedAdd', 'edit', true),
             'checkToggle' => array('ajaxCheckToggle', 'edit', true),
             'recallDone' => array('ajaxRecallDone', 'edit', true),
+            'spcpLink' => array('ajaxSpcpLink', 'edit', true),
+            'spcpPublish' => array('ajaxSpcpPublish', 'edit', true),
+            'spcpUnpublish' => array('ajaxSpcpUnpublish', 'delete', true),
+            'batterySave' => array('ajaxBatterySave', 'edit', true),
+            'supplierCart' => array('ajaxSupplierCart', 'edit', true),
             'printSticker' => array('ajaxPrintSticker', 'view', false),
         );
         if (!isset($map[$action])) {
@@ -672,6 +677,8 @@ class AdminEcoRepairsController extends ModuleAdminController
             'unlock' => $idBrand ? EcoRepairUnlock::forModel($idBrand, $idModel, $this->isAdmin()) : array(),
             'fixed' => $idBrand ? EcoRepairFixed::forModel($idBrand, $idModel) : array(),
             'unlockMethods' => EcoRepairUnlock::methods(),
+            'spcp' => $idModel ? EcoRepairLinks::spcpBundle($idModel) : null,
+            'battery' => $idModel ? EcoRepairLinks::battery($idModel) : null,
         );
     }
 
@@ -968,6 +975,13 @@ class AdminEcoRepairsController extends ModuleAdminController
         ), (int) $this->context->shop->id, (int) $this->context->employee->id);
         if ($res['ok']) {
             $res['request'] = EcoRepairRequest::get($res['id']);
+            // Encargo nuevo de un producto con proveedor en epwcentro: también a su cesta de pedidos
+            if (!$id && (int) Tools::getValue('id_product') && EcoRepairLinks::epwcOn()) {
+                $c = EcoRepairLinks::addToSupplierCart((int) Tools::getValue('id_product'), max(1, (int) Tools::getValue('qty', 1)));
+                if ($c['ok']) {
+                    $res['supplierCart'] = $c['source'];
+                }
+            }
         }
         $this->jsonOut($res);
     }
@@ -1170,6 +1184,39 @@ class AdminEcoRepairsController extends ModuleAdminController
             $res['quotes'] = EcoRepairQuote::summary((int) $repair['id_ecorepair']);
         }
         $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    protected function ajaxSpcpLink()
+    {
+        $idModel = (int) Tools::getValue('id_model');
+        EcoRepairLinks::spcpLink($idModel, (int) Tools::getValue('spcp'));
+        $this->jsonOut(array('ok' => true, 'spcp' => EcoRepairLinks::spcpBundle($idModel)));
+    }
+
+    protected function ajaxSpcpPublish()
+    {
+        $items = json_decode((string) Tools::getValue('items'), true);
+        $models = json_decode((string) Tools::getValue('models'), true);
+        $res = EcoRepairLinks::spcpPublish(is_array($items) ? $items : array(), is_array($models) ? $models : array());
+        $res['spcp'] = EcoRepairLinks::spcpBundle((int) Tools::getValue('id_model'));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxSpcpUnpublish()
+    {
+        $res = EcoRepairLinks::spcpUnpublish((int) Tools::getValue('spcp'), (int) Tools::getValue('id_product'));
+        $res['spcp'] = EcoRepairLinks::spcpBundle((int) Tools::getValue('id_model'));
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxBatterySave()
+    {
+        $this->jsonOut(EcoRepairLinks::saveBattery((int) Tools::getValue('id_model'), json_decode((string) Tools::getValue('data'), true) ?: array()));
+    }
+
+    protected function ajaxSupplierCart()
+    {
+        $this->jsonOut(EcoRepairLinks::addToSupplierCart((int) Tools::getValue('id_product'), max(1, (int) Tools::getValue('qty', 1))));
     }
 
     protected function ajaxRecallDone()

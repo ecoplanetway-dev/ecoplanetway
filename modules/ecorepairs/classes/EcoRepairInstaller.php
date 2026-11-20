@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.8.0';
+    const SCHEMA = '1.8.4';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -160,6 +160,8 @@ class EcoRepairInstaller
             && self::addColumn('ecorepair', 'repeat_same', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair_photo', 'public', 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 0')
             && self::addColumn('ecorepair_model', 'zones', 'TEXT NULL')
+            && self::addColumn('ecorepair_model', 'spcp_model', 'INT UNSIGNED NOT NULL DEFAULT 0')
+            && self::addColumn('ecorepair_model', 'battery', 'TEXT NULL')
             && self::addColumn('ecorepair', 'checklist', 'TEXT NULL')
             && self::addColumn('ecorepair', 'device_tag', 'VARCHAR(16) NOT NULL DEFAULT \'\'')
             && self::seedKnowledge()

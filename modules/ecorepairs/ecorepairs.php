@@ -30,6 +30,7 @@ require_once __DIR__ . '/classes/EcoRepairParts.php';
 require_once __DIR__ . '/classes/EcoRepairIncompat.php';
 require_once __DIR__ . '/classes/EcoRepairUnlock.php';
 require_once __DIR__ . '/classes/EcoRepairFixed.php';
+require_once __DIR__ . '/classes/EcoRepairLinks.php';
 require_once __DIR__ . '/classes/EcoRepairStaff.php';
 
 /**
