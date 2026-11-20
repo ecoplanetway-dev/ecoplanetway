@@ -243,7 +243,7 @@ class EcoRepairPhoto
      * Descarga una imagen de internet y la guarda como foto del modelo (así no depende de la otra web).
      * Acepta enlaces de Google Imágenes (saca la imagen real de «imgurl=»).
      */
-    public static function modelImageFromUrl($url)
+    public static function modelImageFromUrl($url, $depth = 0)
     {
         $url = trim((string) $url);
         $q = parse_url($url, PHP_URL_QUERY);
@@ -274,7 +274,7 @@ class EcoRepairPhoto
         curl_setopt_array($ch, array(CURLOPT_FILE => $fh, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_TIMEOUT => 20,
             CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-            CURLOPT_HTTPHEADER => array('Accept: image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8'),
+            CURLOPT_HTTPHEADER => array('Accept: image/webp,image/png,image/jpeg,image/*;q=0.9,text/html;q=0.8,*/*;q=0.5', 'Accept-Language: es-ES,es;q=0.9'),
             CURLOPT_NOPROGRESS => false, CURLOPT_PROGRESSFUNCTION => function ($c, $dt, $d) use ($max) { return $d > $max ? 1 : 0; }));
         $ok = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -286,15 +286,96 @@ class EcoRepairPhoto
 
             return array('ok' => false, 'error' => 'No se pudo descargar la imagen (la web no la deja bajar). Guárdala y súbela con «Subir foto».');
         }
-        if (stripos($type, 'text/html') !== false) {
+        if (stripos($type, 'text/html') !== false || stripos($type, 'xhtml') !== false) {
+            // Es una página: se buscan sus fotos. Si hay una sola se descarga; si hay varias, se devuelven para elegir.
+            $html = (string) Tools::file_get_contents($tmp, false, null, 5, true);
             @unlink($tmp);
+            $list = self::pageImages($html, $url);
+            if (!$list) {
+                return array('ok' => false, 'error' => 'En esa página no se encontraron fotos. Abre la imagen, botón derecho → «Copiar dirección de la imagen».');
+            }
+            if (count($list) === 1 && $depth < 1) {
+                return self::modelImageFromUrl($list[0], $depth + 1);
+            }
 
-            return array('ok' => false, 'error' => 'Ese enlace es una página, no una imagen. Abre la imagen, botón derecho → «Copiar dirección de la imagen».');
+            return array('ok' => true, 'choose' => $list);
         }
         $res = self::saveModelImageFrom($tmp);
         @unlink($tmp);
 
         return $res;
+    }
+
+    /** Fotos de una página web: la principal (og:image) primero, luego las <img>. Sin iconos, logos ni repetidas. */
+    protected static function pageImages($html, $base)
+    {
+        $html = Tools::substr($html, 0, 3000000);
+        $found = array();
+        if (preg_match_all('#<meta[^>]+(?:property|name)=["\'](?:og:image(?::secure_url)?|twitter:image)["\'][^>]*>#i', $html, $mm)) {
+            foreach ($mm[0] as $tag) {
+                if (preg_match('#content=["\']([^"\']+)#i', $tag, $c)) {
+                    $found[] = $c[1];
+                }
+            }
+        }
+        if (preg_match_all('#<img\b[^>]*>#i', $html, $mm)) {
+            foreach ($mm[0] as $tag) {
+                $src = '';
+                if (preg_match('#\s(?:data-zoom-image|data-large_image|data-src|data-original|data-lazy-src)=["\']([^"\']+)#i', $tag, $c)) {
+                    $src = $c[1];
+                } elseif (preg_match('#\ssrcset=["\']([^"\']+)#i', $tag, $c)) {
+                    $parts = array_map('trim', explode(',', $c[1]));
+                    $last = end($parts);
+                    $src = preg_replace('#\s+\S+$#', '', $last);
+                } elseif (preg_match('#\ssrc=["\']([^"\']+)#i', $tag, $c)) {
+                    $src = $c[1];
+                }
+                if (preg_match('#\s(?:width|height)=["\']?(\d+)#i', $tag, $wh) && (int) $wh[1] > 0 && (int) $wh[1] < 80) {
+                    continue;
+                }
+                if ($src !== '') {
+                    $found[] = $src;
+                }
+            }
+        }
+        $out = array();
+        foreach ($found as $src) {
+            $src = trim(html_entity_decode($src, ENT_QUOTES, 'UTF-8'));
+            if ($src === '' || stripos($src, 'data:') === 0 || preg_match('#\.(svg|gif|ico)(\?|$)|logo|icon|sprite|pixel|avatar|placeholder|blank\.#i', $src)) {
+                continue;
+            }
+            $abs = self::absUrl($src, $base);
+            if ($abs && !in_array($abs, $out, true) && Tools::strlen($abs) <= 2000) {
+                $out[] = $abs;
+            }
+            if (count($out) >= 24) {
+                break;
+            }
+        }
+
+        return $out;
+    }
+
+    protected static function absUrl($src, $base)
+    {
+        if (preg_match('#^https?://#i', $src)) {
+            return $src;
+        }
+        $b = parse_url($base);
+        if (empty($b['host'])) {
+            return '';
+        }
+        $scheme = isset($b['scheme']) ? $b['scheme'] : 'https';
+        if (strpos($src, '//') === 0) {
+            return $scheme . ':' . $src;
+        }
+        $root = $scheme . '://' . $b['host'] . (isset($b['port']) ? ':' . $b['port'] : '');
+        if ($src[0] === '/') {
+            return $root . $src;
+        }
+        $dir = isset($b['path']) ? preg_replace('#/[^/]*$#', '/', $b['path']) : '/';
+
+        return $root . ($dir ?: '/') . $src;
     }
 
     protected static function saveModelImageFrom($path)

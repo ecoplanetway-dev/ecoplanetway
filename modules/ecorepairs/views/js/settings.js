@@ -235,6 +235,34 @@ window.ECOR.ready(function () {
       return '<button type="button" class="er-cchip' + (x.id === fltCat ? ' on' : '') + '" data-fcat="' + x.id + '">' + icon(x.icon || 'other', true) + esc(x.name) + '</button>'; }).join('') + '</div>' +
       (c ? column('Averías de ' + c.name, 'fault', c.faults, c.id, false, 0, null, 'Sin averías') : '');
   }
+  // Foto desde un enlace: si es una página con varias fotos, se elige cuál descargar
+  function imgFromUrl(mid, url) {
+    E.toast('Descargando…');
+    E.api('modelImage', {}, { id: mid, url: url }).then(function (res) {
+      if (!res.ok) { E.toast(res.error || 'No se pudo descargar.', true); return; }
+      if (!res.choose) { if (res.catalog) { catalog = res.catalog; renderCatalog(); countNoPhoto(); } E.toast('Foto guardada'); return; }
+      var wrap = document.createElement('div');
+      wrap.className = 'er-modal';
+      wrap.innerHTML = '<div class="er-dlg er-pick-dlg"><h2>¿Qué foto descargo? (' + res.choose.length + ')</h2>' +
+        '<p class="er-muted" style="margin:0">Toca la del modelo.</p><div class="er-pick">' + res.choose.map(function (u, i) {
+          return '<button type="button" data-pick="' + i + '"><img src="' + esc(u) + '" alt="" loading="lazy" referrerpolicy="no-referrer"></button>';
+        }).join('') + '</div><div class="er-dlg-act"><button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button></div></div>';
+      (app || document.body).appendChild(wrap);
+      // Las que no cargan o son muy pequeñas no se enseñan
+      wrap.querySelectorAll('.er-pick img').forEach(function (im) {
+        im.addEventListener('load', function () { if (im.naturalWidth < 120 || im.naturalHeight < 80) im.parentNode.remove(); });
+        im.addEventListener('error', function () { im.parentNode.remove(); });
+      });
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-pick]');
+        if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+        if (!b) return;
+        wrap.remove();
+        E.toast('Descargando…');
+        catalogCall('modelImage', { id: mid, url: res.choose[+b.getAttribute('data-pick')] }).then(function (r) { if (r) E.toast('Foto guardada'); });
+      });
+    });
+  }
   function catalogCall(action, body) {
     return E.api(action, {}, body).then(function (res) {
       if (!res.ok) { E.toast(res.error || 'No se pudo guardar.', true); return false; }
@@ -292,7 +320,7 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-imgurl]'))) {
       var mid = t.getAttribute('data-imgurl');
       E.dialog({ title: 'Foto desde una dirección web', text: 'Pega el enlace de la imagen (botón derecho sobre la foto → «Copiar dirección de la imagen»). Se descarga y se guarda en tu tienda.', input: true, inputLabel: 'Dirección de la imagen', required: true, ok: 'Guardar', maxlength: 2000 }).then(function (url) {
-        if (url) catalogCall('modelImage', { id: mid, url: url }).then(function (res) { if (res) E.toast('Foto descargada y guardada'); });
+        if (url) imgFromUrl(mid, url);
       });
     }
   }
