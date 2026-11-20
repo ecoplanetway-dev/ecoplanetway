@@ -583,17 +583,17 @@ window.ECOR.ready(function () {
         (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
       '</div></div>' +
-      E.unlockButton(D.unlock, 'data-unl') +
-      '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
-      E.incompatButton(D.incompat, canEdit) +
-      '</div>' +
-      (D.modelUrl || r.id_model ? '<div class="er-quick">' +
+      (D.modelUrl || r.id_model ? '<span class="er-quick">' +
         (D.modelUrl ? '<a class="er-btn er-ink" href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">' + icon('book') + '<span>Ficha del modelo</span></a>' : '') +
         (r.id_model ? (function () {
           var bt = D.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';
           return '<button type="button" class="er-btn er-ink" data-batt title="' + esc(E.batterySummary(bt) || 'Sin datos de la batería') + '">' + icon('battery') + '<span>Batería</span>' +
             '<em class="er-ink-tag' + (tag ? ' ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>';
-        })() : '') + '</div>' : '') +
+        })() : '') + '</span>' : '') +
+      E.unlockButton(D.unlock, 'data-unl') +
+      '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
+      E.incompatButton(D.incompat, canEdit) +
+      '</div>' +
       (partsOpen ? '<div class="er-fold-body"><div class="er-seg2">' + [['parts', 'Piezas', nParts], ['fixed', 'Precio cerrado', nFix]].map(function (t) {
           return '<button type="button" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>';
         }).join('')  +

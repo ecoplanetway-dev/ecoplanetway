@@ -42,6 +42,8 @@
   .cbtn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border-radius: 12px; font-weight: 700; font-size: 15px; text-decoration: none; }
   .cbtn svg { width: 22px; height: 22px; flex: none; }
   .cbtn.wa { background: #25D366; color: #fff; box-shadow: 0 8px 18px -8px rgba(37,211,102,.7); }
+  .cbtn .ct { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+  .cbtn .ct small { font-size: 12px; font-weight: 600; color: var(--fg2); white-space: nowrap; }
   .cbtn.tel { background: #fff; color: var(--fg); border: 1px solid var(--line); }
   .addr { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px; border-radius: 12px; background: var(--bg); color: var(--fg); text-decoration: none; font-weight: 600; }
   .addr svg { width: 22px; height: 22px; color: var(--pri); flex: none; }
@@ -120,7 +122,7 @@
     <b>¿Tienes alguna duda? Háblanos</b>
     <div class="cbtns">
       {if $shop.waLink}<a class="cbtn wa" href="{$shop.waLink|escape:'html':'UTF-8'}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>WhatsApp</a>{/if}
-      {if $shop.tel}<a class="cbtn tel" href="tel:{$shop.tel|escape:'html':'UTF-8'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Llamar {$shop.phone|escape:'html':'UTF-8'}</a>{/if}
+      {if $shop.tel}<a class="cbtn tel" href="tel:{$shop.tel|escape:'html':'UTF-8'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span class="ct">Llamar<small>{$shop.phone|escape:'html':'UTF-8'}</small></span></a>{/if}
     </div>
     {if $shop.address}<a class="addr" href="{$shop.maps|escape:'html':'UTF-8'}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 22s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>{$shop.address|escape:'html':'UTF-8'}<small>Cómo llegar</small></span></a>{/if}
     {if $shop.hoursList}<div class="hours">{foreach from=$shop.hoursList item=h}<div class="kv"><span class="muted">{$h.d|escape:'html':'UTF-8'}</span><b>{$h.h|escape:'html':'UTF-8'}</b></div>{/foreach}</div>{/if}

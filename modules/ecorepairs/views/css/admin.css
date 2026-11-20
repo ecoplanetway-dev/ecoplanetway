@@ -1497,3 +1497,27 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
   .ecor .er-b2-mx { grid-template-columns: 50px repeat(8, 44px) !important; }
 }
 @media (max-width: 860px) { .ecor .er-b2-sum b { font-size: 17px; white-space: normal; } .ecor .er-b2-hd .er-b2-pill { white-space: normal; } }
+/* Ficha y Batería en la misma fila que Deslimitar / Ver piezas */
+.ecor .er-fold .er-quick { display: inline-flex; flex-wrap: nowrap; gap: 8px; margin: 0; }
+.ecor .er-fold .er-quick .er-ink { min-height: 50px; font-size: 14px; padding: 0 14px 0 12px; }
+@media (max-width: 760px) { .ecor .er-fold .er-quick { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .ecor .er-fold .er-quick .er-ink { flex: none; justify-content: center; } }
+/* Tarjeta de modelo: el patín se ve entero */
+.ecor .er-mcard-ph { aspect-ratio: 1 / 1; padding: 8px; }
+.ecor .er-mcard-ph img, .ecor .er-mcard:hover .er-mcard-ph img { transform: none; }
+/* Barra de piezas: todo en una fila; el título cede sitio */
+@media (min-width: 761px) {
+  .ecor .er-fold { gap: 8px; flex-wrap: nowrap; }
+  .ecor .er-fold-t { flex: 1 1 140px; }
+  .ecor .er-fold-t .er-fold-meta { flex-wrap: wrap; }
+  .ecor .er-fold > *:not(.er-fold-t):not(.er-fold-ico) { flex: none; }
+  .ecor .er-fold .er-quick .er-ink, .ecor .er-fold .er-fold-btn, .ecor .er-fold [data-unl], .ecor .er-fold [data-bell] { height: 46px; min-height: 46px; font-size: 13.5px; }
+}
+@media (min-width: 761px) and (max-width: 1600px) {
+  .ecor .er-fold .er-bell > span { display: none; }
+  .ecor .er-fold .er-bell { padding: 0 12px; }
+  .ecor .er-fold .er-fold-ico { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1250px) {
+  .ecor .er-fold { flex-wrap: wrap; }
+  .ecor .er-fold-t { flex-basis: 100%; }
+}
