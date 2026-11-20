@@ -41,7 +41,7 @@
     <b>{$shop.name|escape:'html':'UTF-8'}</b><br>
     {if $shop.address}{$shop.address|escape:'html':'UTF-8'}<br>{/if}
     {if $shop.city}{$shop.city|escape:'html':'UTF-8'}<br>{/if}
-    {if $shop.phone}Tel. {$shop.phone|escape:'html':'UTF-8'}{/if}
+    {if $shop.phone}Tel. {$shop.phone|escape:'html':'UTF-8'}{/if}{if $shop.whatsapp}<br>WhatsApp {$shop.whatsapp|escape:'html':'UTF-8'}{/if}
     <h1>RESGUARDO {$r.reference|escape:'html':'UTF-8'}</h1>
     <div class="muted">Entrada: {$r.date_add|date_format:'%d/%m/%Y %H:%M'}</div>
   </div>

@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.8.4';
+    const SCHEMA = '1.8.5';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -589,6 +589,13 @@ class EcoRepairInstaller
             'ECOREPAIRS_CHECKLIST' => "Frenos\nPresión de neumáticos\nTornillería\nPlegado y dirección\nLuces\nPrueba de carga",
             'ECOREPAIRS_UNLOCK_NOTICE' => 'Modificación para uso exclusivo en recinto privado. Un vehículo de movilidad personal que supere los 25 km/h no puede circular por la vía pública. El cliente asume la responsabilidad del uso.',
             'ECOREPAIRS_TECHS_VIEWERS' => '',
+            'ECOREPAIRS_WS_NAME' => '',
+            'ECOREPAIRS_WS_ADDRESS' => 'Calle Bravo Murillo, 80',
+            'ECOREPAIRS_WS_CITY' => '28003 Madrid',
+            'ECOREPAIRS_WS_PHONE' => '919 110 654',
+            'ECOREPAIRS_WS_WHATSAPP' => '617 610 874',
+            'ECOREPAIRS_WS_HOURS' => "Lunes a viernes: 10:30–14:00 y 16:00–20:00\nSábados: 11:00–14:00 y 16:00–20:00\nDomingos: cerrado",
+            'ECOREPAIRS_WS_MAPS' => '',
             'ECOREPAIRS_QUOTE_CONDITIONS' => "Precios con IVA incluido.\nLas líneas marcadas como garantía no tienen coste para el cliente.\nSi al reparar aparece otra avería, se le enviará un presupuesto adicional antes de hacer nada.",
         );
     }

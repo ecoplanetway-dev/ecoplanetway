@@ -244,7 +244,7 @@ class EcoRepairMessage
             '{button_url}' => $buttonUrl ?: $trackingUrl,
             '{button_text}' => $buttonUrl ? 'Ver el presupuesto' : 'Ver cómo va mi reparación',
             '{tracking_url}' => $trackingUrl,
-            '{shop_phone}' => (string) Configuration::get('PS_SHOP_PHONE'),
+            '{shop_phone}' => (string) EcoRepairs::workshop()['phone'],
             '{taller_logo}' => EcoRepairs::logoUrl(),
         );
         try {

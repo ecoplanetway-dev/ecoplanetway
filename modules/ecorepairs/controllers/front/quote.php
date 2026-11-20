@@ -65,11 +65,7 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
             'formKey' => $this->formKey($token),
             'action' => EcoRepairQuote::link($token),
             'conditions' => preg_split('/\r\n|\r|\n/', (string) Configuration::get('ECOREPAIRS_QUOTE_CONDITIONS')),
-            'shop' => array(
-                'name' => Configuration::get('PS_SHOP_NAME'),
-                'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'logo' => EcoRepairs::logoUrl(),
-            ),
+            'shop' => array_merge(EcoRepairs::workshop(), array('logo' => EcoRepairs::logoUrl())),
         ));
     }
 
@@ -85,7 +81,7 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
         }
         $defaults = array('state' => 'notfound', 'result' => '', 'q' => null, 'reference' => '', 'device' => '',
             'formKey' => '', 'action' => '', 'conditions' => array(),
-            'shop' => array('name' => Configuration::get('PS_SHOP_NAME'), 'phone' => Configuration::get('PS_SHOP_PHONE'), 'logo' => ''));
+            'shop' => array_merge(EcoRepairs::workshop(), array('logo' => '')));
         $this->context->smarty->assign(array_merge($defaults, $vars));
         header('Content-Type: text/html; charset=utf-8');
         echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/quote.tpl');

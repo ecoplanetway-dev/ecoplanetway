@@ -547,15 +547,16 @@ class EcoRepairCustomer
         $address->alias = 'Recogida en taller';
         $address->firstname = $customer->firstname;
         $address->lastname = $customer->lastname;
-        $address->address1 = Configuration::get('PS_SHOP_ADDR1') ?: 'Taller';
-        $address->postcode = Configuration::get('PS_SHOP_CODE') ?: '28000';
-        $address->city = Configuration::get('PS_SHOP_CITY') ?: 'Madrid';
+        $ws = EcoRepairs::workshop();
+        $address->address1 = $ws['address'] ?: 'Taller';
+        $address->postcode = $ws['postcode'] ?: '28000';
+        $address->city = $ws['town'] ?: 'Madrid';
         $address->id_country = (int) (Configuration::get('PS_SHOP_COUNTRY_ID') ?: Country::getByIso('ES'));
         $phone = (string) self::storedPhone($idCustomer);
         if ($phone !== '' && Validate::isPhoneNumber($phone)) {
             $address->phone_mobile = $phone;
         } else {
-            $address->phone_mobile = Configuration::get('PS_SHOP_PHONE') ?: '';
+            $address->phone_mobile = $ws['phone'] ?: '';
         }
         try {
             return $address->add() ? (int) $address->id : 0;

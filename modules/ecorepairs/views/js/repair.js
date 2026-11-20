@@ -582,16 +582,21 @@ window.ECOR.ready(function () {
         '<span>' + nParts + ' pieza' + (nParts === 1 ? '' : 's') + '</span>' +
         (nFix ? '<span>' + nFix + ' precio' + (nFix === 1 ? '' : 's') + ' cerrado' + (nFix === 1 ? '' : 's') + '</span>' : '') +
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
-        (r.id_model ? '<button type="button" class="er-fm-bat" data-batt>' + icon('battery', true) + (E.batterySummary(D.battery) ? 'Batería: ' + esc(E.batterySummary(D.battery)) : 'Batería: sin datos') + '</button>' : '') +
-        (D.modelUrl ? '<a href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">Ficha del modelo</a>' : '') +
       '</div></div>' +
       E.unlockButton(D.unlock, 'data-unl') +
       '<button type="button" class="er-fold-btn" data-fold aria-expanded="' + partsOpen + '"><span>' + (partsOpen ? 'Ocultar piezas' : 'Ver piezas del modelo') + '</span><span class="er-fold-chev">' + icon('back', true) + '</span></button>' +
       E.incompatButton(D.incompat, canEdit) +
       '</div>' +
+      (D.modelUrl || r.id_model ? '<div class="er-quick">' +
+        (D.modelUrl ? '<a class="er-btn er-ink" href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">' + icon('book') + '<span>Ficha del modelo</span></a>' : '') +
+        (r.id_model ? (function () {
+          var bt = D.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';
+          return '<button type="button" class="er-btn er-ink" data-batt title="' + esc(E.batterySummary(bt) || 'Sin datos de la batería') + '">' + icon('battery') + '<span>Batería</span>' +
+            '<em class="er-ink-tag' + (tag ? ' ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>';
+        })() : '') + '</div>' : '') +
       (partsOpen ? '<div class="er-fold-body"><div class="er-seg2">' + [['parts', 'Piezas', nParts], ['fixed', 'Precio cerrado', nFix]].map(function (t) {
           return '<button type="button" data-ptab="' + t[0] + '" aria-pressed="' + (partsTab === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>';
-        }).join('') + (partsTab === 'unlock' ? '<button type="button" aria-pressed="true">' + icon('bolt', true) + ' Deslimitar</button>' : '') +
+        }).join('')  +
         '</div>' + (partsTab === 'parts' && D.spcp ? E.spcpBar(D.spcp, canEdit) : '') + '<div id="er-dwr"></div></div>' : '');
     if (!partsOpen) return;
     var host = box.querySelector('#er-dwr');
@@ -664,8 +669,45 @@ window.ECOR.ready(function () {
     if (e.target.closest('[data-batt]')) { openBattery(); return; }
     if (e.target.closest('[data-spcppub]')) { E.spcpDialog({ title: r.device_name, id_model: r.id_model, spcp: D.spcp, parts: D.modelParts || [], zones: D.zones, onDone: function (b) { D.spcp = b; renderParts(); } }); return; }
     if (e.target.closest('[data-spcplink]')) { E.spcpLinkDialog({ title: r.device_name, id_model: r.id_model, spcp: D.spcp, onDone: function (b) { D.spcp = b; renderParts(); } }); return; }
-    if (e.target.closest('[data-unl]')) { partsOpen = true; partsTab = 'unlock'; renderParts(); var b = $('#er-p-parts'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (e.target.closest('[data-unl]')) { openUnlock(); }
   });
+
+  // Deslimitar en una ventana; si el modelo aún no tiene método, se abre directamente el formulario para añadirlo
+  function editUnlock(u, after) {
+    E.unlockDialog(u, { title: r.device_name, methods: D.unlockMethods || {}, admin: !!D.isAdmin, canBrand: !!r.id_model, onSave: function (d, allBrand) {
+      return E.api('unlockSave', {}, { id: u ? u.id : 0, id_brand: r.id_brand, id_model: u ? (u.scope === 'brand' ? 0 : r.id_model) : (allBrand ? 0 : r.id_model), view_model: r.id_model, data: JSON.stringify(d) }).then(function (res) {
+        if (res.ok) { D.unlock = res.unlock; renderParts(); if (after) after(); }
+        return res;
+      });
+    } });
+  }
+  function openUnlock() {
+    if (!(D.unlock || []).length) {
+      if (canEdit && r.id_brand) editUnlock(null, openUnlock);
+      else E.toast('Este modelo aún no tiene cómo deslimitarlo.', true);
+      return;
+    }
+    var old = app.querySelector('.er-unl-modal');
+    if (old) old.remove();
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal er-unl-modal';
+    wrap.innerHTML = '<div class="er-dlg er-unl-dlg"><div class="er-dlg-h"><h2>' + icon('bolt') + 'Deslimitar ' + esc(r.device_name) + '</h2>' +
+      '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div><div class="er-unl-body"></div></div>';
+    app.appendChild(wrap);
+    function close() { wrap.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape' && !app.querySelector('.er-modal:not(.er-unl-modal)')) close(); }
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-x]')) close(); });
+    E.UnlockPanel(wrap.querySelector('.er-unl-body'), { list: D.unlock || [], admin: !!D.isAdmin,
+      onEdit: canEdit && r.id_brand ? function (u) { editUnlock(u, function () { close(); openUnlock(); }); } : null,
+      onDelete: canEdit && D.canDelete ? function (id) {
+        E.api('unlockDelete', {}, { id: id, id_brand: r.id_brand, view_model: r.id_model }).then(function (res) { D.unlock = res.unlock || []; renderParts(); close(); if (D.unlock.length) openUnlock(); });
+      } : null,
+      onAdd: canEdit ? function (u, btn) {
+        btn.disabled = true;
+        E.api('unlockAdd', { id_ecorepair: r.id }, { id: u.id }).then(function (res) { btn.disabled = false; if (res.ok) close(); afterQuote(res, 'Deslimitación añadida al presupuesto con el aviso legal'); });
+      } : null });
+  }
 
   function openBattery() {
     var wrap = document.createElement('div');

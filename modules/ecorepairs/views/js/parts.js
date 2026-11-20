@@ -379,8 +379,8 @@
         f('name', 'Pieza <span class="er-req">*</span>', 'maxlength="128" placeholder="Neumático trasero"') + f('spec', 'Medida o referencia técnica', 'maxlength="96" placeholder="10x2,5 · válvula acodada"') + '</div>' +
       '<div><div class="er-sub">Producto de la tienda</div><div id="er-pp"></div>' +
         '<label class="er-search" style="margin-top:6px">' + icon('search') + '<input class="er-input" id="er-pq" placeholder="Buscar producto de la tienda" autocomplete="off"></label><div class="er-pick" id="er-pres"></div></div>' +
-      (ctx.admin ? '<div class="er-sub" style="margin:8px 0 0">Proveedor (solo lo ves tú)</div><div class="er-fg">' + f('supplier_name', 'Proveedor', 'maxlength="96"') + f('supplier_ref', 'Referencia', 'maxlength="64"') +
-        f('supplier_price', 'Precio de compra (€)', 'inputmode="decimal"') + f('supplier_url', 'Enlace al producto del proveedor', 'maxlength="255" placeholder="https://"') + '</div>' : '') +
+      (ctx.admin ? '<div id="er-pepwc"></div><details class="er-psup"' + (p.supplier_name || p.supplier_ref || p.supplier_url || +p.supplier_price ? ' open' : '') + '><summary>' + icon('box', true) + 'Proveedor manual <span class="er-muted">(opcional · solo lo ves tú)</span></summary><div class="er-fg">' + f('supplier_name', 'Proveedor', 'maxlength="96"') + f('supplier_ref', 'Referencia', 'maxlength="64"') +
+        f('supplier_price', 'Precio de compra (€)', 'inputmode="decimal"') + f('supplier_url', 'Enlace al producto del proveedor', 'maxlength="255" placeholder="https://"') + '</div></details>' : '') +
       '<label class="er-field">Notas<textarea class="er-input" data-k="notes" rows="2" maxlength="1000" placeholder="Compatible con…">' + esc(p.notes || '') + '</textarea></label>' +
       (ctx.id_model && !p.id ? '<label class="er-toggle">Vale para toda la marca<input type="checkbox" class="er-sw" id="er-pbrand"></label>' : '') +
       '<div class="er-err" id="er-perr" hidden></div>' +
@@ -391,7 +391,25 @@
       wrap.querySelector('#er-pp').innerHTML = prod ? '<div class="er-chosen">' + pimg(prod.image) + '<div class="er-grow"><b>' + esc(prod.name) + '</b></div><button type="button" class="er-btn er-btn-sm" data-punlink>Quitar</button></div>'
         : '<p class="er-muted er-small" style="margin:0">Ninguno. Búscalo para ver su foto, precio y stock en la reparación.</p>';
     }
+    // Si el producto ya tiene proveedor en epwcentro, se enseña eso y el bloque manual se esconde
+    function drawEpwc(list) {
+      var box = wrap.querySelector('#er-pepwc'), man = wrap.querySelector('.er-psup');
+      if (!box) return;
+      list = list || [];
+      box.innerHTML = list.length ? '<div class="er-sub" style="margin:8px 0 4px">Proveedor en epwcentro</div>' + list.slice(0, 3).map(function (o) {
+        var av = { 'in': '<span class="er-tag er-t-ok">Disponible</span>', out: '<span class="er-tag er-t-bad">Agotado</span>' }[o.availability] || '<span class="er-tag er-t-neu">Sin dato</span>';
+        return '<div class="er-supplier er-small">' + icon('box', true) + '<b>' + esc(o.source) + '</b>' + (o.cost !== null ? ' · coste ' + esc(E.fmtMoney(o.cost)) : '') + ' ' + av +
+          (o.url ? ' <a href="' + esc(o.url) + '" target="_blank" rel="noopener">Abrir</a>' : '') + '</div>';
+      }).join('') : '';
+      if (man) man.hidden = !!list.length;
+    }
+    function loadEpwc() {
+      if (!ctx.admin) return;
+      if (!prod || !prod.id_product) { drawEpwc([]); return; }
+      E.api('supplierInfo', { id_product: prod.id_product }).then(function (res) { drawEpwc(res && res.ok ? res.epwc : []); });
+    }
     drawProd();
+    loadEpwc();
     var results = [], timer;
     wrap.addEventListener('input', function (e) {
       if (e.target.id !== 'er-pq') return;
@@ -409,8 +427,8 @@
     wrap.addEventListener('click', function (e) {
       var t;
       if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
-      if ((t = e.target.closest('[data-pp]'))) { var r = results[+t.getAttribute('data-pp')]; prod = { id_product: r.id_product, id_product_attribute: r.id_product_attribute, name: r.name, image: r.image }; drawProd(); wrap.querySelector('#er-pres').innerHTML = ''; wrap.querySelector('#er-pq').value = ''; return; }
-      if (e.target.closest('[data-punlink]')) { prod = null; drawProd(); return; }
+      if ((t = e.target.closest('[data-pp]'))) { var r = results[+t.getAttribute('data-pp')]; prod = { id_product: r.id_product, id_product_attribute: r.id_product_attribute, name: r.name, image: r.image }; drawProd(); loadEpwc(); wrap.querySelector('#er-pres').innerHTML = ''; wrap.querySelector('#er-pq').value = ''; return; }
+      if (e.target.closest('[data-punlink]')) { prod = null; drawProd(); loadEpwc(); return; }
       if (e.target.closest('[data-pdel]')) {
         E.api('partDelete', {}, { id: p.id, id_brand: ctx.id_brand, id_model: ctx.id_model }).then(function (res) { wrap.remove(); ctx.onSaved(res.parts); });
         return;

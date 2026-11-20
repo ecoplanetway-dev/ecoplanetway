@@ -509,6 +509,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'batterySave' => array('ajaxBatterySave', 'edit', true),
             'connectorAdd' => array('ajaxConnectorAdd', 'edit', true),
             'supplierCart' => array('ajaxSupplierCart', 'edit', true),
+            'supplierInfo' => array('ajaxSupplierInfo', 'view', false),
             'printSticker' => array('ajaxPrintSticker', 'view', false),
         );
         if (!isset($map[$action])) {
@@ -1245,7 +1246,14 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->jsonOut($res);
     }
 
-    protected function ajaxSupplierCart()
+    protected function ajaxSupplierInfo()
+    {
+        $id = (int) Tools::getValue('id_product');
+        $info = $this->isAdmin() ? EcoRepairLinks::supplierInfo(array($id)) : array();
+        $this->jsonOut(array('ok' => true, 'epwc' => isset($info[$id]) ? $info[$id] : array()));
+    }
+
+        protected function ajaxSupplierCart()
     {
         $this->jsonOut(EcoRepairLinks::addToSupplierCart((int) Tools::getValue('id_product'), max(1, (int) Tools::getValue('qty', 1))));
     }
@@ -1651,15 +1659,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             'signature' => $signature,
             'format' => $format,
             'label' => $label,
-            'shop' => array(
-                'name' => Configuration::get('PS_SHOP_NAME'),
-                'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ' ' . Configuration::get('PS_SHOP_ADDR2')),
-                'city' => trim(Configuration::get('PS_SHOP_CODE') . ' ' . Configuration::get('PS_SHOP_CITY')),
-                'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'email' => Configuration::get('PS_SHOP_EMAIL'),
+            'shop' => array_merge(EcoRepairs::workshop(), array(
                 'details' => Configuration::get('PS_SHOP_DETAILS'),
                 'logo' => EcoRepairs::logoUrl(),
-            ),
+            )),
             'conditions' => preg_split('/\r\n|\r|\n/', (string) Configuration::get('ECOREPAIRS_CONDITIONS')),
             'trackingUrl' => $this->trackingUrl($repair['tracking_code']),
             'qrJs' => $this->module->getPathUri() . 'views/js/vendor/qrcode.js',
@@ -1834,13 +1837,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'customer' => EcoRepairCustomer::info((int) $repair['id_customer']),
             'signature' => $pq['id_photo_signature'] ? $this->photoUrl($pq['id_photo_signature'], false) : '',
             'format' => $format,
-            'shop' => array(
-                'name' => Configuration::get('PS_SHOP_NAME'),
-                'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ' ' . Configuration::get('PS_SHOP_ADDR2')),
-                'city' => trim(Configuration::get('PS_SHOP_CODE') . ' ' . Configuration::get('PS_SHOP_CITY')),
-                'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'logo' => EcoRepairs::logoUrl(),
-            ),
+            'shop' => array_merge(EcoRepairs::workshop(), array('logo' => EcoRepairs::logoUrl())),
             'conditions' => preg_split('/\r\n|\r|\n/', (string) Configuration::get('ECOREPAIRS_QUOTE_CONDITIONS')),
             'qrJs' => $this->module->getPathUri() . 'views/js/vendor/qrcode.js',
             'printDate' => date('d/m/Y H:i'),

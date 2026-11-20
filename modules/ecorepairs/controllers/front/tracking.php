@@ -67,17 +67,13 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
                         $rows[] = array('date' => $r['date_add'], 'status_name' => $r['status_name'], 'status_color' => isset($all[$r['status']]['color']) ? $all[$r['status']]['color'] : '#888',
                             'warranty_until' => EcoRepair::warrantyUntil($r));
                     }
-                    $phone = preg_replace('/\D+/', '', (string) Configuration::get('PS_SHOP_PHONE'));
-                    if (strlen($phone) === 9) {
-                        $phone = '34' . $phone;
-                    }
+                    $phone = EcoRepairs::workshop()['wa'];
                     $vars = array('state' => 'device', 'code' => '', 'device' => $list[0]['device_name'], 'tag' => $tag, 'rows' => $rows,
                         'openUrl' => $open !== '' ? $this->context->link->getBaseLink() . 'seguimiento?c=' . rawurlencode($open) : '',
                         'waUrl' => $phone ? 'https://wa.me/' . $phone . '?text=' . rawurlencode('Hola, quiero pedir una revisión para mi ' . $list[0]['device_name'] . ' (' . $tag . ')') : '');
                 }
             }
-            $vars['shop'] = array('name' => Configuration::get('PS_SHOP_NAME'), 'phone' => Configuration::get('PS_SHOP_PHONE'),
-                'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ', ' . Configuration::get('PS_SHOP_CITY'), ', '), 'logo' => EcoRepairs::logoUrl(), 'url' => $this->context->link->getBaseLink());
+            $vars['shop'] = $this->shopVars('');
             $vars['action'] = $this->context->link->getBaseLink() . 'seguimiento';
             $this->context->smarty->assign($vars);
             header('Content-Type: text/html; charset=utf-8');
@@ -116,13 +112,7 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             }
         }
 
-        $vars['shop'] = array(
-            'name' => Configuration::get('PS_SHOP_NAME'),
-            'phone' => Configuration::get('PS_SHOP_PHONE'),
-            'address' => trim(Configuration::get('PS_SHOP_ADDR1') . ', ' . Configuration::get('PS_SHOP_CITY'), ', '),
-            'logo' => EcoRepairs::logoUrl(),
-            'url' => $this->context->link->getBaseLink(),
-        );
+        $vars['shop'] = $this->shopVars($vars['state'] === 'ok' ? $code : '');
         $vars['action'] = $this->context->link->getBaseLink() . 'seguimiento';
         $this->context->smarty->assign($vars);
         if ($vars['state'] === 'notfound' || $vars['state'] === 'limit') {
@@ -193,5 +183,29 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             'quoteLink' => $quoteLink,
             'photos' => $this->publicPhotos((int) $repair['id_ecorepair'], $repair['tracking_code']),
         );
+    }
+
+    /** Datos del taller para la página: dirección, horario, mapa, teléfono y WhatsApp (con el código de la reparación ya escrito). */
+    protected function shopVars($code)
+    {
+        $ws = EcoRepairs::workshop();
+        $hours = array();
+        foreach (preg_split('/\r\n|\r|\n/', $ws['hours']) as $l) {
+            $l = trim($l);
+            if ($l === '') {
+                continue;
+            }
+            $p = strpos($l, ':');
+            $hours[] = $p !== false && $p < 30 ? array('d' => trim(substr($l, 0, $p)), 'h' => trim(substr($l, $p + 1))) : array('d' => '', 'h' => $l);
+        }
+        $text = $code !== '' ? 'Hola, os escribo por mi reparación ' . $code . '.' : 'Hola, quería consultaros una cosa.';
+
+        return array_merge($ws, array(
+            'address' => $ws['full'],
+            'hoursList' => $hours,
+            'waLink' => $ws['wa'] ? 'https://wa.me/' . $ws['wa'] . '?text=' . rawurlencode($text) : '',
+            'logo' => EcoRepairs::logoUrl(),
+            'url' => $this->context->link->getBaseLink(),
+        ));
     }
 }

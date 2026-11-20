@@ -23,6 +23,15 @@ window.ECOR.ready(function () {
         '<div id="er-cat-grid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
         (canEdit ? '<div class="er-row er-cat-tools"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
           '<div class="er-row er-cat-tools"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
+    { k: 'workshop', i: 'mappin', t: 'Datos del taller', s: 'Dirección, teléfono, WhatsApp y horario', w: 'direccion telefono whatsapp horario mapa taller bravo murillo contacto',
+      h: '<p class="er-sg-intro">Es lo que ve el cliente en el seguimiento, el resguardo, el presupuesto y los mensajes. Si lo dejas vacío, se usan los datos de la tienda.</p>' +
+        sg('Nombre del taller', 'Vacío: el nombre de la tienda.', '<input class="er-input" data-c="ECOREPAIRS_WS_NAME" maxlength="128"' + dis + '>') +
+        sg('Dirección', '', '<div class="er-fg"><label class="er-field">Calle y número<input class="er-input" data-c="ECOREPAIRS_WS_ADDRESS" maxlength="128"' + dis + '></label>' +
+          '<label class="er-field">Código postal y ciudad<input class="er-input" data-c="ECOREPAIRS_WS_CITY" maxlength="128" placeholder="28003 Madrid"' + dis + '></label></div>') +
+        sg('Teléfonos', 'El WhatsApp sale como botón en el seguimiento del cliente.', '<div class="er-fg"><label class="er-field">Teléfono fijo<input class="er-input" data-c="ECOREPAIRS_WS_PHONE" maxlength="32" inputmode="tel"' + dis + '></label>' +
+          '<label class="er-field">WhatsApp<input class="er-input" data-c="ECOREPAIRS_WS_WHATSAPP" maxlength="32" inputmode="tel"' + dis + '></label></div>') +
+        sg('Horario', 'Una línea por día o grupo de días: «Lunes a viernes: 10:30–14:00 y 16:00–20:00».', ta('ECOREPAIRS_WS_HOURS', 4)) +
+        sg('Enlace de Google Maps', 'Opcional. Si lo dejas vacío, se busca la dirección en Google Maps.', '<input class="er-input" data-c="ECOREPAIRS_WS_MAPS" maxlength="500" placeholder="https://maps.app.goo.gl/…"' + dis + '>') },
     { k: 'reception', i: 'plus', t: 'Recepción', s: 'Datos del cliente, accesorios y daños', w: 'telefono email obligatorio accesorios cargador daños condiciones resguardo firma',
       h: sg('Averías frecuentes', 'Salen como botones al elegir el equipo. Cada categoría tiene las suyas.', '<div id="er-flt"></div>') +
         sg('Datos del cliente', 'Qué es obligatorio al crear un cliente nuevo. Nombre y apellidos siempre lo son.', '<div class="er-fg">' + fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') + '</div>') +

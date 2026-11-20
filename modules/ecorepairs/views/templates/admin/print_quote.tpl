@@ -44,7 +44,7 @@
     <b>{$shop.name|escape:'html':'UTF-8'}</b><br>
     {if $shop.address}{$shop.address|escape:'html':'UTF-8'}<br>{/if}
     {if $shop.city}{$shop.city|escape:'html':'UTF-8'}<br>{/if}
-    {if $shop.phone}Tel. {$shop.phone|escape:'html':'UTF-8'}{/if}
+    {if $shop.phone}Tel. {$shop.phone|escape:'html':'UTF-8'}{/if}{if $shop.whatsapp}<br>WhatsApp {$shop.whatsapp|escape:'html':'UTF-8'}{/if}
     <h1>PRESUPUESTO {$r.reference|escape:'html':'UTF-8'}{if $q.number > 1}-{$q.number|intval}{/if}</h1>
     <div class="muted">{if $q.number > 1}Adicional · {/if}Versión {$q.version|intval} · {if $q.date_sent}{$q.date_sent|date_format:'%d/%m/%Y'}{else}{$q.date_add|date_format:'%d/%m/%Y'}{/if}</div>
     {if $q.status == 'draft'}<div class="stamp">BORRADOR</div>{elseif $q.status == 'accepted'}<div class="stamp">ACEPTADO</div>{elseif $q.status == 'rejected'}<div class="stamp">RECHAZADO</div>{elseif $q.status == 'superseded'}<div class="stamp">SUSTITUIDO</div>{/if}

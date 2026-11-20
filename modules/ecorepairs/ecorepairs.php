@@ -43,7 +43,7 @@ class EcoRepairs extends PaymentModule
     {
         $this->name = 'ecorepairs';
         $this->tab = 'administration';
-        $this->version = '1.8.5';
+        $this->version = '1.8.6';
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
         $this->author = 'Ecoplanet Way';
@@ -116,6 +116,41 @@ class EcoRepairs extends PaymentModule
         $logo = Configuration::get('PS_LOGO');
 
         return $logo ? Context::getContext()->link->getMediaLink(_PS_IMG_ . $logo) : '';
+    }
+
+    /**
+     * Datos del taller para el cliente (seguimiento, resguardo, presupuesto, mensajes).
+     * Son los de Ajustes → Datos del taller; si están vacíos, los de la tienda.
+     */
+    public static function workshop()
+    {
+        $g = function ($k) { return trim((string) Configuration::get($k)); };
+        $address = $g('ECOREPAIRS_WS_ADDRESS') ?: trim($g('PS_SHOP_ADDR1') . ' ' . $g('PS_SHOP_ADDR2'));
+        $city = $g('ECOREPAIRS_WS_CITY') ?: trim($g('PS_SHOP_CODE') . ' ' . $g('PS_SHOP_CITY'));
+        $phone = $g('ECOREPAIRS_WS_PHONE') ?: $g('PS_SHOP_PHONE');
+        $wa = preg_replace('/\D+/', '', $g('ECOREPAIRS_WS_WHATSAPP') ?: $phone);
+        if (strlen($wa) === 9) {
+            $wa = '34' . $wa;
+        }
+        $full = trim($address . ($city !== '' ? ', ' . $city : ''), ', ');
+        $maps = $g('ECOREPAIRS_WS_MAPS') ?: ($full !== '' ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($full) : '');
+        preg_match('/(\d{5})\s*(.*)$/', $city, $pc);
+
+        return array(
+            'name' => $g('ECOREPAIRS_WS_NAME') ?: $g('PS_SHOP_NAME'),
+            'address' => $address,
+            'city' => $city,
+            'postcode' => isset($pc[1]) ? $pc[1] : $g('PS_SHOP_CODE'),
+            'town' => isset($pc[2]) && $pc[2] !== '' ? $pc[2] : $g('PS_SHOP_CITY'),
+            'full' => $full,
+            'phone' => $phone,
+            'tel' => preg_replace('/[^\d+]/', '', $phone),
+            'whatsapp' => $g('ECOREPAIRS_WS_WHATSAPP'),
+            'wa' => $wa,
+            'hours' => $g('ECOREPAIRS_WS_HOURS'),
+            'maps' => $maps,
+            'email' => $g('PS_SHOP_EMAIL'),
+        );
     }
 
     public function getContent()
