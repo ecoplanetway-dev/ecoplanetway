@@ -194,7 +194,7 @@ window.ECOR.ready(function () {
         var code = m[1].replace(/\s+/g, '').toUpperCase(), rest = m[2].trim(), title = rest, causes = '';
         if (cells && cells.length > 2) { title = cells[1]; causes = cells.slice(2).join(' · '); }
         else {
-          var cut = rest.search(/\s(?:[-–—]\s|\.\s|;\s|→\s)|\s(?=(?:causa|soluci[oó]n|revisar|comprobar|check|cause|solution)\b)/i);
+          var cut = rest.search(/\s[-–—]\s|[.;]\s|\s→\s|\s(?=(?:causa|soluci[oó]n|revisar|comprobar|check|cause|solution)\b)/i);
           if (cut > 8) { title = rest.slice(0, cut).trim(); causes = rest.slice(cut).replace(/^[\s\-–—.;→]+/, '').trim(); }
         }
         if (title.length > 160) { causes = (title.slice(157) + ' ' + causes).trim(); title = title.slice(0, 157) + '…'; }
