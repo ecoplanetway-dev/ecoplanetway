@@ -442,11 +442,30 @@ class EcoRepairPhoto
         return _PS_IMG_DIR_ . 'ecorepairs/avatars/';
     }
 
+    /** Las fotos valen para todas las tiendas (antes se guardaban solo en la tienda elegida arriba). */
     protected static function avatarMap()
     {
-        $m = json_decode((string) Configuration::get('ECOREPAIRS_AVATARS'), true);
+        $out = array();
+        $vals = array(Configuration::getGlobalValue('ECOREPAIRS_AVATARS'), Configuration::get('ECOREPAIRS_AVATARS'));
+        foreach (Shop::getShops(false, null, true) as $idShop) {
+            $vals[] = Configuration::get('ECOREPAIRS_AVATARS', null, null, (int) $idShop);
+        }
+        foreach ($vals as $v) {
+            $m = json_decode((string) $v, true);
+            if (is_array($m)) {
+                $out = $m + $out;
+            }
+        }
 
-        return is_array($m) ? $m : array();
+        return $out;
+    }
+
+    public static function saveShared($key, $value)
+    {
+        Configuration::updateGlobalValue($key, $value);
+        foreach (Shop::getShops(false, null, true) as $idShop) {
+            Configuration::updateValue($key, $value, false, null, (int) $idShop);
+        }
     }
 
     /** id_employee => URL de su foto. */
@@ -455,7 +474,7 @@ class EcoRepairPhoto
         $out = array();
         foreach (self::avatarMap() as $id => $file) {
             if (preg_match('/^[a-z0-9]{8,40}\.(png|webp|jpg)$/', $file) && is_file(self::avatarDir() . $file)) {
-                $out[(int) $id] = Tools::getShopDomainSsl(true) . __PS_BASE_URI__ . 'img/ecorepairs/avatars/' . $file;
+                $out[(int) $id] = __PS_BASE_URI__ . 'img/ecorepairs/avatars/' . $file; // ruta relativa: vale con cualquier dominio de la tienda
             }
         }
 
@@ -498,7 +517,7 @@ class EcoRepairPhoto
         self::deleteAvatar($idEmployee, false);
         $map = self::avatarMap();
         $map[$idEmployee] = $name;
-        Configuration::updateValue('ECOREPAIRS_AVATARS', json_encode($map));
+        self::saveShared('ECOREPAIRS_AVATARS', json_encode($map));
 
         return array('ok' => true);
     }
@@ -514,7 +533,7 @@ class EcoRepairPhoto
             }
             unset($map[$idEmployee]);
             if ($save) {
-                Configuration::updateValue('ECOREPAIRS_AVATARS', json_encode($map));
+                self::saveShared('ECOREPAIRS_AVATARS', json_encode($map));
             }
         }
 

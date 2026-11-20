@@ -584,7 +584,7 @@ window.ECOR.ready(function () {
         (sz.length ? '<span class="er-fm-sug">Avería: ' + esc(sz.slice(0, 2).map(function (z) { return D.zones[z]; }).join(', ')) + '</span>' : '') +
       '</div></div>' +
       (D.modelUrl || r.id_model ? '<span class="er-quick">' +
-        (D.modelUrl ? '<a class="er-btn er-ink" href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">' + icon('book') + '<span>Ficha del modelo</span></a>' : '') +
+        (D.modelUrl ? '<a class="er-btn er-ink" href="' + esc(D.modelUrl + '&tab=parts&from=' + r.id) + '">' + icon('book') + '<span>Ficha<span class="er-hide-m"> del modelo</span></span></a>' : '') +
         (r.id_model ? (function () {
           var bt = D.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';
           return '<button type="button" class="er-btn er-ink" data-batt title="' + esc(E.batterySummary(bt) || 'Sin datos de la batería') + '">' + icon('battery') + '<span>Batería</span>' +

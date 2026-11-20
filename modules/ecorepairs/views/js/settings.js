@@ -21,6 +21,8 @@ window.ECOR.ready(function () {
     { k: 'catalog', i: 'device', t: 'Catálogo', s: 'Categorías, marcas, modelos y fotos', w: 'marca modelo foto categoria averia frecuente importar',
       h: '<p class="er-sg-intro">Lo que se oculta deja de salir al crear reparaciones, pero no se borra. Con <b>📖</b> abres la ficha del modelo (piezas, deslimitar, precios, códigos).</p>' +
         '<div id="er-cat-grid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
+        (canEdit ? '<div class="er-row er-cat-tools er-netrow"><button type="button" class="er-btn er-ink" id="er-netimg">' + icon('search') + 'Buscar fotos en internet</button>' +
+          '<span class="er-netuse" id="er-netuse"></span><button type="button" class="er-btn er-btn-sm er-btn-ghost" id="er-netkey">' + icon('settings', true) + 'Clave y límite</button></div>' : '') +
         (canEdit ? '<div class="er-row er-cat-tools"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
           '<div class="er-row er-cat-tools"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
     { k: 'workshop', i: 'mappin', t: 'Datos del taller', s: 'Dirección, teléfono, WhatsApp y horario', w: 'direccion telefono whatsapp horario mapa taller bravo murillo contacto',
@@ -169,6 +171,7 @@ window.ECOR.ready(function () {
         '<a href="' + esc(E.boot.links.model + '&id_brand=' + b.id + '&id_model=' + it.id) + '">' + icon('book', true) + 'Abrir ficha (piezas, códigos…)</a>' +
         (canEdit ? '<button type="button" data-imgup="' + it.id + '">' + icon('camera', true) + 'Subir foto</button>' +
           '<button type="button" data-imgurl="' + it.id + '">' + icon('link', true) + 'Foto desde enlace</button>' +
+          '<button type="button" data-imgnet="' + it.id + '">' + icon('search', true) + 'Buscar foto en internet</button>' +
           '<a target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(b.name + ' ' + it.name) + '">' + icon('search', true) + 'Buscar imagen</a>' +
           (it.image ? '<button type="button" data-imgdel="' + it.id + '">' + icon('x', true) + 'Quitar foto</button>' : '') +
           '<button type="button" data-ren="model" data-id="' + it.id + '" data-name="' + esc(it.name) + '">' + icon('pen', true) + 'Renombrar</button>' +
@@ -328,6 +331,7 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-add]'))) { addItem(t.getAttribute('data-add'), +t.getAttribute('data-parent')); return; }
     if ((t = e.target.closest('[data-imgup]'))) { imgTarget = t.getAttribute('data-imgup'); $('#er-img-file').click(); return; }
     if ((t = e.target.closest('[data-imgdel]'))) { catalogCall('modelImage', { id: t.getAttribute('data-imgdel'), url: '' }).then(function (res) { if (res) E.toast('Foto quitada'); }); return; }
+    if ((t = e.target.closest('[data-imgnet]'))) { netSearch([+t.getAttribute('data-imgnet')]); return; }
     if ((t = e.target.closest('[data-imgurl]'))) {
       var mid = t.getAttribute('data-imgurl');
       E.dialog({ title: 'Foto desde una dirección web', text: 'Pega el enlace de la imagen (botón derecho sobre la foto → «Copiar dirección de la imagen»). Se descarga y se guarda en tu tienda.', input: true, inputLabel: 'Dirección de la imagen', required: true, ok: 'Guardar', maxlength: 2000 }).then(function (url) {
@@ -391,6 +395,113 @@ window.ECOR.ready(function () {
       E.toast(res.existed ? '"' + res.name + '" ya existía: se ha vuelto a mostrar' : '"' + res.name + '" añadido');
     });
   }
+
+  // Menú «⋯» de los modelos: solo uno abierto y se cierra al pulsar fuera o al elegir una opción
+  document.addEventListener('click', function (e) {
+    var cur = e.target.closest('details.er-mmenu');
+    app.querySelectorAll('details.er-mmenu[open]').forEach(function (d) {
+      if (d !== cur || (e.target.closest('details.er-mmenu > div') && e.target.closest('a,button'))) d.removeAttribute('open');
+    });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') app.querySelectorAll('details.er-mmenu[open]').forEach(function (d) { d.removeAttribute('open'); }); });
+
+  /* ---------- Fotos de los modelos desde internet (Brave Search) ---------- */
+  var netUse = D.imgUsage || { hasKey: false, used: 0, limit: 1000, left: 1000, day: 1, renewAt: 0, now: 0 };
+  var clockSkew = netUse.now ? Date.now() / 1000 - netUse.now : 0;
+  function countdown() {
+    var s = Math.max(0, Math.round(netUse.renewAt - (Date.now() / 1000 - clockSkew)));
+    var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+    return d ? d + ' d ' + h + ' h ' + m + ' min' : h + ' h ' + m + ' min ' + ss + ' s';
+  }
+  function useHtml() {
+    if (!netUse.hasKey) return '<span class="er-muted er-small">Falta la clave de Brave Search · pulsa «Clave y límite»</span>';
+    return '<b class="' + (netUse.left ? '' : 'er-t-badtxt') + '">' + netUse.left + '</b><span> de ' + netUse.limit + ' búsquedas gratis este mes</span>' +
+      '<span class="er-netclock">' + icon('clock', true) + 'Se renuevan en <b data-netclock>' + countdown() + '</b></span>';
+  }
+  function drawUse() { app.querySelectorAll('#er-netuse, .er-netuse-dlg').forEach(function (el) { el.innerHTML = useHtml(); }); }
+  setInterval(function () { app.querySelectorAll('[data-netclock]').forEach(function (el) { el.textContent = countdown(); }); }, 1000);
+  setTimeout(drawUse, 0);
+  function netKeyDialog() {
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg" style="max-width:560px"><h2>Fotos desde internet</h2>' +
+      '<p class="er-muted er-small" style="margin:0">Se buscan con <b>Brave Search</b> (Google ya no da claves nuevas). Cada mes regala unos 5 $ de crédito, unas <b>1.000 búsquedas</b>; una búsqueda = un modelo.</p>' +
+      '<ol class="er-small er-netsteps"><li>Entra en <a href="https://api-dashboard.search.brave.com" target="_blank" rel="noopener">api-dashboard.search.brave.com</a> y crea una cuenta.</li><li>Elige el plan <b>Search</b> (pide tarjeta, pero con el crédito gratis no se cobra si no te pasas).</li><li>En «API Keys» crea una clave y pégala aquí.</li><li>Recomendado: pon en Brave un tope de gasto de 0 $ para no pagar nunca.</li></ol>' +
+      '<label class="er-field">Clave de la API<input class="er-input" id="er-nk" autocomplete="off" placeholder="' + (netUse.hasKey ? 'Guardada ✓ · escribe otra para cambiarla' : 'Pega aquí la clave') + '"></label>' +
+      '<div class="er-fg"><label class="er-field">Búsquedas gratis al mes<input class="er-input" id="er-nl" inputmode="numeric" value="' + netUse.limit + '"></label>' +
+      '<label class="er-field">Día del mes en que se renuevan<input class="er-input" id="er-nd" inputmode="numeric" value="' + netUse.day + '"></label></div>' +
+      '<div class="er-err" id="er-nerr" hidden></div>' +
+      '<div class="er-dlg-act">' + (netUse.hasKey ? '<button type="button" class="er-btn er-btn-ghost er-danger" data-nclear>Quitar clave</button>' : '') +
+        '<button type="button" class="er-btn er-btn-ghost" data-x>Cancelar</button><button type="button" class="er-btn er-btn-pri" data-ok>Guardar</button></div></div>';
+    app.appendChild(wrap);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      var clear = e.target.closest('[data-nclear]');
+      if (!clear && !e.target.closest('[data-ok]')) return;
+      E.api('imgKey', {}, { key: wrap.querySelector('#er-nk').value.trim(), clear: clear ? 1 : 0, limit: wrap.querySelector('#er-nl').value, day: wrap.querySelector('#er-nd').value }).then(function (res) {
+        if (!res.ok) { var er = wrap.querySelector('#er-nerr'); er.textContent = res.error; er.hidden = false; return; }
+        netUse = res.usage; clockSkew = Date.now() / 1000 - netUse.now; drawUse(); wrap.remove(); E.toast(clear ? 'Clave quitada' : 'Guardado');
+      });
+    });
+  }
+  /* Recorre los modelos (sin foto, o los indicados) y en cada uno enseña las fotos encontradas para elegir con un toque */
+  function netSearch(ids) {
+    if (!netUse.hasKey) { netKeyDialog(); return; }
+    var list = [];
+    catalog.forEach(function (c) { c.brands.forEach(function (b) { b.models.forEach(function (m) {
+      if (ids ? ids.indexOf(m.id) > -1 : (b.active && m.active && !m.image)) list.push({ id: m.id, name: b.name + ' ' + m.name });
+    }); }); });
+    if (!list.length) { E.toast('No hay modelos sin foto.'); return; }
+    var i = 0, done = 0;
+    var wrap = document.createElement('div');
+    wrap.className = 'er-modal';
+    wrap.innerHTML = '<div class="er-dlg er-net-dlg"><div class="er-net-h"><h2 id="er-net-t"></h2><button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
+      '<div class="er-netuse er-netuse-dlg"></div><div class="er-net-body" id="er-net-b"></div>' +
+      '<div class="er-dlg-act"><span class="er-muted er-small" id="er-net-n" style="margin-right:auto"></span><button type="button" class="er-btn er-btn-ghost" data-x>Terminar</button><button type="button" class="er-btn" data-skip>Saltar este</button></div></div>';
+    app.appendChild(wrap);
+    var body = wrap.querySelector('#er-net-b'), res = null;
+    function step() {
+      if (i >= list.length) { wrap.remove(); E.toast(done ? done + ' fotos guardadas' : 'Terminado'); return; }
+      var m = list[i];
+      wrap.querySelector('#er-net-t').textContent = m.name;
+      wrap.querySelector('#er-net-n').textContent = (i + 1) + ' de ' + list.length + (done ? ' · ' + done + ' guardadas' : '');
+      drawUse();
+      body.innerHTML = '<div class="er-empty">Buscando fotos…</div>';
+      E.api('imgSearch', {}, { id: m.id }).then(function (r) {
+        res = r;
+        if (r.usage) { netUse = r.usage; drawUse(); }
+        if (!r.ok) { body.innerHTML = '<div class="er-err">' + esc(r.error || 'No se pudo buscar.') + '</div>'; return; }
+        r.results = r.results || [];
+        body.innerHTML = r.results.length ? '<div class="er-net-grid">' + r.results.map(function (x, k) {
+          return '<button type="button" data-npick="' + k + '" title="' + esc(x.title) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy" referrerpolicy="no-referrer"></button>';
+        }).join('') + '</div>' : '<div class="er-empty">No se encontraron fotos. Pulsa «Saltar este».</div>';
+        body.querySelectorAll('img').forEach(function (im) { im.addEventListener('error', function () { im.parentNode.remove(); }); });
+      });
+    }
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); if (done) renderCatalog(); return; }
+      if (e.target.closest('[data-skip]')) { i++; step(); return; }
+      var b = e.target.closest('[data-npick]');
+      if (!b || !res || !res.results) return;
+      var x = res.results[+b.getAttribute('data-npick')], id = list[i].id;
+      body.classList.add('er-busy');
+      // Primero la foto original; si esa web no la deja bajar, la versión de Brave (500 px)
+      E.api('modelImage', {}, { id: id, url: x.url || x.thumb }).then(function (r) {
+        return r.ok || !x.thumb || x.thumb === x.url ? r : E.api('modelImage', {}, { id: id, url: x.thumb });
+      }).then(function (r) {
+        body.classList.remove('er-busy');
+        if (!r.ok) { E.toast(r.error || 'No se pudo guardar esa foto. Prueba otra.', true); return; }
+        if (r.choose) { E.toast('Esa es una página, prueba otra foto.', true); return; }
+        if (r.catalog) { catalog = r.catalog; countNoPhoto(); }
+        done++; i++; step();
+      });
+    });
+    step();
+  }
+  var netBtn = $('#er-netimg');
+  if (netBtn) netBtn.addEventListener('click', function () { netSearch(null); });
+  var netKey = $('#er-netkey');
+  if (netKey) netKey.addEventListener('click', netKeyDialog);
 
   /* ---------- Fotos del equipo ---------- */
   var avTarget = 0;

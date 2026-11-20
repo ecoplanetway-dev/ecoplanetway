@@ -69,6 +69,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'appUrl' => Configuration::get('PS_REWRITING_SETTINGS') ? $this->context->link->getBaseLink() . 'taller' : $this->context->link->getModuleLink('ecorepairs', 'app', array(), true),
             'variables' => EcoRepairMessage::variables(),
             'statuses' => EcoRepairStatus::all(),
+            'imgUsage' => EcoRepairImageSearch::usage(),
             'canEdit' => (bool) $this->access('edit'),
             'isAdmin' => (int) $this->context->employee->id_profile === (int) _PS_ADMIN_PROFILE_,
         );
@@ -139,6 +140,24 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 break;
             case 'delete':
                 $res = EcoRepairCatalog::delete($type, $id);
+                break;
+            case 'imgSearch':
+                $res = EcoRepairImageSearch::forModel($id);
+                $this->jsonOut($res);
+                break;
+            case 'imgUsage':
+                $this->jsonOut(array('ok' => true, 'usage' => EcoRepairImageSearch::usage()));
+                break;
+            case 'imgKey':
+                // Clave vacía = no cambiarla (no se envía al navegador); «clear» la borra
+                $res = array('ok' => true);
+                if (trim((string) Tools::getValue('key')) !== '' || Tools::getValue('clear')) {
+                    $res = EcoRepairImageSearch::saveKey(Tools::getValue('clear') ? '' : (string) Tools::getValue('key'));
+                }
+                if ($res['ok']) {
+                    $res = EcoRepairImageSearch::saveSettings(Tools::getValue('limit', 1000), Tools::getValue('day', 1));
+                }
+                $this->jsonOut($res);
                 break;
             case 'avatar':
                 $res = !empty($_FILES['image']) ? EcoRepairPhoto::saveAvatar($id, $_FILES['image']) : EcoRepairPhoto::deleteAvatar($id);
@@ -338,7 +357,11 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             return array('ok' => false, 'errors' => $errors);
         }
         foreach ($clean as $key => $v) {
-            Configuration::updateValue($key, $v);
+            if ($key === 'ECOREPAIRS_TECH_IDS') {
+                EcoRepairPhoto::saveShared($key, $v); // igual en todas las tiendas
+            } else {
+                Configuration::updateValue($key, $v);
+            }
         }
         $tpl = json_decode((string) Tools::getValue('templates'), true);
         if (is_array($tpl)) {

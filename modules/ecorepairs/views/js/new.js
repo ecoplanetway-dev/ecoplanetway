@@ -57,7 +57,7 @@ window.ECOR.ready(function () {
         '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-save">' + icon('check') + 'Crear reparación</button>' +
       '</div>' +
     '</div>';
-  E.techSelect($('#er-tech'));
+  E.techSelect(app.querySelector('#er-tech'));
 
   var $ = function (s) { return app.querySelector(s); };
   var today = new Date();
