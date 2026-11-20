@@ -1521,3 +1521,25 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
   .ecor .er-fold { flex-wrap: wrap; }
   .ecor .er-fold-t { flex-basis: 100%; }
 }
+/* Fotos del equipo (avatares) */
+.ecor .er-av-img { background: #EEF0F3; overflow: hidden; padding: 0; }
+.ecor .er-av-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ecor .er-av-none { background: #E1E4E8; color: #8A909C; }
+.ecor .er-av-big { width: 84px; height: 84px; font-size: 26px; }
+.ecor .er-avg { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ecor .er-avc { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 10px; border: 1px solid #E6E8EC; border-radius: 14px; background: #fff; text-align: center; font-size: 13px; }
+.ecor .er-avc b { line-height: 1.2; }
+/* Selector de técnico con foto */
+.ecor .er-ts { position: relative; }
+.ecor .er-ts-btn { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px 6px 8px; border: 1px solid var(--er-line, #D5D8DE); border-radius: 12px; background: #fff; font: 600 15px Inter, system-ui, sans-serif; color: #14161A; cursor: pointer; text-align: left; }
+.ecor .er-ts-btn:hover:not([disabled]) { border-color: #9CA3AF; }
+.ecor .er-ts-btn[disabled] { background: #F4F5F7; cursor: default; }
+.ecor .er-ts-btn .er-av { width: 38px; height: 38px; font-size: 13px; }
+.ecor .er-ts-btn b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecor .er-ts-chev { color: #8A909C; font-size: 13px; }
+.ecor .er-ts-list { position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #E1E4E8; border-radius: 14px; box-shadow: 0 16px 36px -10px rgba(0,0,0,.25); padding: 6px; max-height: 360px; overflow: auto; overscroll-behavior: contain; }
+.ecor .er-ts-list button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; font: 600 14px Inter, system-ui, sans-serif; color: #14161A; cursor: pointer; text-align: left; }
+.ecor .er-ts-list button:hover { background: #F4F5F7; }
+.ecor .er-ts-list button[aria-selected="true"] { background: #EEF2FF; color: #312E81; }
+.ecor .er-ts-list .er-av { width: 40px; height: 40px; font-size: 13px; }
+.ecor .er-panel:has(.er-ts-list) { position: relative; z-index: 50; overflow: visible; }

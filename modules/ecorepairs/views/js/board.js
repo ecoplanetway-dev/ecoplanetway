@@ -125,7 +125,7 @@ window.ECOR.ready(function () {
       (fault ? '<div class="er-fault">' + esc(fault) + '</div>' : '') +
       '<div class="er-c-foot"><span class="er-cust">' + esc(r.customer_name) + '</span>' +
         '<span class="er-days' + (dl.late ? ' er-late' : '') + '" title="Días en el taller">' + icon('clock', true) + esc(dl.text) + '</span>' +
-        '<span class="er-av" style="background:' + E.avatarColor(r.id_employee_tech) + '" title="' + esc(r.tech_name || 'Sin asignar') + '">' + esc(E.initials(r.tech_name)) + '</span>' +
+        E.avatar(r.id_employee_tech, r.tech_name) +
       '</div></article>';
   }
 

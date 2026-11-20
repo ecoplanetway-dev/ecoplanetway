@@ -36,7 +36,7 @@ window.ECOR.ready(function () {
       '</div>' +
       '<div class="er-tcards">' + (T.length ? T.map(function (t, i) {
         return '<button type="button" class="er-panel er-tcard" data-t="' + i + '" style="--d:' + (i * 60) + 'ms">' +
-          '<div class="er-row" style="flex-wrap:nowrap"><span class="er-av er-av-xl" style="background:' + E.avatarColor(t.id) + '">' + esc(E.initials(t.name)) + '</span>' +
+          '<div class="er-row" style="flex-wrap:nowrap">' + E.avatar(t.id, t.name, 'er-av-xl') +
             '<span style="min-width:0;text-align:left"><b style="font-size:17px">' + esc(t.name) + '</b><span class="er-muted er-small" style="display:block">' + t.repairs + ' reparaciones · ' + num(t.avg_days) + ' días de media</span></span>' +
             '<b class="er-num" style="margin-left:auto;font-size:20px">' + esc(money(t.total)) + '</b></div>' +
           '<span class="er-rank-bar"><span style="width:' + Math.max(2, t.total / max * 100) + '%;--d:' + (i * 60) + 'ms"></span></span>' +
@@ -71,7 +71,7 @@ window.ECOR.ready(function () {
       var d = res.detail, x = d.tech;
       var smax = Math.max.apply(null, d.series.map(function (s) { return s.value; }).concat([0.01]));
       wrap.querySelector('.er-dlg').innerHTML =
-        '<div class="er-row" style="flex-wrap:nowrap"><span class="er-av er-av-xl" style="background:' + E.avatarColor(x.id) + '">' + esc(E.initials(x.name)) + '</span>' +
+        '<div class="er-row" style="flex-wrap:nowrap">' + E.avatar(x.id, x.name, 'er-av-xl') +
           '<div style="margin-right:auto"><h2>' + esc(x.name) + '</h2><div class="er-muted er-small">' + esc(E.fmtDate(d.from) + ' – ' + E.fmtDate(d.to)) + ' · ' + d.open + ' abiertas ahora</div></div>' +
           '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
         '<div class="er-kpis" style="margin:0">' +

@@ -76,6 +76,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'ecor_view' => 'settings',
             'ecor_boot' => $this->json(array(
                 'icons' => $this->iconsSvg(),
+                'avatars' => EcoRepairPhoto::avatars(),
                 'links' => array(
                     'board' => $this->context->link->getAdminLink('AdminEcoRepairs'),
                     'ajax' => $this->context->link->getAdminLink('AdminEcoRepairsSettings') . '&ajax=1',
@@ -138,6 +139,11 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 break;
             case 'delete':
                 $res = EcoRepairCatalog::delete($type, $id);
+                break;
+            case 'avatar':
+                $res = !empty($_FILES['image']) ? EcoRepairPhoto::saveAvatar($id, $_FILES['image']) : EcoRepairPhoto::deleteAvatar($id);
+                $res['avatars'] = EcoRepairPhoto::avatars();
+                $this->jsonOut($res);
                 break;
             case 'icon':
                 $res = EcoRepairCatalog::setIcon($id, (string) Tools::getValue('icon'));

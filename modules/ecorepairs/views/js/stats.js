@@ -110,7 +110,7 @@ window.ECOR.ready(function () {
         '<div class="er-tech-row er-tech-h"><span>Técnico</span><span>Reparaciones</span><span>Horas</span><span>Mano de obra</span><span>Piezas y otros</span><span>Total</span><span>Días medios</span></div>' +
         T.map(function (t, i) {
           return '<button type="button" class="er-tech-row" data-tech="' + i + '" aria-expanded="' + (openTech === i) + '" style="--d:' + (i * 60) + 'ms">' +
-            '<span class="er-tech-name"><span class="er-av" style="background:' + E.avatarColor(t.id) + '">' + esc(E.initials(t.name)) + '</span>' + esc(t.name) + '</span>' +
+            '<span class="er-tech-name">' + E.avatar(t.id, t.name) + esc(t.name) + '</span>' +
             '<span class="er-num"><b>' + t.repairs + '</b>' + (t.warranty ? ' <span class="er-muted er-small">(' + t.warranty + ' garantía)</span>' : '') + '</span>' +
             '<span class="er-num">' + String(t.hours).replace('.', ',') + ' h</span>' +
             '<span class="er-num">' + esc(E.fmtMoney(t.labour)) + '</span>' +

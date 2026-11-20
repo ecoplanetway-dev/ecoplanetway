@@ -901,6 +901,7 @@ window.ECOR.ready(function () {
       '<label class="er-field">Fecha prevista de entrega<input class="er-input" type="date" data-f="eta_date" value="' + esc(r.eta_date && r.eta_date !== '0000-00-00' ? r.eta_date : '') + '"' + dis + '></label>' +
       '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" data-b="urgent"' + (r.urgent ? ' checked' : '') + dis + '></label>' +
       '<label class="er-toggle">En garantía<input type="checkbox" class="er-sw er-sw-gar" data-b="warranty"' + (r.warranty ? ' checked' : '') + dis + '></label>';
+    E.techSelect($('#er-p-assign [data-f="id_employee_tech"]'));
   }
   $('#er-p-assign').addEventListener('change', function (e) {
     var f = e.target.getAttribute('data-f'), b = e.target.getAttribute('data-b');

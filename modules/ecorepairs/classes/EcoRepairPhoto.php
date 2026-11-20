@@ -435,6 +435,92 @@ class EcoRepairPhoto
         return $ok ? array('ok' => true, 'file' => $new) : array('ok' => false, 'error' => 'No se pudo guardar la imagen.');
     }
 
+    /* ---------- Foto (avatar) de cada empleado: img/ecorepairs/avatars/, fuera del módulo para que no se pierda al actualizar ---------- */
+
+    protected static function avatarDir()
+    {
+        return _PS_IMG_DIR_ . 'ecorepairs/avatars/';
+    }
+
+    protected static function avatarMap()
+    {
+        $m = json_decode((string) Configuration::get('ECOREPAIRS_AVATARS'), true);
+
+        return is_array($m) ? $m : array();
+    }
+
+    /** id_employee => URL de su foto. */
+    public static function avatars()
+    {
+        $out = array();
+        foreach (self::avatarMap() as $id => $file) {
+            if (preg_match('/^[a-z0-9]{8,40}\.(png|webp|jpg)$/', $file) && is_file(self::avatarDir() . $file)) {
+                $out[(int) $id] = Tools::getShopDomainSsl(true) . __PS_BASE_URI__ . 'img/ecorepairs/avatars/' . $file;
+            }
+        }
+
+        return $out;
+    }
+
+    public static function saveAvatar($idEmployee, array $file)
+    {
+        $idEmployee = (int) $idEmployee;
+        if (!$idEmployee) {
+            return array('ok' => false, 'error' => 'Elige un empleado.');
+        }
+        if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name']) || (int) $file['size'] > 8388608) {
+            return array('ok' => false, 'error' => 'No se recibió la foto o pesa más de 8 MB.');
+        }
+        $open = self::openImage($file['tmp_name']);
+        if (!$open['ok']) {
+            return $open;
+        }
+        $dir = self::avatarDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+            imagedestroy($open['img']);
+
+            return array('ok' => false, 'error' => 'La carpeta img/ecorepairs no tiene permisos de escritura.');
+        }
+        if (!is_file($dir . 'index.php')) {
+            @file_put_contents($dir . 'index.php', "<?php\nheader('Location: ../../../');\nexit;\n");
+        }
+        // PNG para conservar el fondo transparente de los avatares
+        $name = 'e' . $idEmployee . bin2hex(random_bytes(6)) . '.png';
+        $small = self::resize($open['img'], 320, true);
+        $ok = imagepng($small, $dir . $name, 7);
+        if ($small !== $open['img']) {
+            imagedestroy($small);
+        }
+        imagedestroy($open['img']);
+        if (!$ok) {
+            return array('ok' => false, 'error' => 'No se pudo guardar la foto.');
+        }
+        self::deleteAvatar($idEmployee, false);
+        $map = self::avatarMap();
+        $map[$idEmployee] = $name;
+        Configuration::updateValue('ECOREPAIRS_AVATARS', json_encode($map));
+
+        return array('ok' => true);
+    }
+
+    public static function deleteAvatar($idEmployee, $save = true)
+    {
+        $map = self::avatarMap();
+        $idEmployee = (int) $idEmployee;
+        if (isset($map[$idEmployee])) {
+            $f = basename((string) $map[$idEmployee]);
+            if (preg_match('/^[a-z0-9]{8,40}\.(png|webp|jpg)$/', $f)) {
+                @unlink(self::avatarDir() . $f);
+            }
+            unset($map[$idEmployee]);
+            if ($save) {
+                Configuration::updateValue('ECOREPAIRS_AVATARS', json_encode($map));
+            }
+        }
+
+        return array('ok' => true);
+    }
+
     public static function deleteModelImage($name)
     {
         $name = basename((string) $name);

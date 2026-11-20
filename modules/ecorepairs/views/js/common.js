@@ -127,6 +127,51 @@
   function avatarColor(id) {
     return id ? avatarColors[id % avatarColors.length] : '#8B93A3';
   }
+  /** Foto del empleado (avatar) o sus iniciales en un círculo de color. */
+  function avatar(id, name, cls, title) {
+    var src = id && boot.avatars ? boot.avatars[id] : '';
+    var t = ' title="' + esc(title || name || 'Sin asignar') + '"';
+    if (src) return '<span class="er-av er-av-img' + (cls ? ' ' + cls : '') + '"' + t + '><img src="' + esc(src) + '" alt=""></span>';
+    return '<span class="er-av' + (cls ? ' ' + cls : '') + '" style="background:' + avatarColor(id) + '"' + t + '>' + esc(initials(name)) + '</span>';
+  }
+  /**
+   * Convierte un <select> de técnicos en un desplegable con la foto de cada uno.
+   * El <select> sigue existiendo (oculto) y lanza «change», así el resto del código no cambia.
+   */
+  function techSelect(sel) {
+    if (!sel || sel.getAttribute('data-ts')) return;
+    sel.setAttribute('data-ts', '1');
+    sel.classList.add('er-vh');
+    var box = document.createElement('div');
+    box.className = 'er-ts';
+    sel.parentNode.insertBefore(box, sel.nextSibling);
+    function opts() { return Array.prototype.map.call(sel.options, function (o) { return { v: o.value, n: o.textContent }; }); }
+    function draw(open) {
+      var cur = opts().filter(function (o) { return o.v === sel.value; })[0] || { v: '0', n: 'Sin asignar' };
+      var id = +cur.v;
+      box.innerHTML = '<button type="button" class="er-ts-btn"' + (sel.disabled ? ' disabled' : '') + ' aria-haspopup="listbox" aria-expanded="' + !!open + '">' +
+        (id ? avatar(id, cur.n) : '<span class="er-av er-av-none">?</span>') + '<b>' + esc(cur.n) + '</b><span class="er-ts-chev">▾</span></button>' +
+        (open ? '<div class="er-ts-list" role="listbox">' + opts().map(function (o) {
+          var i = +o.v;
+          return '<button type="button" role="option" data-tv="' + esc(o.v) + '" aria-selected="' + (o.v === sel.value) + '">' +
+            (i ? avatar(i, o.n) : '<span class="er-av er-av-none">?</span>') + '<span>' + esc(o.n) + '</span></button>';
+        }).join('') + '</div>' : '');
+    }
+    draw(false);
+    box.addEventListener('click', function (e) {
+      e.preventDefault(); // va dentro de un <label>: que no reenvíe el clic al <select> oculto
+      var t = e.target.closest('[data-tv]');
+      if (t) {
+        sel.value = t.getAttribute('data-tv');
+        draw(false);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
+      if (e.target.closest('.er-ts-btn') && !sel.disabled) draw(!box.querySelector('.er-ts-list'));
+    });
+    document.addEventListener('click', function (e) { if (document.contains(e.target) && !box.contains(e.target) && e.target !== sel && box.querySelector('.er-ts-list')) draw(false); });
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') draw(false); });
+  }
 
   function statusChip(statuses, status) {
     var s = statuses[status] || { name: status, color: '#8B93A3' };
@@ -1021,6 +1066,8 @@
     fmtMoney: fmtMoney,
     initials: initials,
     avatarColor: avatarColor,
+    avatar: avatar,
+    techSelect: techSelect,
     statusChip: statusChip,
     dialog: dialog,
     shrinkImage: shrinkImage,

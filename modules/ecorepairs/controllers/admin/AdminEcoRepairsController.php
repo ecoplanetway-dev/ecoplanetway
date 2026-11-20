@@ -126,6 +126,7 @@ class AdminEcoRepairsController extends ModuleAdminController
                 'icons' => $this->icons(),
                 'links' => $this->links(),
                 'token' => $this->token,
+                'avatars' => EcoRepairPhoto::avatars(),
             )),
             'ecor_data' => '{}',
         ));

@@ -69,7 +69,9 @@ window.ECOR.ready(function () {
           '<b>Página del taller: <a href="' + esc(D.appUrl) + '" target="_blank" rel="noopener">' + esc(D.appUrl) + '</a></b>' +
           '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio.</span>' +
           '<div class="er-row">' + (canEdit ? '<button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button>' : '') +
-          '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div><div class="er-mini" id="er-staff-list" style="margin-top:12px"></div>' },
+          '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div><div class="er-mini" id="er-staff-list" style="margin-top:12px"></div>' +
+        '<div class="er-sub" style="margin:22px 0 4px">Fotos del equipo</div><p class="er-muted er-small" style="margin:0 0 10px">Salen al elegir el técnico, en el tablero y en la app. Mejor cuadrada; si tiene fondo transparente (PNG), se respeta.</p>' +
+        '<div class="er-avg" id="er-avg"></div><input type="file" id="er-av-file" accept="image/png,image/jpeg,image/webp" class="er-vh">' },
     { k: 'unlock', i: 'bolt', t: 'Deslimitación', s: 'Aviso legal', w: 'deslimitar velocidad aviso legal',
       h: sg('Aviso legal', 'Sale en las observaciones del presupuesto al añadir una deslimitación.', ta('ECOREPAIRS_UNLOCK_NOTICE', 6)) }
   ];
@@ -390,13 +392,49 @@ window.ECOR.ready(function () {
     });
   }
 
+  /* ---------- Fotos del equipo ---------- */
+  var avTarget = 0;
+  function renderAvatars() {
+    var el = $('#er-avg');
+    if (!el) return;
+    var seen = {}, people = [];
+    (D.activeEmployees || []).forEach(function (e) { if (!seen[e.id]) { seen[e.id] = 1; people.push(e); } });
+    (D.staff || []).forEach(function (s) { if (s.id_employee && !seen[s.id_employee]) { seen[s.id_employee] = 1; people.push({ id: s.id_employee, name: s.name }); } });
+    el.innerHTML = people.map(function (e) {
+      var has = E.boot.avatars && E.boot.avatars[e.id];
+      return '<div class="er-avc">' + E.avatar(e.id, e.name, 'er-av-big') + '<b>' + esc(e.name) + '</b>' +
+        (canEdit ? '<div class="er-row" style="gap:4px;justify-content:center"><button type="button" class="er-btn er-btn-sm" data-avup="' + e.id + '">' + icon('camera', true) + (has ? 'Cambiar' : 'Subir foto') + '</button>' +
+          (has ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-avdel="' + e.id + '" title="Quitar foto" aria-label="Quitar foto">' + icon('x', true) + '</button>' : '') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+  function avatarCall(fd) {
+    return E.api('avatar', {}, fd).then(function (res) {
+      if (!res.ok) { E.toast(res.error || 'No se pudo guardar.', true); return; }
+      E.boot.avatars = res.avatars || {};
+      renderAvatars(); renderStaff();
+      E.toast('Foto guardada');
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var t;
+    if ((t = e.target.closest('[data-avup]'))) { avTarget = +t.getAttribute('data-avup'); var f = $('#er-av-file'); if (f) { f.value = ''; f.click(); } return; }
+    if ((t = e.target.closest('[data-avdel]'))) { var fd = new FormData(); fd.append('id', t.getAttribute('data-avdel')); avatarCall(fd); }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id !== 'er-av-file' || !e.target.files[0] || !avTarget) return;
+    var fd = new FormData();
+    fd.append('id', avTarget);
+    fd.append('image', e.target.files[0]);
+    avatarCall(fd);
+  });
+
   /* ---------- Personal del taller ---------- */
   var staff = D.staff || [];
   function renderStaff() {
     var el = $('#er-staff-list');
     if (!el) return;
     el.innerHTML = staff.length ? staff.map(function (p) {
-      return '<div><span class="er-av" style="background:' + (p.active ? 'var(--er-pri)' : '#B7BDC8') + '">' + esc(E.initials(p.name)) + '</span>' +
+      return '<div>' + (p.id_employee && E.boot.avatars && E.boot.avatars[p.id_employee] ? E.avatar(p.id_employee, p.name) : '<span class="er-av" style="background:' + (p.active ? 'var(--er-pri)' : '#B7BDC8') + '">' + esc(E.initials(p.name)) + '</span>') +
         '<span class="er-grow"><b>' + esc(p.name) + '</b>' + (p.active ? '' : ' <span class="er-tag er-t-neu">Desactivado</span>') +
         '<span class="er-muted er-small" style="display:block">' + esc([p.role_tech ? 'Técnico' : '', p.role_reception ? 'Recepción' : ''].filter(Boolean).join(' y ') +
           ' · empleado: ' + (p.employee || '—') + (p.date_last ? ' · último acceso ' + E.fmtDateTime(p.date_last) : '')) + '</span></span>' +
@@ -487,6 +525,7 @@ window.ECOR.ready(function () {
     try { var q = window.qrcode(0, 'M'); q.addData(D.appUrl); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); } catch (er) { }
   })();
   renderStaff();
+  renderAvatars();
 
   /* ---------- Fotos de los modelos ---------- */
   function countNoPhoto() {

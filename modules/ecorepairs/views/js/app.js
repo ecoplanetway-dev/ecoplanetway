@@ -23,7 +23,7 @@ window.ECOR.ready(function () {
         (app.getAttribute('data-logo') ? '<img class="er-login-logo" src="' + esc(app.getAttribute('data-logo')) + '" alt="">' : '') +
         '<h1>Taller</h1>' +
         (!who ? '<p class="er-muted">¿Quién eres?</p><div class="er-people">' + (D.people || []).map(function (p) {
-            return '<button type="button" class="er-person-btn" data-who="' + p.id + '"><span class="er-av er-av-xl">' + esc(E.initials(p.name)) + '</span>' + esc(p.name) + '</button>';
+            return '<button type="button" class="er-person-btn" data-who="' + p.id + '">' + (p.emp && E.boot.avatars && E.boot.avatars[p.emp] ? E.avatar(p.emp, p.name, 'er-av-xl') : '<span class="er-av er-av-xl">' + esc(E.initials(p.name)) + '</span>') + esc(p.name) + '</button>';
           }).join('') + '</div>' + (!(D.people || []).length ? '<div class="er-empty">Aún no hay personal. El administrador lo da de alta en Ajustes del taller.</div>' : '')
           : '<p class="er-muted">Hola, <b>' + esc(who.name) + '</b>. Escribe tu PIN</p>' +
             '<div class="er-pin-dots">' + [0, 1, 2, 3, 4, 5].map(function (i) { return '<span class="' + (i < pin.length ? 'on' : '') + (i >= 4 ? ' opt' : '') + '"></span>'; }).join('') + '</div>' +

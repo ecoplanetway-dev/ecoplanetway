@@ -61,11 +61,12 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                 'modelImage' => $url . (strpos($url, '?') === false ? '?' : '&') . 'action=modelimg',
             ),
             'csrf' => $this->staff ? EcoRepairStaff::csrf($this->staff) : '',
+            'avatars' => EcoRepairPhoto::avatars(),
         );
         $data = array(
             'me' => $this->staff ? $this->me() : null,
             'people' => $this->staff ? array() : array_map(function ($s) {
-                return array('id' => $s['id'], 'name' => $s['name']);
+                return array('id' => $s['id'], 'name' => $s['name'], 'emp' => isset($s['id_employee']) ? (int) $s['id_employee'] : 0);
             }, EcoRepairStaff::all(true)),
             'shop' => Configuration::get('PS_SHOP_NAME'),
             'accessories' => EcoRepairCatalog::configList('ECOREPAIRS_ACCESSORIES'),
