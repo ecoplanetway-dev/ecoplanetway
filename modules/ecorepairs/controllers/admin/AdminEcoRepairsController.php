@@ -274,6 +274,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'canEdit' => (bool) $this->access('edit'),
             'preselectCustomer' => (int) Tools::getValue('id_customer') ? EcoRepairCustomer::info((int) Tools::getValue('id_customer')) : null,
             'fromTag' => null,
+            'topModels' => $this->topModels(),
         );
         $prev = Tools::getValue('tag') ? EcoRepair::byTag((string) Tools::getValue('tag')) : false;
         if ($prev && (int) $prev['id_shop'] === (int) $this->context->shop->id) {
@@ -1117,6 +1118,25 @@ class AdminEcoRepairsController extends ModuleAdminController
             $res['quotes'] = EcoRepairQuote::summary((int) $repair['id_ecorepair']);
         }
         $this->jsonOut($this->withLog($res, (int) $repair['id_ecorepair']));
+    }
+
+    /** Los modelos que más entran al taller (para elegir con un toque). */
+    protected function topModels()
+    {
+        $p = _DB_PREFIX_;
+        $rows = Db::getInstance()->executeS("SELECT r.id_category, r.id_brand, r.id_model, COUNT(*) AS n, m.name AS model, m.image, b.name AS brand
+            FROM `{$p}ecorepair` r
+            INNER JOIN `{$p}ecorepair_model` m ON m.id_ecorepair_model = r.id_model AND m.active = 1
+            INNER JOIN `{$p}ecorepair_brand` b ON b.id_ecorepair_brand = r.id_brand AND b.active = 1
+            WHERE r.id_shop = " . (int) $this->context->shop->id . ' AND r.id_model > 0
+            GROUP BY r.id_category, r.id_brand, r.id_model ORDER BY n DESC LIMIT 8') ?: array();
+        $out = array();
+        foreach ($rows as $r) {
+            $out[] = array('id_category' => (int) $r['id_category'], 'id_brand' => (int) $r['id_brand'], 'id_model' => (int) $r['id_model'], 'n' => (int) $r['n'],
+                'model' => $r['model'], 'brand' => $r['brand'], 'image' => $r['image'] ? $this->modelImageUrl($r['image']) : '');
+        }
+
+        return $out;
     }
 
     protected function modelIndex()

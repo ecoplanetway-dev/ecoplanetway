@@ -61,9 +61,47 @@
       return src ? '<img class="er-mthumb" src="' + esc(src) + '" alt="" loading="lazy">' : '';
     }
 
+    var showAll = false, dq = '';
+    /* Buscador único de marca y modelo + los que más entran */
+    function smartIndex() {
+      var out = [];
+      catalog.forEach(function (c) { c.brands.forEach(function (b) {
+        if (!b.models.length) out.push({ c: c, b: b, m: null, brand: b.name, model: '' });
+        b.models.forEach(function (m) { out.push({ c: c, b: b, m: m, brand: b.name, model: m.name, id_model: m.id }); });
+      }); });
+      return out;
+    }
+    function smartResults() {
+      if (dq.length < 2) return '';
+      var res = E.findModels(smartIndex(), dq, 8);
+      return res.length ? res.map(function (x, i) {
+        var src = x.m ? E.modelImg(x.m.image) : '';
+        return '<button type="button" data-dres="' + x.c.id + ':' + x.b.id + ':' + (x.m ? x.m.id : 0) + '">' + (src ? '<img src="' + esc(src) + '" alt="">' : '<span class="er-ms-ph">' + icon(x.c.icon || 'other', true) + '</span>') +
+          '<span><b>' + esc(x.brand + (x.model ? ' ' + x.model : '')) + '</b><small>' + esc(x.c.name) + '</small></span>' + (i === 0 ? '<em>Enter</em>' : '') + '</button>';
+      }).join('') : '<div class="er-muted er-small" style="padding:10px">Ninguno con «' + esc(dq) + '». Búscalo en «Ver todas las marcas» o añádelo allí.</div>';
+    }
+    function smartBlock(cat, brand) {
+      var model = brand ? brand.models.filter(function (m) { return m.id === v.model; })[0] : null;
+      if (brand && !showAll) {
+        var src = model ? E.modelImg(model.image) : '';
+        return '<div class="er-dsel">' + (src ? '<img src="' + esc(src) + '" alt="">' : '<span class="er-dsel-ph">' + icon(cat.icon || 'other') + '</span>') +
+          '<div class="er-grow"><b>' + esc(brand.name + (model ? ' ' + model.name : '')) + '</b><div class="er-muted er-small">' + esc(cat.name) + (model ? '' : ' · elige el modelo abajo') + '</div></div>' +
+          '<button type="button" class="er-btn er-btn-sm" data-dchg>Cambiar</button></div>';
+      }
+      var top = (opts.top || []).filter(function (t) { return findBrand(findCat(catalog, t.id_category), t.id_brand); });
+      return '<div class="er-dsmart"><label class="er-search">' + icon('search') + '<input class="er-input" data-dq type="search" autocomplete="off" placeholder="Marca y modelo: «xiaomi 4 pro», «max g30»…" value="' + esc(dq) + '" data-novoice></label>' +
+        '<div class="er-dres" data-dresbox>' + smartResults() + '</div>' +
+        (top.length && dq.length < 2 ? '<div class="er-sub" style="margin-top:6px">Los que más entran</div><div class="er-dtop">' + top.slice(0, 8).map(function (t) {
+          var src = t.image || '';
+          return '<button type="button" data-dres="' + t.id_category + ':' + t.id_brand + ':' + t.id_model + '">' + (src ? '<img src="' + esc(src) + '" alt="">' : '<span class="er-ms-ph">' + icon('device', true) + '</span>') +
+            '<span><b>' + esc(t.model) + '</b><small>' + esc(t.brand + ' · ' + t.n) + '</small></span></button>';
+        }).join('') + '</div>' : '') + '</div>';
+    }
+
     function render() {
       var cat = findCat(catalog, v.cat);
       var brand = findBrand(cat, v.brand);
+      var smart = opts.smart ? smartBlock(cat, brand) : '';
       var html = '<div><div class="er-sub er-sub-row">Categoría <span class="er-req">*</span>' + (manage ? editToggle(editing) : '') + '</div><div class="er-tiles' + (editing ? ' er-editing' : '') + '">' +
         catalog.map(function (c) {
           return '<button type="button" class="er-tile" data-cat="' + c.id + '" aria-pressed="' + (c.id === v.cat) + '">' + icon(c.icon || 'other') + esc(c.name) +
@@ -85,6 +123,12 @@
                   (editing ? xBtn('data-hide="model" data-id="' + m.id + '" data-label="' + esc(m.name) + '"') : '') + '</button>';
               }).join('') + addBtn('model')
             : '<span class="er-muted">Elige primero la marca</span>') + '</div></div>';
+      }
+      if (opts.smart) {
+        var n = catalog.reduce(function (a, c) { return a + c.brands.length; }, 0);
+        html = smart + '<details class="er-dall"' + (showAll || editing || adding || (brand && !v.model && brand.models.length) ? ' open' : '') + '><summary>' + icon('box', true) + 'Ver todas las marcas (' + n + ')</summary><div class="er-stack" style="gap:14px;margin-top:10px">' + html + '</div></details>';
+      }
+      if (cat) {
         if (opts.showFaults) {
           var list = cat.faults.slice();
           var names = list.map(function (f) { return f.name; });
@@ -161,8 +205,15 @@
       });
     }
 
+    el.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('er-dall')) showAll = e.target.open; }, true);
     el.addEventListener('click', function (e) {
       var t;
+      if ((t = e.target.closest('[data-dres]'))) {
+        var a = t.getAttribute('data-dres').split(':').map(Number);
+        if (a[0] !== v.cat) v.faults = [];
+        v.cat = a[0]; v.brand = a[1]; v.model = a[2]; dq = ''; showAll = false; adding = null; render(); changed(); return;
+      }
+      if (e.target.closest('[data-dchg]')) { v.brand = 0; v.model = 0; showAll = false; render(); changed(); var qi = el.querySelector('[data-dq]'); if (qi) qi.focus(); return; }
       if ((t = e.target.closest('[data-hide]'))) {
         e.stopPropagation();
         hide(t.getAttribute('data-hide'), +t.getAttribute('data-id'), t.getAttribute('data-label'));
@@ -195,6 +246,7 @@
       if (e.target.closest('[data-cancel]')) { adding = null; render(); }
     });
     el.addEventListener('input', function (e) {
+      if (e.target.hasAttribute('data-dq')) { dq = e.target.value.trim(); var box = el.querySelector('[data-dresbox]'); if (box) box.innerHTML = smartResults(); var tp = el.querySelector('.er-dtop'); if (tp) { tp.hidden = dq.length >= 2; if (tp.previousElementSibling) tp.previousElementSibling.hidden = dq.length >= 2; } return; }
       if (e.target.getAttribute('data-new') === 'model') {
         var g = el.querySelector('[data-gimg]'), cat = findCat(catalog, v.cat), br = findBrand(cat, v.brand);
         if (g) g.href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent((br ? br.name + ' ' : '') + e.target.value + ' ' + (cat ? cat.name : ''));
@@ -204,6 +256,7 @@
     });
     el.addEventListener('keydown', function (e) {
       if (e.target.closest('[data-hide]') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.target.click(); return; }
+      if (e.target.hasAttribute('data-dq') && e.key === 'Enter') { e.preventDefault(); var first = el.querySelector('[data-dresbox] [data-dres]'); if (first) first.click(); return; }
       var inp = e.target.closest('[data-new]');
       if (!inp) return;
       if (e.key === 'Enter') { e.preventDefault(); save(inp.getAttribute('data-new')); }

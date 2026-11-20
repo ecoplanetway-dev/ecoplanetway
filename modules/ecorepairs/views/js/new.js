@@ -63,7 +63,7 @@ window.ECOR.ready(function () {
   $('#er-eta').min = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
 
   /* ---------- Equipo ---------- */
-  var device = E.DevicePicker($('#er-device'), { catalog: D.catalog, canAdd: true, canManage: !!D.canEdit, showFaults: true });
+  var device = E.DevicePicker($('#er-device'), { catalog: D.catalog, canAdd: true, canManage: !!D.canEdit, showFaults: true, smart: true, top: D.topModels || [] });
   var acc = E.ChipSet($('#er-acc'), { options: D.accessories, allowOther: true, list: 'accessories', canManage: !!D.canEdit });
   var dmg = E.ChipSet($('#er-dmg'), { options: D.damages, warn: true, allowOther: true, list: 'damages', canManage: !!D.canEdit });
   if (D.fromTag) {

@@ -614,7 +614,7 @@ window.ECOR.ready(function () {
           '<label class="er-field">Kilómetros<input class="er-input" data-f="km" inputmode="numeric" maxlength="9" value="' + esc(st.km || '') + '"></label>' +
           '<label class="er-field">Color<input class="er-input" data-f="color" maxlength="64" value="' + esc(st.color || '') + '"></label></div></div>';
         loadCatalog().then(function (cat) {
-          picker = E.DevicePicker(el.querySelector('#er-dev'), { catalog: cat, canAdd: true, canManage: false, showFaults: true, value: st.device ? { cat: st.device.id_category, brand: st.device.id_brand, model: st.device.id_model, faults: st.device.faults } : null });
+          picker = E.DevicePicker(el.querySelector('#er-dev'), { catalog: cat, canAdd: true, canManage: false, showFaults: true, smart: true, value: st.device ? { cat: st.device.id_category, brand: st.device.id_brand, model: st.device.id_model, faults: st.device.faults } : null });
         });
       }
       if (st.step === 3) {
