@@ -139,3 +139,5 @@ body.er-appbody { -webkit-tap-highlight-color: transparent; overscroll-behavior-
 .ecor .er-app-qf input { border: 0 !important; box-shadow: none !important; padding: 0 !important; height: 100%; min-width: 0; width: 100%; background: transparent; font-weight: 700; font-size: 16px; }
 .ecor .er-app-qf em { font-style: normal; color: #8A909C; }
 .ecor .er-app-qf:not(.er-grow) { width: 96px; flex: none; }
+.ecor .er-app-qban .er-btn { margin-top: 8px; }
+.ecor .er-banner.er-ok { background: #ECFDF5; color: #065F46; border-color: #A7F3D0; }

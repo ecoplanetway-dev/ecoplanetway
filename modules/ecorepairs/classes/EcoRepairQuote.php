@@ -632,7 +632,7 @@ class EcoRepairQuote
      * Respuesta del cliente desde el enlace. Solo vale una vez: la actualización exige estado «enviado» y sin caducar.
      * Devuelve array('ok' => bool, 'code' => accepted|rejected|answered|superseded|expired|notfound).
      */
-    public static function answerByLink($token, $accept, $ip, $note)
+    public static function answerByLink($token, $accept, $ip, $note, $keep = null)
     {
         $q = self::getByToken($token);
         if (!$q) {
@@ -655,8 +655,32 @@ class EcoRepairQuote
 
             return array('ok' => false, 'code' => self::linkState($q), 'quote' => $q);
         }
-        EcoRepairLog::add((int) $q['id_ecorepair'], 0, 'quote', self::label($q) . ($accept ? ' aceptado' : ' rechazado')
-            . ' por el cliente desde el enlace · IP ' . $ip . (!$accept && $note !== '' ? ' · ' . $note : ''));
+        // Aceptación parcial: se quitan las líneas que el cliente desmarcó (la mano de obra y la garantía no se pueden quitar)
+        $removed = array();
+        if ($accept && is_array($keep)) {
+            $rows = $db->executeS('SELECT * FROM `' . _DB_PREFIX_ . 'ecorepair_quote_line` WHERE id_ecorepair_quote = ' . (int) $q['id_ecorepair_quote']
+                . ' ORDER BY position ASC, id_ecorepair_quote_line ASC') ?: array();
+            $kept = array();
+            foreach (array_values($rows) as $i => $row) {
+                if ($row['type'] === 'labour' || (int) $row['warranty'] || in_array($i, $keep, true)) {
+                    $kept[] = $row;
+                } else {
+                    $removed[] = ((float) $row['qty'] != 1 ? rtrim(rtrim(number_format((float) $row['qty'], 2, ',', ''), '0'), ',') . ' × ' : '') . $row['name'];
+                }
+            }
+            if ($removed && $kept) {
+                self::writeLines((int) $q['id_ecorepair_quote'], $kept);
+                $db->update('ecorepair_quote', array('answer_note' => pSQL(Tools::substr('Acepta solo una parte. No quiere: ' . implode(', ', $removed), 0, 255))),
+                    'id_ecorepair_quote = ' . (int) $q['id_ecorepair_quote']);
+            } elseif ($removed && !$kept) {
+                // Lo ha quitado todo: cuenta como rechazo
+                $db->update('ecorepair_quote', array('status' => self::REJECTED, 'answer_note' => pSQL('Ha quitado todas las líneas')), 'id_ecorepair_quote = ' . (int) $q['id_ecorepair_quote']);
+                $accept = false;
+                $note = 'Ha quitado todas las líneas';
+            }
+        }
+        EcoRepairLog::add((int) $q['id_ecorepair'], 0, 'quote', self::label($q) . ($accept ? ($removed ? ' aceptado en parte' : ' aceptado') : ' rechazado')
+            . ' por el cliente desde el enlace · IP ' . $ip . (!$accept && $note !== '' ? ' · ' . $note : '') . ($accept && $removed ? ' · no quiere: ' . implode(', ', $removed) : ''));
         if ($accept) {
             self::afterAccept($q, 0);
         }

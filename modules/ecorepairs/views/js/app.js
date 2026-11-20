@@ -256,11 +256,12 @@ window.ECOR.ready(function () {
           '<div class="er-row" style="margin-top:6px">' + statusChip(st, r.status) + (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') + (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '') + (r.warranty ? '<span class="er-tag er-t-gar">Garantía</span>' : '') + '</div></div></div>' +
         (r.id_employee_tech ? '<div class="er-app-tech">' + icon('user', true) + 'Técnico: <b>' + esc(r.tech_name) + '</b>' + (mine ? ' (tú)' : '') + '</div>'
           : me.tech && !closed ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-claim>' + icon('check') + 'Asignármela</button>' : '') +
+        quoteBanner(closed) +
         customerBox(r, closed) +
         (R.repeat ? '<div class="er-banner ' + (R.repeat.same ? 'er-bad' : 'er-warn') + '">' + icon('refresh') + '<div><b>Repetida:</b> vuelve ' + R.repeat.days + ' días después de ' + esc(R.repeat.reference) +
           (R.repeat.same ? ' por la misma avería' : ' (otra avería)') + (R.repeat.tech ? ' · técnico ' + esc(R.repeat.tech) : '') + '.</div></div>' : '') +
         (R.kbCount && R.kbCount.faults ? '<a class="er-banner er-info" href="' + base + '/manual">' + icon('book') + '<div>Este modelo tiene <b>' + R.kbCount.faults + ' fallo' + (R.kbCount.faults === 1 ? '' : 's') + ' conocido' + (R.kbCount.faults === 1 ? '' : 's') + '</b> con solución.</div></a>' : '') +
-        '<div class="er-seg er-seg-4">' + [['work', 'Trabajo'], ['parts', 'Piezas'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
+        '<div class="er-seg er-seg-4">' + [['work', 'Trabajo'], ['parts', 'Presupuesto'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
           return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
         }).join('') + '</div>' +
         '<div id="er-tab"></div>' +
@@ -275,7 +276,18 @@ window.ECOR.ready(function () {
         E.notify({ id_ecorepair: r.id }).then(function (res) { if (res) E.toast('Mensaje guardado en el historial'); });
         return;
       }
-      if (e.target.closest('[data-batt]')) { openBattery(); }
+      if (e.target.closest('[data-batt]')) { openBattery(); return; }
+      var qn = e.target.closest('[data-qnew]');
+      if (qn) {
+        E.dialog({ title: 'Presupuesto nuevo', text: 'Se copia el anterior en borrador para que lo cambies y lo vuelvas a enviar.', ok: 'Hacerlo' }).then(function (y) {
+          if (!y) return;
+          qn.disabled = true;
+          api('quoteNew', { id: r.id }).then(function (res) {
+            if (!res.ok) { qn.disabled = false; E.toast(res.error, true); return; }
+            R = res; location.hash = '#id/' + r.id + '/parts'; E.toast('Presupuesto nuevo en borrador');
+          });
+        });
+      }
     });
     var claim = main.querySelector('[data-claim]');
     if (claim) claim.addEventListener('click', function () {
@@ -325,6 +337,19 @@ window.ECOR.ready(function () {
     else workTab(el, canWork);
   }
 
+  /* Aviso del presupuesto: aceptado, rechazado (con el motivo) o esperando respuesta */
+  function quoteBanner(closed) {
+    var q = R.quoteInfo;
+    if (!q) return '';
+    var t = { accepted: ['er-ok', 'check', 'Presupuesto aceptado'], rejected: ['er-bad', 'x', 'Presupuesto rechazado'], sent: ['er-warn', 'clock', 'Presupuesto enviado · esperando respuesta'] }[q.status];
+    if (!t) return '';
+    var who = q.channel === 'link' ? ' por el cliente' : q.channel === 'store' ? ' en la tienda' : '';
+    return '<div class="er-banner ' + t[0] + ' er-app-qban">' + icon(t[1]) + '<div><b>' + t[2] + who + '</b> · ' + esc(q.label) + ' · ' + esc(E.fmtMoney(q.total)) +
+      (q.date ? '<div class="er-small">' + esc(E.fmtDateTime(q.date)) + '</div>' : '') +
+      (q.note ? '<div class="er-small"><b>' + (q.status === 'rejected' ? 'Motivo' : 'Nota') + ':</b> ' + esc(q.note) + '</div>' : '') +
+      (!closed && !q.hasDraft && (q.status === 'rejected' || q.status === 'sent') ? '<button type="button" class="er-btn er-btn-sm" data-qnew>' + icon('refresh', true) + 'Hacer presupuesto nuevo</button>' : '') +
+      (q.hasDraft ? '<div class="er-small">Hay un presupuesto nuevo en borrador (pestaña Presupuesto).</div>' : '') + '</div></div>';
+  }
   /* Cliente: datos completos y accesos rápidos (llamar, WhatsApp, batería) */
   function customerBox(r, closed) {
     var c = R.customer, bt = R.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';

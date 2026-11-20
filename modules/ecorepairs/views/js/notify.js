@@ -61,7 +61,12 @@
           }).catch(function () { });
         }
         function shareTech() {
-          if (!techFile) { E.toast('Este móvil no deja compartir la foto. Guárdala desde el seguimiento y pégala en el chat.', true); return; }
+          if (!techFile) {
+            // Sin «Compartir» de archivos: se abre la foto para mantenerla pulsada → Copiar o Compartir
+            window.open(res.tech.avatar, '_blank');
+            E.toast('Mantén pulsada la foto → «Compartir» o «Copiar» y pégala en el chat.');
+            return;
+          }
           navigator.share({ files: [techFile] }).then(function () { close({ ok: true }); }).catch(function () { });
         }
         if (techCb) techCb.addEventListener('change', function () { ta.value = withTech(ta.value, techCb.checked); texts[key] = ta.value; });
@@ -97,7 +102,9 @@
             if (how === 'mobile') {
               // En el móvil: abre la aplicación de WhatsApp del teléfono (se guarda en el historial antes de salir)
               var url = 'https://wa.me/' + p + '?text=' + encodeURIComponent(ta.value.trim());
-              var withPhoto = techCb && techCb.checked && techFile;
+              var withPhoto = techCb && techCb.checked && res.tech && res.tech.avatar;
+              // Con foto: WhatsApp se abre aparte para que, al volver, siga aquí el «Paso 2»
+              var win = withPhoto ? window.open(url, '_blank') : null;
               E.api('logMessage', params, body).then(function (r2) {
                 if (withPhoto) {
                   // Paso 2: al volver de WhatsApp, mandar la foto del técnico al mismo chat
@@ -108,8 +115,8 @@
                 } else {
                   close(r2 && r2.ok ? r2 : { ok: true });
                 }
-                window.location.href = url;
-              }, function () { window.location.href = url; });
+                if (!win) window.location.href = url;
+              }, function () { if (!win) window.location.href = url; });
               return;
             }
             if (how === 'web') window.open('https://web.whatsapp.com/send?' + q, 'ecor-whatsapp');

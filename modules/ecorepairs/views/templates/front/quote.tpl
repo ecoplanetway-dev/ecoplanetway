@@ -41,6 +41,9 @@
   details summary { cursor: pointer; color: var(--bad); font-weight: 600; text-align: center; padding: 12px 0 0; list-style: none; }
   details summary::-webkit-details-marker { display: none; }
   .foot { text-align: center; font-size: 13px; color: var(--fg2); margin-top: 20px; }
+  tr.ql.off td { opacity: .45; text-decoration: line-through; }
+  .keep { display: inline-flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+  .keep input { width: 20px; height: 20px; accent-color: #0B6E4B; margin: 1px 0 0; flex: none; }
 </style>
 </head>
 <body>
@@ -69,9 +72,11 @@
       <h1>Presupuesto {$reference|escape:'html':'UTF-8'}{if $q.number > 1} · adicional{/if}</h1>
       <div class="muted">{$device|escape:'html':'UTF-8'}{if $q.date_sent} · {$q.date_sent|date_format:'%d/%m/%Y'}{/if}</div>
       <table>
-        {foreach from=$q.lines item=l}
-          <tr>
-            <td>{$l.name|escape:'html':'UTF-8'}{if $l.warranty}<span class="tag">Garantía</span>{/if}{if $l.discount > 0}<span class="tag" style="background:#E3F1EB;color:#0B6E4B">−{$l.discount|string_format:'%.2f'|replace:'.':','} €</span>{/if}
+        {if $state == 'open'}<p class="muted" style="margin:8px 0 0">Puedes quitar lo que no quieras reparar: desmarca la casilla y el total se recalcula. Lo marcado como «Necesario» no se puede quitar.</p>{/if}
+        {foreach from=$q.lines item=l name=ql}
+          {if $state == 'open' && $l.type != 'labour' && !$l.warranty}{assign var=opt value=true}{else}{assign var=opt value=false}{/if}
+          <tr class="ql{if $opt} opt{/if}" data-total="{if $l.warranty}0{else}{$l.total|string_format:'%.2f'}{/if}">
+            <td>{if $opt}<label class="keep"><input type="checkbox" name="keep[]" value="{$smarty.foreach.ql.index}" form="er-acc" checked> {/if}{$l.name|escape:'html':'UTF-8'}{if $opt}</label>{elseif $state == 'open' && $l.type == 'labour'}<span class="tag" style="background:#EEF0F3;color:#3A3F48">Necesario</span>{/if}{if $l.warranty}<span class="tag">Garantía</span>{/if}{if $l.discount > 0}<span class="tag" style="background:#E3F1EB;color:#0B6E4B">−{$l.discount|string_format:'%.2f'|replace:'.':','} €</span>{/if}
               <div class="muted">{$l.qty_text|escape:'html':'UTF-8'}{if $l.type == 'labour'} h{else} ud.{/if} × {$l.price|string_format:'%.2f'|replace:'.':','} €</div></td>
             <td class="n">{if $l.warranty}0,00 €{else}{$l.total|string_format:'%.2f'|replace:'.':','} €{/if}</td>
           </tr>
@@ -83,7 +88,8 @@
       <div class="tot"><span class="muted">Base imponible</span><span>{$q.totals.total_tax_excl|string_format:'%.2f'|replace:'.':','} €</span></div>
       <div class="tot"><span class="muted">IVA</span><span>{$q.totals.tax|string_format:'%.2f'|replace:'.':','} €</span></div>
       {if $q.totals.warranty_amount > 0}<div class="tot"><span class="muted">Cubierto por garantía</span><span>−{$q.totals.warranty_amount|string_format:'%.2f'|replace:'.':','} €</span></div>{/if}
-      <div class="tot big"><span>Total</span><span>{$q.totals.total_tax_incl|string_format:'%.2f'|replace:'.':','} €</span></div>
+      <div class="tot big"><span>Total</span><span id="er-q-total">{$q.totals.total_tax_incl|string_format:'%.2f'|replace:'.':','} €</span></div>
+      <div class="muted" id="er-q-removed" hidden style="margin-top:6px"></div>
       {if $q.date_expire && $state == 'open'}<div class="muted" style="margin-top:6px">Válido hasta el {$q.date_expire|date_format:'%d/%m/%Y'}</div>{/if}
     </div>
 
@@ -92,10 +98,11 @@
     {if $state == 'open'}
       <div class="card">
         <div class="cond">{foreach from=$conditions item=line}{if $line|trim}<p>{$line|escape:'html':'UTF-8'}</p>{/if}{/foreach}</div>
-        <form method="post" action="{$action|escape:'html':'UTF-8'}">
+        <form method="post" action="{$action|escape:'html':'UTF-8'}" id="er-acc">
           <input type="hidden" name="k" value="{$formKey|escape:'html':'UTF-8'}">
           <input type="hidden" name="answer" value="accept">
-          <label class="agree"><input type="checkbox" name="agree" value="1" required> He leído el presupuesto y lo acepto por {$q.totals.total_tax_incl|string_format:'%.2f'|replace:'.':','} €.</label>
+          <input type="hidden" name="partial" value="1">
+          <label class="agree"><input type="checkbox" name="agree" value="1" required> He leído el presupuesto y lo acepto por <b id="er-q-agree">{$q.totals.total_tax_incl|string_format:'%.2f'|replace:'.':','} €</b>.</label>
           <button type="submit" class="btn pri">Aceptar presupuesto</button>
         </form>
         <details>
@@ -113,5 +120,29 @@
 
   <div class="foot">{$shop.name|escape:'html':'UTF-8'}{if $shop.phone} · {$shop.phone|escape:'html':'UTF-8'}{/if}</div>
 </div>
+<script>
+{literal}
+(function () {
+  // Aceptar solo una parte: al quitar líneas se recalcula el total
+  var rows = document.querySelectorAll('tr.ql'), tot = document.getElementById('er-q-total'), agree = document.getElementById('er-q-agree'), rem = document.getElementById('er-q-removed');
+  if (!rows.length || !tot) return;
+  function money(v) { return v.toFixed(2).replace('.', ',') + ' €'; }
+  function calc() {
+    var t = 0, out = [];
+    rows.forEach(function (r) {
+      var cb = r.querySelector('input[name="keep[]"]');
+      if (cb && !cb.checked) { out.push(r.querySelector('label').textContent.trim()); r.classList.add('off'); return; }
+      r.classList.remove('off');
+      t += parseFloat(r.getAttribute('data-total')) || 0;
+    });
+    tot.textContent = money(t);
+    if (agree) agree.textContent = money(t);
+    rem.hidden = !out.length;
+    rem.textContent = out.length ? 'No vas a hacer: ' + out.join(', ') : '';
+  }
+  rows.forEach(function (r) { var cb = r.querySelector('input[name="keep[]"]'); if (cb) cb.addEventListener('change', calc); });
+})();
+{/literal}
+</script>
 </body>
 </html>

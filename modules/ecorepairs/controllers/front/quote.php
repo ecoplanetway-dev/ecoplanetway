@@ -48,7 +48,12 @@ class EcoRepairsQuoteModuleFrontController extends ModuleFrontController
             if ($answer === 'accept' && !Tools::getValue('agree')) {
                 $result = 'need_agree';
             } else {
-                $res = EcoRepairQuote::answerByLink($token, $answer === 'accept', Tools::getRemoteAddr(), (string) Tools::getValue('note'));
+                // Aceptación parcial: solo las líneas que el cliente dejó marcadas (más las necesarias)
+                $keep = null;
+                if ($answer === 'accept' && Tools::getValue('partial')) {
+                    $keep = array_map('intval', is_array(Tools::getValue('keep')) ? Tools::getValue('keep') : array());
+                }
+                $res = EcoRepairQuote::answerByLink($token, $answer === 'accept', Tools::getRemoteAddr(), (string) Tools::getValue('note'), $keep);
                 $result = $res['code'];
                 $q = EcoRepairQuote::get((int) $q['id_ecorepair_quote']);
             }

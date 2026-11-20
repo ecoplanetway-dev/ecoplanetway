@@ -220,6 +220,17 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                         $this->emp(), $this->staff['name'] . ' (móvil)');
                     $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
                     // no break
+                case 'quoteNew':
+                    $r = $this->findRepair();
+                    $this->open($r);
+                    $qi = $this->quoteInfo((int) $r['id_ecorepair']);
+                    $q = $qi ? EcoRepairQuote::get($qi['id']) : null;
+                    if (!$q) {
+                        $this->out(array('ok' => false, 'error' => 'No hay presupuesto que rehacer.'));
+                    }
+                    $res = EcoRepairQuote::newVersion($q, $this->emp());
+                    $this->out($res['ok'] ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
                 case 'quoteSend':
                     $r = $this->findRepair();
                     $this->open($r);
@@ -496,6 +507,25 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'repairs' => (int) $c['repairs_count'], 'orders' => (int) $c['orders_count'], 'since' => (string) $c['date_add']);
     }
 
+    /** Último presupuesto que cuenta (no sustituido): para el aviso de arriba (aceptado, rechazado, enviado). */
+    protected function quoteInfo($idRepair)
+    {
+        $last = null;
+        foreach (EcoRepairQuote::forRepair($idRepair) as $q) {
+            if ($q['status'] !== EcoRepairQuote::SUPERSEDED && $q['status'] !== EcoRepairQuote::DRAFT) {
+                $last = $q;
+            }
+        }
+        if (!$last) {
+            return null;
+        }
+
+        return array('id' => (int) $last['id_ecorepair_quote'], 'label' => EcoRepairQuote::label($last), 'status' => $last['status'],
+            'total' => round((float) $last['total_tax_incl'], 2), 'note' => (string) $last['answer_note'], 'channel' => (string) $last['channel'],
+            'date' => (string) ($last['date_answer'] ?: $last['date_sent']), 'link' => $last['token'] ? EcoRepairQuote::link($last['token']) : '',
+            'hasDraft' => (bool) $this->draftQuote($idRepair));
+    }
+
     protected function draftLite($idRepair)
     {
         $q = $this->draftQuote($idRepair);
@@ -659,6 +689,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
             'checklist' => $r['checklist'],
             'customer' => $this->customerLite((int) $r['id_customer']),
             'draft' => $this->draftLite($id),
+            'quoteInfo' => $this->quoteInfo($id),
         ) + $this->modelBundle((int) $r['id_brand'], (int) $r['id_model'], isset($r['model_image']) ? $r['model_image'] : '');
     }
 
