@@ -1038,6 +1038,7 @@
     listen: listen,
     pickFromText: pickFromText,
     phoneFromText: phoneFromText,
+    dictate: function (field) { field.focus(); setTimeout(function () { if (micBtn && !micBtn.hidden) micBtn.click(); }, 60); },
     trimImage: trimImage,
     dropZone: dropZone,
     voiceRepair: voiceRepair,

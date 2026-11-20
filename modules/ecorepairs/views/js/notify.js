@@ -19,11 +19,12 @@
           '<div class="er-row"><span class="er-wa-ico">' + icon('whatsapp') + '</span><h2 style="margin-right:auto">WhatsApp a ' + esc(res.name || 'cliente') + '</h2>' +
             '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
           (res.consent ? '' : '<div class="er-banner er-warn" style="margin:0">' + icon('alert') + '<div>No consta que el cliente acepte avisos por WhatsApp. Envíalo solo si te lo ha pedido.</div></div>') +
-          (Object.keys(res.templates).length > 1 ? '<div class="er-opts" id="er-wa-tpl">' + Object.keys(res.templates).map(function (k) {
+          (Object.keys(res.templates).length > 1 ? '<div class="er-opts er-flat" id="er-wa-tpl">' + Object.keys(res.templates).map(function (k) {
             return '<button type="button" class="er-opt" data-tpl="' + k + '" aria-pressed="' + (k === key) + '">' + esc(res.templates[k].name) + '</button>';
           }).join('') + '</div>' : '') +
           '<label class="er-field">Teléfono<input class="er-input er-num" id="er-wa-phone" inputmode="tel" value="' + esc(res.phone) + '"></label>' +
-          '<label class="er-field">Mensaje (puedes cambiarlo antes de abrir WhatsApp)<textarea class="er-input" id="er-wa-text" rows="7"></textarea></label>' +
+          '<label class="er-field"><span class="er-row" style="flex-wrap:nowrap">Mensaje (puedes cambiarlo antes de abrir WhatsApp)' + (E.hasVoice ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-dict style="margin-left:auto">' + icon('mic', true) + 'Dictar</button>' : '') + '</span>' +
+            '<textarea class="er-input" id="er-wa-text" rows="7"></textarea></label>' +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
             '<button type="button" class="er-btn er-btn-wa er-btn-lg" data-open="web">' + icon('whatsapp') + 'Abrir en WhatsApp Web</button>' +
@@ -50,6 +51,7 @@
             ta.value = texts[key] || '';
             return;
           }
+          if (e.target.closest('[data-dict]')) { e.preventDefault(); E.dictate(ta); return; }
           if (e.target.closest('[data-copy]')) {
             ta.select();
             try { document.execCommand('copy'); E.toast('Texto copiado'); } catch (er) { }

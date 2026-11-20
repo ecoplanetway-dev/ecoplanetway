@@ -133,7 +133,7 @@
           var list = cat.faults.slice();
           var names = list.map(function (f) { return f.name; });
           v.faults.forEach(function (f) { if (names.indexOf(f) < 0) list.push({ id: 0, name: f }); });
-          html += '<div><div class="er-sub">Averías frecuentes</div><div class="er-opts' + (editing ? ' er-editing' : '') + '">' +
+          html += '<div><div class="er-sub">Averías frecuentes</div><div class="er-opts er-flat' + (editing ? ' er-editing' : '') + '">' +
             list.map(function (f) {
               return '<button type="button" class="er-opt" data-fault="' + esc(f.name) + '" aria-pressed="' + (v.faults.indexOf(f.name) > -1) + '">' + esc(f.name) +
                 (editing && f.id ? xBtn('data-hide="fault" data-id="' + f.id + '" data-label="' + esc(f.name) + '"') : '') + '</button>';
