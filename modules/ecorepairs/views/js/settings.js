@@ -21,8 +21,8 @@ window.ECOR.ready(function () {
     { k: 'catalog', i: 'device', t: 'Catálogo', s: 'Categorías, marcas, modelos y fotos', w: 'marca modelo foto categoria averia frecuente importar',
       h: '<p class="er-sg-intro">Lo que se oculta deja de salir al crear reparaciones, pero no se borra. Con <b>📖</b> abres la ficha del modelo (piezas, deslimitar, precios, códigos).</p>' +
         '<div id="er-cat-grid"></div><input type="file" id="er-img-file" accept="image/jpeg,image/png,image/webp" hidden>' +
-        (canEdit ? '<div class="er-row" style="margin-top:12px"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
-          '<div class="er-row"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
+        (canEdit ? '<div class="er-row er-cat-tools"><button type="button" class="er-btn er-btn-pri" id="er-shopimg">' + icon('camera') + 'Buscar fotos en mi tienda</button><span class="er-muted er-small" id="er-nophoto"></span></div>' +
+          '<div class="er-row er-cat-tools"><button type="button" class="er-btn" id="er-import">' + icon('download') + 'Cargar marcas y modelos habituales</button><span class="er-muted er-small">Añade solo los que falten.</span></div>' : '') },
     { k: 'reception', i: 'plus', t: 'Recepción', s: 'Datos del cliente, accesorios y daños', w: 'telefono email obligatorio accesorios cargador daños condiciones resguardo firma',
       h: sg('Averías frecuentes', 'Salen como botones al elegir el equipo. Cada categoría tiene las suyas.', '<div id="er-flt"></div>') +
         sg('Datos del cliente', 'Qué es obligatorio al crear un cliente nuevo. Nombre y apellidos siempre lo son.', '<div class="er-fg">' + fieldRule('ECOREPAIRS_FIELD_PHONE', 'Teléfono') + fieldRule('ECOREPAIRS_FIELD_EMAIL', 'Email') + '</div>') +
@@ -161,7 +161,8 @@ window.ECOR.ready(function () {
           '<a target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(b.name + ' ' + it.name) + '">' + icon('search', true) + 'Buscar imagen</a>' +
           (it.image ? '<button type="button" data-imgdel="' + it.id + '">' + icon('x', true) + 'Quitar foto</button>' : '') +
           '<button type="button" data-ren="model" data-id="' + it.id + '" data-name="' + esc(it.name) + '">' + icon('pen', true) + 'Renombrar</button>' +
-          '<button type="button" data-act="model" data-id="' + it.id + '" data-v="' + (it.active ? 0 : 1) + '">' + (it.active ? 'Ocultar' : 'Mostrar') + '</button>' : '') +
+          '<button type="button" data-act="model" data-id="' + it.id + '" data-v="' + (it.active ? 0 : 1) + '">' + (it.active ? 'Ocultar' : 'Mostrar') + '</button>' +
+          '<button type="button" class="er-danger" data-del="model" data-id="' + it.id + '" data-name="' + esc(it.name) + '">' + icon('trash', true) + 'Borrar</button>' : '') +
       '</div></details></div></div>';
   }
   function renderCatalog() {
@@ -197,14 +198,18 @@ window.ECOR.ready(function () {
         }).join('') + '</div><div class="er-bl-list" id="er-bl-list">' + (list || '<div class="er-empty">Sin marcas</div>') + '</div>' +
         (canEdit ? '<div class="er-row" style="flex-wrap:nowrap;padding:8px"><input class="er-input" data-newname="brand" maxlength="64" placeholder="Nueva marca"><button type="button" class="er-btn er-icon-btn" data-add="brand" data-parent="' + c.id + '" aria-label="Añadir">' + icon('plus') + '</button></div>' : '') +
         (canEdit ? '<label class="er-field" style="padding:0 8px 8px">Icono de ' + esc(c.name) + '<select class="er-input" id="er-cat-icon">' + Object.keys(D.icons).map(function (k) {
-          return '<option value="' + k + '"' + (c.icon === k ? ' selected' : '') + '>' + esc(D.icons[k]) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
+          return '<option value="' + k + '"' + (c.icon === k ? ' selected' : '') + '>' + esc(D.icons[k]) + '</option>'; }).join('') + '</select></label>' +
+          '<div class="er-cat-act"><button type="button" class="er-btn er-btn-sm er-btn-ghost" data-ren="category" data-id="' + c.id + '" data-name="' + esc(c.name) + '">' + icon('pen', true) + 'Editar</button>' +
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-act="category" data-id="' + c.id + '" data-v="' + (c.active ? 0 : 1) + '">' + (c.active ? 'Ocultar' : 'Mostrar') + '</button>' +
+          '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-danger" data-del="category" data-id="' + c.id + '" data-name="' + esc(c.name) + '">' + icon('trash', true) + 'Borrar</button></div>' : '') + '</div>';
       if (b) {
         var models = b.models.filter(function (m) { return mFilter === 'all' ? m.active : mFilter === 'nophoto' ? m.active && !m.image : !m.active; });
         var nNo = b.models.filter(function (m) { return m.active && !m.image; }).length, nOff = b.models.filter(function (m) { return !m.active; }).length;
         html += '<div class="er-ml"><div class="er-ml-h"><b>' + esc(b.name) + '</b><span class="er-muted er-small">' + b.models.length + ' modelos · ' + (b.models.length - nNo - nOff) + ' con foto</span><span class="er-grow"></span>' +
           '<a class="er-btn er-btn-sm er-btn-ghost" href="' + esc(E.boot.links.model + '&id_brand=' + b.id + '&id_model=0') + '">' + icon('book', true) + 'Ficha de la marca</a>' +
           (canEdit ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-ren="brand" data-id="' + b.id + '" data-name="' + esc(b.name) + '">' + icon('pen', true) + 'Renombrar</button>' +
-            '<button type="button" class="er-btn er-btn-sm" data-act="brand" data-id="' + b.id + '" data-v="' + (b.active ? 0 : 1) + '">' + (b.active ? 'Ocultar marca' : 'Mostrar marca') + '</button>' : '') + '</div>' +
+            '<button type="button" class="er-btn er-btn-sm" data-act="brand" data-id="' + b.id + '" data-v="' + (b.active ? 0 : 1) + '">' + (b.active ? 'Ocultar marca' : 'Mostrar marca') + '</button>' +
+            '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-danger" data-del="brand" data-id="' + b.id + '" data-name="' + esc(b.name) + '">' + icon('trash', true) + 'Borrar</button>' : '') + '</div>' +
           '<div class="er-row er-ml-f">' + [['all', 'Todos'], ['nophoto', 'Sin foto ' + nNo], ['off', 'Ocultos ' + nOff]].map(function (f) {
             return '<button type="button" class="er-c2' + (mFilter === f[0] ? ' on' : '') + '" data-mf="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
           '<div class="er-mgrid">' + models.map(function (m) { return modelCard(m, b); }).join('') +
@@ -265,6 +270,20 @@ window.ECOR.ready(function () {
       });
       var inp = app.querySelector('#er-dlg-in');
       if (inp) { inp.value = t.getAttribute('data-name'); inp.select(); }
+      return;
+    }
+    if ((t = e.target.closest('[data-del]'))) {
+      var dtype = t.getAttribute('data-del'), did = t.getAttribute('data-id');
+      E.dialog({ title: 'Borrar «' + t.getAttribute('data-name') + '»', text: 'Solo se puede borrar si está vacío y ninguna reparación lo usa. Si no, ocúltalo.', ok: 'Borrar', danger: true }).then(function (v) {
+        if (!v) return;
+        catalogCall('delete', { type: dtype, id: did }).then(function (res) {
+          if (!res) return;
+          if (dtype === 'category') sel.cat = catalog[0] ? catalog[0].id : 0;
+          if (dtype !== 'model') sel.brand = 0;
+          renderCatalog();
+          E.toast('Borrado');
+        });
+      });
       return;
     }
     if ((t = e.target.closest('[data-add]'))) { addItem(t.getAttribute('data-add'), +t.getAttribute('data-parent')); return; }

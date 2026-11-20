@@ -1299,3 +1299,15 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-bat-con .er-add { border-style: dashed; color: #8A909C; justify-content: center; }
 .ecor .er-cn-ph { border: 2px dashed #C9CDD4; border-radius: 12px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #8A909C; font-size: 13px; cursor: pointer; }
 .ecor .er-cn-ph img { max-height: 160px; max-width: 100%; border-radius: 8px; }
+/* Ficha del modelo: buscador y «otro modelo» en su propia fila, alineados */
+.ecor .er-f-tools { display: flex; align-items: center; gap: 10px; margin: -4px 0 16px; padding: 8px; background: #F7F8FA; border: 1px solid var(--er-line2, #E6E8EC); border-radius: 14px; position: relative; z-index: 60; }
+.ecor .er-f-tools .er-msearch { flex: 1 1 auto; max-width: none; margin: 0; }
+.ecor .er-f-other { display: flex; align-items: center; gap: 8px; margin: 0; flex: 0 1 320px; min-width: 0; font-size: 12px; font-weight: 600; color: #5B6170; white-space: nowrap; }
+.ecor .er-f-other .er-input { flex: 1; min-width: 0; height: 44px; }
+@media (max-width: 760px) { .ecor .er-f-tools { flex-direction: column; align-items: stretch; } .ecor .er-f-other { flex: none; } }
+/* Catálogo: acciones de la categoría, borrar en rojo y botones de abajo separados */
+.ecor .er-cat-act { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 10px; }
+.ecor .er-danger { color: #B91C1C !important; }
+.ecor .er-danger:hover { background: #FEF2F2 !important; }
+.ecor .er-cat-tools { margin-top: 14px; gap: 14px; align-items: center; }
+.ecor .er-cat-tools + .er-cat-tools { margin-top: 12px; padding-top: 12px; border-top: 1px solid #EEF0F3; }

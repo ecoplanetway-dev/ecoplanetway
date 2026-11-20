@@ -192,6 +192,39 @@ class EcoRepairCatalog
         return array('ok' => true, 'name' => $name);
     }
 
+    /** Borra una categoría, marca o modelo solo si está vacío y ninguna reparación lo usa (si no, hay que ocultarlo). */
+    public static function delete($type, $id)
+    {
+        $types = self::types();
+        if (!isset($types[$type]) || $type === 'fault') {
+            return array('ok' => false, 'error' => 'Tipo no válido.');
+        }
+        $db = Db::getInstance();
+        $p = _DB_PREFIX_;
+        $id = (int) $id;
+        $col = array('category' => 'id_category', 'brand' => 'id_brand', 'model' => 'id_model');
+        $used = (int) $db->getValue('SELECT COUNT(*) FROM `' . $p . 'ecorepair` WHERE `' . $col[$type] . '` = ' . $id);
+        if ($used) {
+            return array('ok' => false, 'error' => 'No se puede borrar: lo usan ' . $used . ' reparaciones. Puedes ocultarlo.');
+        }
+        if ($type === 'category') {
+            $n = (int) $db->getValue('SELECT COUNT(*) FROM `' . $p . 'ecorepair_brand` WHERE id_ecorepair_category = ' . $id);
+            if ($n) {
+                return array('ok' => false, 'error' => 'Tiene ' . $n . ' marcas. Bórralas o muévelas antes, o oculta la categoría.');
+            }
+            $db->delete('ecorepair_fault', 'id_ecorepair_category = ' . $id);
+        } elseif ($type === 'brand') {
+            $n = (int) $db->getValue('SELECT COUNT(*) FROM `' . $p . 'ecorepair_model` WHERE id_ecorepair_brand = ' . $id);
+            if ($n) {
+                return array('ok' => false, 'error' => 'Tiene ' . $n . ' modelos. Bórralos antes, o oculta la marca.');
+            }
+        }
+        $table = $types[$type][0];
+        $db->delete($table, '`id_' . $table . '` = ' . $id);
+
+        return array('ok' => true);
+    }
+
     public static function setActive($type, $id, $active)
     {
         $types = self::types();

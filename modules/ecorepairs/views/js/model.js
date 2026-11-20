@@ -21,8 +21,10 @@ window.ECOR.ready(function () {
         '<div class="er-f-title"><h1>' + esc(title) + '</h1><span class="er-st-chip">' + (D.model ? 'Ficha del modelo' : 'Ficha de la marca · vale para todos sus modelos') + '</span></div>' +
         E.unlockButton(B.unlock || [], 'data-tab="unlock"' + (tab === 'unlock' ? ' aria-pressed="true"' : '')) +
         E.incompatButton(incompat, canEdit) +
+      '</div>' +
+      '<div class="er-f-tools">' +
         '<div class="er-msearch" id="er-ms"></div>' +
-        '<label class="er-field" style="min-width:220px">Ver otro modelo<select class="er-input" id="er-m-sel"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
+        '<label class="er-f-other"><span>Otro modelo de ' + esc(D.brand) + '</span><select class="er-input" id="er-m-sel" aria-label="Ver otro modelo"><option value="0">Toda la marca ' + esc(D.brand) + '</option>' +
           D.models.map(function (m) { return '<option value="' + m.id + '"' + (m.id === D.id_model ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select></label>' +
       '</div>' +
       '<div class="er-filters er-tabsq">' + [['parts', 'Piezas', parts.length]].concat(D.id_model ? [['battery', 'Batería', B.battery && (B.battery.volt || B.battery.len) ? '✓' : '']] : []).concat([['fixed', 'Precio cerrado', (B.fixed || []).length], ['codes', 'Códigos de error', kb.codes.length], ['params', 'Menú y parámetros', kb.params.length + kb.menu.length], ['faults', 'Fallos y soluciones', kb.faults.length]]).map(function (t) {

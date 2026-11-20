@@ -136,6 +136,9 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             case 'active':
                 $res = EcoRepairCatalog::setActive($type, $id, (bool) Tools::getValue('active'));
                 break;
+            case 'delete':
+                $res = EcoRepairCatalog::delete($type, $id);
+                break;
             case 'icon':
                 $res = EcoRepairCatalog::setIcon($id, (string) Tools::getValue('icon'));
                 break;
@@ -362,6 +365,7 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
             'search' => $s . '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
             'download' => $s . '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
             'pen' => $s . '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+            'trash' => $s . '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
             'scooter' => $s . '<circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/><path d="M8 18h8M15 4h3l1 14"/></svg>',
             'bike' => $s . '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M5.5 17.5 10 7h4l4.5 10.5M14 7l1-3h3"/></svg>',
             'battery' => $s . '<rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2M11 9l-2 3h4l-2 3"/></svg>',
