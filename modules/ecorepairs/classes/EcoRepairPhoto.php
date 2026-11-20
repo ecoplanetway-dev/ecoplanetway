@@ -235,7 +235,71 @@ class EcoRepairPhoto
         if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name']) || (int) $file['size'] > self::MAX_BYTES) {
             return array('ok' => false, 'error' => 'No se recibió la foto o es demasiado grande.');
         }
-        $open = self::openImage($file['tmp_name']);
+
+        return self::saveModelImageFrom($file['tmp_name']);
+    }
+
+    /**
+     * Descarga una imagen de internet y la guarda como foto del modelo (así no depende de la otra web).
+     * Acepta enlaces de Google Imágenes (saca la imagen real de «imgurl=»).
+     */
+    public static function modelImageFromUrl($url)
+    {
+        $url = trim((string) $url);
+        $q = parse_url($url, PHP_URL_QUERY);
+        if ($q) {
+            parse_str($q, $qv);
+            foreach (array('imgurl', 'mediaurl', 'url') as $k) {
+                if (!empty($qv[$k]) && preg_match('#^https?://#i', $qv[$k])) {
+                    $url = $qv[$k];
+                    break;
+                }
+            }
+        }
+        if (!preg_match('#^https?://#i', $url) || !Validate::isAbsoluteUrl($url) || Tools::strlen($url) > 2000) {
+            return array('ok' => false, 'error' => 'Pega la dirección de la imagen (empieza por http).');
+        }
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        $ip = gethostbyname($host);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return array('ok' => false, 'error' => 'No se puede descargar de esa dirección.');
+        }
+        if (!function_exists('curl_init')) {
+            return array('ok' => false, 'error' => 'El servidor no puede descargar imágenes (falta cURL). Sube la foto desde el ordenador.');
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'ecor');
+        $fh = fopen($tmp, 'wb');
+        $ch = curl_init($url);
+        $max = self::MAX_BYTES;
+        curl_setopt_array($ch, array(CURLOPT_FILE => $fh, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_TIMEOUT => 20,
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            CURLOPT_HTTPHEADER => array('Accept: image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8'),
+            CURLOPT_NOPROGRESS => false, CURLOPT_PROGRESSFUNCTION => function ($c, $dt, $d) use ($max) { return $d > $max ? 1 : 0; }));
+        $ok = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $type = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+        fclose($fh);
+        if (!$ok || $code >= 400) {
+            @unlink($tmp);
+
+            return array('ok' => false, 'error' => 'No se pudo descargar la imagen (la web no la deja bajar). Guárdala y súbela con «Subir foto».');
+        }
+        if (stripos($type, 'text/html') !== false) {
+            @unlink($tmp);
+
+            return array('ok' => false, 'error' => 'Ese enlace es una página, no una imagen. Abre la imagen, botón derecho → «Copiar dirección de la imagen».');
+        }
+        $res = self::saveModelImageFrom($tmp);
+        @unlink($tmp);
+
+        return $res;
+    }
+
+    protected static function saveModelImageFrom($path)
+    {
+        $open = self::openImage($path);
         if (!$open['ok']) {
             return $open;
         }

@@ -291,8 +291,8 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-imgdel]'))) { catalogCall('modelImage', { id: t.getAttribute('data-imgdel'), url: '' }).then(function (res) { if (res) E.toast('Foto quitada'); }); return; }
     if ((t = e.target.closest('[data-imgurl]'))) {
       var mid = t.getAttribute('data-imgurl');
-      E.dialog({ title: 'Foto desde una dirección web', text: 'Pega la dirección (https://…) de una imagen del modelo.', input: true, inputLabel: 'Dirección de la imagen', required: true, ok: 'Guardar', maxlength: 255 }).then(function (url) {
-        if (url) catalogCall('modelImage', { id: mid, url: url }).then(function (res) { if (res) E.toast('Foto guardada'); });
+      E.dialog({ title: 'Foto desde una dirección web', text: 'Pega el enlace de la imagen (botón derecho sobre la foto → «Copiar dirección de la imagen»). Se descarga y se guarda en tu tienda.', input: true, inputLabel: 'Dirección de la imagen', required: true, ok: 'Guardar', maxlength: 2000 }).then(function (url) {
+        if (url) catalogCall('modelImage', { id: mid, url: url }).then(function (res) { if (res) E.toast('Foto descargada y guardada'); });
       });
     }
   }

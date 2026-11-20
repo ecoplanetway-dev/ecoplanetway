@@ -149,8 +149,11 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 if (!empty($_FILES['image'])) {
                     $up = EcoRepairPhoto::saveModelImage($id, $_FILES['image']);
                     $res = $up['ok'] ? EcoRepairCatalog::setModelImage($id, $up['file']) : $up;
+                } elseif (trim((string) Tools::getValue('url')) !== '') {
+                    $up = EcoRepairPhoto::modelImageFromUrl((string) Tools::getValue('url'));
+                    $res = $up['ok'] ? EcoRepairCatalog::setModelImage($id, $up['file']) : $up;
                 } else {
-                    $res = EcoRepairCatalog::setModelImage($id, (string) Tools::getValue('url'));
+                    $res = EcoRepairCatalog::setModelImage($id, '');
                 }
                 break;
             case 'shopImages':
