@@ -589,6 +589,7 @@ class EcoRepairInstaller
             'ECOREPAIRS_CHECKLIST' => "Frenos\nPresión de neumáticos\nTornillería\nPlegado y dirección\nLuces\nPrueba de carga",
             'ECOREPAIRS_UNLOCK_NOTICE' => 'Modificación para uso exclusivo en recinto privado. Un vehículo de movilidad personal que supere los 25 km/h no puede circular por la vía pública. El cliente asume la responsabilidad del uso.',
             'ECOREPAIRS_TECHS_VIEWERS' => '',
+            'ECOREPAIRS_TECH_IDS' => '',
             'ECOREPAIRS_WS_NAME' => '',
             'ECOREPAIRS_WS_ADDRESS' => 'Calle Bravo Murillo, 80',
             'ECOREPAIRS_WS_CITY' => '28003 Madrid',

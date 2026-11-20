@@ -251,6 +251,9 @@ class AdminEcoRepairsSettingsController extends ModuleAdminController
                 case 'ECOREPAIRS_UNLOCK_NOTICE':
                     $v = Tools::substr(strip_tags($v), 0, 1000);
                     break;
+                case 'ECOREPAIRS_TECH_IDS':
+                    $v = implode(',', array_values(array_unique(array_filter(array_map('intval', explode(',', $v))))));
+                    break;
                 case 'ECOREPAIRS_TECHS_VIEWERS':
                     // Quién ve el informe de técnicos: solo lo cambia el administrador
                     if ((int) $this->context->employee->id_profile !== (int) _PS_ADMIN_PROFILE_) {

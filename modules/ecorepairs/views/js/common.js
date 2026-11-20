@@ -146,31 +146,31 @@
     box.className = 'er-ts';
     sel.parentNode.insertBefore(box, sel.nextSibling);
     function opts() { return Array.prototype.map.call(sel.options, function (o) { return { v: o.value, n: o.textContent }; }); }
-    function draw(open) {
-      var cur = opts().filter(function (o) { return o.v === sel.value; })[0] || { v: '0', n: 'Sin asignar' };
-      var id = +cur.v;
-      box.innerHTML = '<button type="button" class="er-ts-btn"' + (sel.disabled ? ' disabled' : '') + ' aria-haspopup="listbox" aria-expanded="' + !!open + '">' +
-        (id ? avatar(id, cur.n) : '<span class="er-av er-av-none">?</span>') + '<b>' + esc(cur.n) + '</b><span class="er-ts-chev">▾</span></button>' +
-        (open ? '<div class="er-ts-list" role="listbox">' + opts().map(function (o) {
-          var i = +o.v;
-          return '<button type="button" role="option" data-tv="' + esc(o.v) + '" aria-selected="' + (o.v === sel.value) + '">' +
-            (i ? avatar(i, o.n) : '<span class="er-av er-av-none">?</span>') + '<span>' + esc(o.n) + '</span></button>';
-        }).join('') + '</div>' : '');
+    function first(n) { n = String(n || '').replace(/\s*\(taller\)\s*$/, '').trim(); return n.split(/\s+/)[0] || n; }
+    // Caras grandes en fila: se toca la cara y queda asignado
+    function draw() {
+      var list = opts(), techs = list.filter(function (o) { return +o.v; }), none = list.filter(function (o) { return !+o.v; })[0];
+      if (sel.disabled) {
+        var cur = techs.filter(function (o) { return o.v === sel.value; })[0];
+        box.innerHTML = '<div class="er-ts-grid"><div class="er-ts-t on" aria-disabled="true">' + (cur ? avatar(+cur.v, cur.n, 'er-ts-av') : '<span class="er-av er-av-none er-ts-av">?</span>') +
+          '<span>' + esc(cur ? first(cur.n) : 'Sin asignar') + '</span></div></div>';
+        return;
+      }
+      box.innerHTML = '<div class="er-ts-grid" role="radiogroup" aria-label="Técnico">' + techs.map(function (o) {
+        return '<button type="button" class="er-ts-t" role="radio" data-tv="' + esc(o.v) + '" aria-checked="' + (o.v === sel.value) + '" title="' + esc(o.n) + '">' +
+          avatar(+o.v, o.n, 'er-ts-av') + '<span>' + esc(first(o.n)) + '</span></button>';
+      }).join('') + '</div>' + (none ? '<button type="button" class="er-ts-none" role="radio" data-tv="' + esc(none.v) + '" aria-checked="' + (none.v === sel.value) + '">' +
+        (none.v === sel.value ? 'Sin asignar' : 'Quitar técnico') + '</button>' : '');
     }
-    draw(false);
+    draw();
     box.addEventListener('click', function (e) {
       e.preventDefault(); // va dentro de un <label>: que no reenvíe el clic al <select> oculto
       var t = e.target.closest('[data-tv]');
-      if (t) {
-        sel.value = t.getAttribute('data-tv');
-        draw(false);
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-        return;
-      }
-      if (e.target.closest('.er-ts-btn') && !sel.disabled) draw(!box.querySelector('.er-ts-list'));
+      if (!t || sel.disabled || t.getAttribute('data-tv') === sel.value) return;
+      sel.value = t.getAttribute('data-tv');
+      draw();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    document.addEventListener('click', function (e) { if (document.contains(e.target) && !box.contains(e.target) && e.target !== sel && box.querySelector('.er-ts-list')) draw(false); });
-    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') draw(false); });
   }
 
   function statusChip(statuses, status) {

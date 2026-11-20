@@ -1543,3 +1543,21 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .ecor .er-ts-list button[aria-selected="true"] { background: #EEF2FF; color: #312E81; }
 .ecor .er-ts-list .er-av { width: 40px; height: 40px; font-size: 13px; }
 .ecor .er-panel:has(.er-ts-list) { position: relative; z-index: 50; overflow: visible; }
+/* Técnico: caras grandes en fila */
+.ecor .er-ts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 4px; }
+.ecor .er-ts-t { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 8px; border: 1.5px solid #E6E8EC; border-radius: 16px; background: #fff; cursor: pointer; font: 700 13px Inter, system-ui, sans-serif; color: #14161A; text-align: center; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.ecor .er-ts-t:hover { border-color: #9CA3AF; transform: translateY(-1px); }
+.ecor .er-ts-t .er-ts-av { width: 72px; height: 72px; font-size: 22px; }
+.ecor .er-ts-t > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecor .er-ts-t[aria-checked="true"], .ecor .er-ts-t.on { border-color: #14161A; box-shadow: 0 0 0 3px var(--er-lime, #D4FF2A); }
+.ecor .er-ts-none { color: #8A909C; font-weight: 600; }
+.ecor .er-ts-none .er-ts-av { width: 44px; height: 44px; margin: 14px 0; font-size: 16px; }
+.ecor .er-ts-none[aria-checked="true"] { color: #14161A; }
+.ecor .er-ts-t[aria-disabled="true"] { cursor: default; max-width: 120px; }
+.ecor .er-ts-none { display: inline-flex; align-items: center; min-height: 32px; margin-top: 8px; padding: 0 12px; border: 1px dashed #C9CDD4; border-radius: 99px; background: #fff; font: 600 12.5px Inter, system-ui, sans-serif; color: #5B6170; cursor: pointer; }
+.ecor .er-ts-none:hover { border-color: #9CA3AF; color: #14161A; }
+.ecor .er-ts-none[aria-checked="true"] { border-style: solid; border-color: #14161A; color: #14161A; background: #F4F5F7; cursor: default; }
+.ecor .er-ts-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+.ecor .er-avc.on { border-color: #14161A; box-shadow: 0 0 0 3px var(--er-lime, #D4FF2A); }
+.ecor .er-avt { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #3A3F48; cursor: pointer; margin: 0; }
+.ecor .er-avt input { width: 17px; height: 17px; accent-color: #14161A; margin: 0; }

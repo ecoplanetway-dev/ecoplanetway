@@ -897,7 +897,7 @@ window.ECOR.ready(function () {
     $('#er-p-assign').innerHTML = '<h3>' + icon('assign') + 'Asignación<span class="er-saved">Guardado</span></h3>' +
       '<label class="er-field">Técnico' + (r.id_employee_tech && !D.isAdmin ? ' <span class="er-muted er-small">(solo el administrador puede cambiarlo)</span>' : '') +
         '<select class="er-input" data-f="id_employee_tech"' + (r.id_employee_tech && !D.isAdmin ? ' disabled' : dis) + '><option value="0">Sin asignar</option>' +
-        D.technicians.map(function (t) { return '<option value="' + t.id + '"' + (t.id === r.id_employee_tech ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select></label>' +
+        D.technicians.concat(r.id_employee_tech && !D.technicians.some(function (t) { return t.id === r.id_employee_tech; }) ? [{ id: r.id_employee_tech, name: r.tech_name || 'Técnico' }] : []).map(function (t) { return '<option value="' + t.id + '"' + (t.id === r.id_employee_tech ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select></label>' +
       '<label class="er-field">Fecha prevista de entrega<input class="er-input" type="date" data-f="eta_date" value="' + esc(r.eta_date && r.eta_date !== '0000-00-00' ? r.eta_date : '') + '"' + dis + '></label>' +
       '<label class="er-toggle">Urgente<input type="checkbox" class="er-sw er-sw-urg" data-b="urgent"' + (r.urgent ? ' checked' : '') + dis + '></label>' +
       '<label class="er-toggle">En garantía<input type="checkbox" class="er-sw er-sw-gar" data-b="warranty"' + (r.warranty ? ' checked' : '') + dis + '></label>';

@@ -1960,6 +1960,23 @@ class AdminEcoRepairsController extends ModuleAdminController
                 }
             }
         }
+        // Solo los marcados como técnicos en Ajustes → Personal (si no hay ninguno marcado, todos)
+        $only = array_filter(array_map('intval', explode(',', (string) Configuration::get('ECOREPAIRS_TECH_IDS'))));
+        if ($only) {
+            $out = array_values(array_filter($out, function ($t) use ($only) { return in_array((int) $t['id'], $only, true); }));
+            foreach ($only as $id) {
+                $found = false;
+                foreach ($out as $t) {
+                    $found = $found || (int) $t['id'] === $id;
+                }
+                if (!$found) {
+                    $e = new Employee($id);
+                    if (Validate::isLoadedObject($e)) {
+                        $out[] = array('id' => $id, 'name' => trim($e->firstname . ' ' . $e->lastname));
+                    }
+                }
+            }
+        }
 
         return $out;
     }

@@ -70,7 +70,7 @@ window.ECOR.ready(function () {
           '<span class="er-muted er-small">Escanea este QR con el móvil del técnico o de recepción, entra con su PIN y añádela a la pantalla de inicio.</span>' +
           '<div class="er-row">' + (canEdit ? '<button type="button" class="er-btn er-btn-pri" id="er-staff-add">' + icon('plus') + 'Añadir persona</button>' : '') +
           '<button type="button" class="er-btn" id="er-qr-print">' + icon('print') + 'Imprimir QR</button></div></div></div><div class="er-mini" id="er-staff-list" style="margin-top:12px"></div>' +
-        '<div class="er-sub" style="margin:22px 0 4px">Fotos del equipo</div><p class="er-muted er-small" style="margin:0 0 10px">Salen al elegir el técnico, en el tablero y en la app. Mejor cuadrada; si tiene fondo transparente (PNG), se respeta.</p>' +
+        '<div class="er-sub" style="margin:22px 0 4px">Técnicos y fotos</div><p class="er-muted er-small" style="margin:0 0 10px">Marca «Técnico» en los que reparan: solo ellos salen al asignar, en el tablero y en los informes (si no marcas a nadie, salen todos). La foto, mejor cuadrada; si es PNG con fondo transparente, se respeta.</p>' +
         '<div class="er-avg" id="er-avg"></div><input type="file" id="er-av-file" accept="image/png,image/jpeg,image/webp" class="er-vh">' },
     { k: 'unlock', i: 'bolt', t: 'Deslimitación', s: 'Aviso legal', w: 'deslimitar velocidad aviso legal',
       h: sg('Aviso legal', 'Sale en las observaciones del presupuesto al añadir una deslimitación.', ta('ECOREPAIRS_UNLOCK_NOTICE', 6)) }
@@ -394,6 +394,7 @@ window.ECOR.ready(function () {
 
   /* ---------- Fotos del equipo ---------- */
   var avTarget = 0;
+  var techIds = String(cfg.ECOREPAIRS_TECH_IDS || '').split(',').filter(Boolean);
   function renderAvatars() {
     var el = $('#er-avg');
     if (!el) return;
@@ -402,7 +403,9 @@ window.ECOR.ready(function () {
     (D.staff || []).forEach(function (s) { if (s.id_employee && !seen[s.id_employee]) { seen[s.id_employee] = 1; people.push({ id: s.id_employee, name: s.name }); } });
     el.innerHTML = people.map(function (e) {
       var has = E.boot.avatars && E.boot.avatars[e.id];
-      return '<div class="er-avc">' + E.avatar(e.id, e.name, 'er-av-big') + '<b>' + esc(e.name) + '</b>' +
+      var isT = techIds.indexOf(String(e.id)) > -1;
+      return '<div class="er-avc' + (isT ? ' on' : '') + '">' + E.avatar(e.id, e.name, 'er-av-big') + '<b>' + esc(e.name) + '</b>' +
+        '<label class="er-avt"><input type="checkbox" data-techid="' + e.id + '"' + (isT ? ' checked' : '') + (canEdit ? '' : ' disabled') + '>Técnico</label>' +
         (canEdit ? '<div class="er-row" style="gap:4px;justify-content:center"><button type="button" class="er-btn er-btn-sm" data-avup="' + e.id + '">' + icon('camera', true) + (has ? 'Cambiar' : 'Subir foto') + '</button>' +
           (has ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-avdel="' + e.id + '" title="Quitar foto" aria-label="Quitar foto">' + icon('x', true) + '</button>' : '') + '</div>' : '') + '</div>';
     }).join('');
@@ -421,6 +424,17 @@ window.ECOR.ready(function () {
     if ((t = e.target.closest('[data-avdel]'))) { var fd = new FormData(); fd.append('id', t.getAttribute('data-avdel')); avatarCall(fd); }
   });
   document.addEventListener('change', function (e) {
+    if (e.target.hasAttribute && e.target.hasAttribute('data-techid')) {
+      var id = e.target.getAttribute('data-techid');
+      techIds = techIds.filter(function (x) { return x !== id; });
+      if (e.target.checked) techIds.push(id);
+      e.target.closest('.er-avc').classList.toggle('on', e.target.checked);
+      E.api('saveConfig', {}, { config: JSON.stringify({ ECOREPAIRS_TECH_IDS: techIds.join(',') }) }).then(function (res) {
+        if (res.ok) E.toast(techIds.length ? 'Técnicos guardados' : 'Sin técnicos marcados: salen todos');
+        else E.toast(res.error || 'No se pudo guardar.', true);
+      });
+      return;
+    }
     if (e.target.id !== 'er-av-file' || !e.target.files[0] || !avTarget) return;
     var fd = new FormData();
     fd.append('id', avTarget);
