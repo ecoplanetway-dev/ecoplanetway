@@ -139,7 +139,7 @@ class EcoRepairInstaller
         return self::installQuoteDb();
     }
 
-    const SCHEMA = '1.8.5';
+    const SCHEMA = '2.2.0';
 
     /**
      * Comprueba que las tablas y columnas de esta versión existen y crea lo que falte.
@@ -328,7 +328,21 @@ class EcoRepairInstaller
             KEY `id_customer` (`id_customer`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8";
 
-        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_staff` (
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_battery` (
+            `id_ecorepair_battery` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `id_shop` INT UNSIGNED NOT NULL DEFAULT 1,
+            `serial` VARCHAR(16) NOT NULL,
+            `token` VARCHAR(16) NOT NULL,
+            `id_ecorepair` INT UNSIGNED NOT NULL DEFAULT 0,
+            `data` TEXT NULL,
+            `made_by` VARCHAR(64) NOT NULL DEFAULT '',
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_ecorepair_battery`),
+            UNIQUE KEY `serial` (`serial`),
+            KEY `token` (`token`)
+        ) ENGINE={$engine} DEFAULT CHARSET=utf8";
+                $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}ecorepair_staff` (
             `id_ecorepair_staff` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `id_employee` INT UNSIGNED NOT NULL DEFAULT 0,
             `name` VARCHAR(64) NOT NULL,

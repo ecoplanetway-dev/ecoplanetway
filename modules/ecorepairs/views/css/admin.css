@@ -1675,3 +1675,13 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .er-modal .er-wa-people button { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 6px; border: 1.5px solid #E6E8EC; border-radius: 10px; background: #fff; cursor: pointer; font: 600 11px Inter, system-ui, sans-serif; min-width: 56px; }
 .er-modal .er-wa-people button[aria-pressed="true"] { border-color: #14161A; box-shadow: 0 0 0 2px var(--er-lime, #D4FF2A); }
 .er-modal .er-wa-people img, .er-modal .er-wa-people span { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #DCFCE7; display: grid; place-items: center; font-weight: 800; }
+/* Pegatinas para Niimbot y baterías */
+.er-modal .er-lbl-prev { display: grid; place-items: center; padding: 10px; background: #F4F5F7; border-radius: 12px; }
+.er-modal .er-lbl-canvas { width: 100%; max-width: 360px; height: auto; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.15); background: #fff; }
+.ecor .er-bat-list { display: flex; flex-direction: column; gap: 8px; }
+.ecor .er-bat-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #E6E8EC; border-radius: 14px; background: #fff; flex-wrap: wrap; }
+.ecor .er-bat-v { width: 70px; height: 56px; border-radius: 12px; background: #0F1113; color: var(--er-lime, #D4FF2A); display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; }
+.ecor .er-bat-v b { font-size: 18px; line-height: 1; } .ecor .er-bat-v small { color: #fff; font-weight: 700; font-size: 12px; }
+.ecor .er-bat-act { display: flex; flex-wrap: wrap; gap: 6px; }
+.er-modal .er-bat-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.er-modal .er-bat-wide { grid-column: 1 / -1; }

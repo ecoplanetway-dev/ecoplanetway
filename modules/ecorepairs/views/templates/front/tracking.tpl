@@ -107,6 +107,20 @@
       {if $r.pending > 0 && $r.pending < $r.total}<div class="kv"><span class="muted">Pendiente de pago</span><b>{$r.pending|string_format:'%.2f'|replace:'.':','} €</b></div>{/if}
       {if $r.warranty}<div class="kv"><span class="muted">Garantía</span><b>Sí</b></div>{/if}
     </div>
+  {elseif $state == 'battery'}
+    <div class="card">
+      <div class="muted">Batería fabricada en nuestro taller · {$bat.serial|escape:'html':'UTF-8'}</div>
+      <h1>{$bat.data.volts|escape:'html':'UTF-8'} V · {$bat.data.ah|escape:'html':'UTF-8'} Ah{if $bat.data.wh} · {$bat.data.wh|escape:'html':'UTF-8'} Wh{/if}</h1>
+      {if $bat.warranty_until}<div class="chip"><span class="dot" style="background:{if $bat.warranty_until >= $smarty.now|date_format:'%Y-%m-%d'}#0B6E4B{else}#B91C1C{/if}"></span>{if $bat.warranty_until >= $smarty.now|date_format:'%Y-%m-%d'}En garantía hasta el {$bat.warranty_until|date_format:'%d/%m/%Y'}{else}Garantía terminada el {$bat.warranty_until|date_format:'%d/%m/%Y'}{/if}</div>{/if}
+    </div>
+    <div class="card">
+      {if $bat.data.config || $bat.data.cell}<div class="kv"><span class="muted">Celdas</span><b>{$bat.data.config|escape:'html':'UTF-8'} {$bat.data.chem|escape:'html':'UTF-8'} {$bat.data.cell|escape:'html':'UTF-8'}</b></div>{/if}
+      {if $bat.data.bms}<div class="kv"><span class="muted">BMS</span><b>{$bat.data.bms|escape:'html':'UTF-8'}</b></div>{/if}
+      {if $bat.data.conn_ctrl}<div class="kv"><span class="muted">Conector</span><b>{$bat.data.conn_ctrl|escape:'html':'UTF-8'}</b></div>{/if}
+      {if $bat.data.conn_charge}<div class="kv"><span class="muted">Carga</span><b>{$bat.data.conn_charge|escape:'html':'UTF-8'}</b></div>{/if}
+      {if $bat.data.for_model}<div class="kv"><span class="muted">Para</span><b>{$bat.data.for_model|escape:'html':'UTF-8'}</b></div>{/if}
+      <div class="kv"><span class="muted">Fabricada</span><b>{$bat.date_add|date_format:'%d/%m/%Y'}</b></div>
+    </div>
   {elseif $state == 'device'}
     <div class="card">
       <div class="muted">Tu patín · {$tag|escape:'html':'UTF-8'}</div>

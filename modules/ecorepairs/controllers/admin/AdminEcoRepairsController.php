@@ -58,6 +58,10 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/cash.js' . $v, false);
         } elseif ($view === 'techs') {
             $this->addJS($base . 'views/js/techs.js' . $v, false);
+        } elseif ($view === 'batteries') {
+            $this->addJS($base . 'views/js/vendor/qrcode.js' . $v, false);
+            $this->addJS($base . 'views/js/labels.js' . $v, false);
+            $this->addJS($base . 'views/js/batteries.js' . $v, false);
         } elseif ($view === 'model') {
             $this->addJS($base . 'views/js/parts.js' . $v, false);
             $this->addJS($base . 'views/js/model.js' . $v, false);
@@ -94,6 +98,9 @@ class AdminEcoRepairsController extends ModuleAdminController
         }
         if (Tools::getValue('view') === 'techs') {
             return 'techs';
+        }
+        if (Tools::getValue('view') === 'batteries') {
+            return 'batteries';
         }
         if (Tools::getValue('view') === 'parts') {
             return 'parts';
@@ -139,6 +146,13 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->context->smarty->assign(array(
                 'ecor_data' => $this->json(array('zones' => EcoRepairParts::zones(), 'isAdmin' => $this->isAdmin(), 'q' => (string) Tools::getValue('q'))),
                 'ecor_view' => 'parts',
+            ));
+            $this->setTemplate('app.tpl');
+        } elseif ($view === 'batteries') {
+            $this->context->smarty->assign(array(
+                'ecor_data' => $this->json(array('list' => EcoRepairBattery::all((int) $this->context->shop->id), 'fields' => EcoRepairBattery::fields(),
+                    'logo' => EcoRepairs::logoUrl(), 'canEdit' => (bool) $this->access('edit'), 'canDelete' => (bool) $this->access('delete'))),
+                'ecor_view' => 'batteries',
             ));
             $this->setTemplate('app.tpl');
         } elseif ($view === 'techs') {
@@ -456,6 +470,9 @@ class AdminEcoRepairsController extends ModuleAdminController
             'printLabel' => array('ajaxPrintLabel', 'view', false),
             'printTag' => array('ajaxPrintTag', 'view', false),
             'printPoll' => array('ajaxPrintPoll', 'view', false),
+            'battSave' => array('ajaxBattSave', 'edit', true),
+            'battDelete' => array('ajaxBattDelete', 'delete', true),
+            'printBattery' => array('ajaxPrintBattery', 'view', false),
             'searchProducts' => array('ajaxSearchProducts', 'view', false),
             'productUpdate' => array('ajaxProductUpdate', 'edit', true),
             'quoteCreate' => array('ajaxQuoteCreate', 'edit', true),
@@ -1649,6 +1666,35 @@ class AdminEcoRepairsController extends ModuleAdminController
         $this->outputPrint('print_receipt.tpl');
     }
 
+    protected function ajaxBattSave()
+    {
+        $res = EcoRepairBattery::save((int) Tools::getValue('id'), json_decode((string) Tools::getValue('data'), true) ?: array(), (int) $this->context->shop->id,
+            trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname));
+        $res['list'] = EcoRepairBattery::all((int) $this->context->shop->id);
+        $this->jsonOut($res);
+    }
+
+    protected function ajaxBattDelete()
+    {
+        EcoRepairBattery::delete((int) Tools::getValue('id'));
+        $this->jsonOut(array('ok' => true, 'list' => EcoRepairBattery::all((int) $this->context->shop->id)));
+    }
+
+    /** Pegatina de la batería para la Xprinter (80 × 50 mm). */
+    protected function ajaxPrintBattery()
+    {
+        $b = EcoRepairBattery::get((int) Tools::getValue('id'));
+        if (!$b) {
+            header('HTTP/1.1 404 Not Found');
+            echo 'La batería no existe.';
+            exit;
+        }
+        $this->context->smarty->assign(array('b' => $b, 'logo' => EcoRepairs::logoUrl(), 'qrJs' => $this->module->getPathUri() . 'views/js/vendor/qrcode.js'));
+        header('Content-Type: text/html; charset=utf-8');
+        echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/admin/print_battery.tpl');
+        exit;
+    }
+
     /** El panel pregunta cada pocos segundos si desde el móvil han mandado algo a imprimir. */
     protected function ajaxPrintPoll()
     {
@@ -1956,6 +2002,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             'cash' => $this->baseUrl() . '&view=cash',
             'requests' => $this->baseUrl() . '&view=requests',
             'techs' => $this->canSeeTechs() ? $this->baseUrl() . '&view=techs' : '',
+            'batteries' => $this->baseUrl() . '&view=batteries',
             'parts' => $this->baseUrl() . '&view=parts',
             'model' => $this->baseUrl() . '&view=model',
             'customer' => $this->baseUrl() . '&view=customer&id_customer=',

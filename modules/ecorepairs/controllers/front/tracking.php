@@ -42,6 +42,22 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             exit;
         }
 
+        // Pegatina de batería fabricada: sus datos y la garantía
+        $bt = (string) Tools::getValue('b');
+        if ($bt !== '') {
+            $bat = EcoRepairBattery::getByToken($bt);
+            $vars = array('state' => $bat ? 'battery' : 'notfound', 'code' => '', 'tech' => null, 'bat' => $bat);
+            $vars['shop'] = $this->shopVars('');
+            $vars['action'] = $this->context->link->getBaseLink() . 'seguimiento';
+            $this->context->smarty->assign($vars);
+            header('Content-Type: text/html; charset=utf-8');
+            if (!$bat) {
+                http_response_code(404);
+            }
+            echo $this->context->smarty->fetch($this->module->getLocalPath() . 'views/templates/front/tracking.tpl');
+            exit;
+        }
+
         // Pegatina QR del patín: historial del patín y garantía. El personal del taller va a la app (nueva entrada con los datos)
         $tag = preg_replace('/[^A-Z0-9]/', '', Tools::strtoupper((string) Tools::getValue('d')));
         if ($tag !== '') {

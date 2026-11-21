@@ -416,10 +416,18 @@ window.ECOR.ready(function () {
       '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">' + icon('x') + '</button></div>' +
       '<p class="er-muted er-small" style="margin:0">Se abre la ventana de imprimir en el ordenador de la tienda (con el panel del taller abierto).</p>' +
       '<button type="button" class="er-btn er-btn-lg er-app-pbtn" data-pt="receipt">' + icon('user') + '<span><b>Resguardo del cliente</b><small>Con los datos, el QR de seguimiento y las condiciones</small></span></button>' +
-      '<button type="button" class="er-btn er-btn-lg er-app-pbtn" data-pt="tag">' + icon('qr') + '<span><b>Etiqueta del patín</b><small>Para pegar al equipo, con el QR del taller</small></span></button></div>';
+      '<button type="button" class="er-btn er-btn-lg er-app-pbtn" data-pt="tag">' + icon('qr') + '<span><b>Etiqueta del patín</b><small>En la impresora de la tienda (Xprinter)</small></span></button>' +
+      '<div class="er-sub" style="margin:4px 0 0">Desde este móvil</div>' +
+      '<button type="button" class="er-btn er-btn-lg er-app-pbtn er-app-pniim" data-niim>' + icon('qr') + '<span><b>Etiqueta para Niimbot</b><small>Pegatina 50 × 30 mm con el QR: se abre la app de Niimbot</small></span></button></div>';
     app.appendChild(wrap);
     wrap.addEventListener('click', function (e) {
       if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+      if (e.target.closest('[data-niim]')) {
+        wrap.remove();
+        if (!E.tagLabel) { E.toast('Recarga la app para usar la etiqueta de Niimbot.', true); return; }
+        E.tagLabel({ ref: r.reference, device: r.device_name, customer: R.customerShort || '', date: R.dateIn || '', url: R.trackingUrl });
+        return;
+      }
       var b = e.target.closest('[data-pt]');
       if (!b) return;
       b.disabled = true;
