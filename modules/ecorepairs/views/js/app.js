@@ -234,12 +234,14 @@ window.ECOR.ready(function () {
 
   /* ---------- Reparación ---------- */
   var R = null; // datos de la reparación abierta
+  var nextSub = null;
   function repairView(key, tab) {
     tabbar(me.tech ? 'scan' : 'home');
     main.innerHTML = header('Cargando…', '#home') + '<div class="er-empty">Cargando…</div>';
     api('repair', key).then(function (res) {
       if (!res.ok) { main.innerHTML = header('Reparación', '#home') + '<div class="er-banner er-bad">' + icon('alert') + '<div>' + esc(res.error) + '</div></div>'; return; }
       R = res;
+      if (nextSub) { R._sub = nextSub; nextSub = null; }
       drawRepair(tab);
     });
   }
@@ -248,10 +250,11 @@ window.ECOR.ready(function () {
     var closed = r.status === 'delivered' || r.status === 'cancelled';
     var mine = r.id_employee_tech && r.id_employee_tech === me.id_employee;
     var canWork = me.tech && R.mineOrFree && !closed;
+    var canQuote = !closed; // presupuesto: cualquiera que entre (técnico o recepción)
     var base = '#id/' + r.id;
     main.innerHTML = header(esc(r.reference), '#home') +
       '<div class="er-app-rep">' +
-        '<div class="er-app-rephead"><button type="button" class="er-c-img er-app-cover" data-zoom>' + (r.cover ? '<img src="' + esc(r.cover) + '" alt="">' : icon(r.category_icon || 'device')) + '</button>' +
+        '<div class="er-app-rephead er-app-rephead-c"><button type="button" class="er-c-img er-app-cover" data-zoom>' + (r.cover ? '<img src="' + esc(r.cover) + '" alt="">' : icon(r.category_icon || 'device')) + '</button>' +
           '<div style="min-width:0"><div class="er-model">' + esc(r.device_name) + '</div><div class="er-muted er-small">' + esc(r.category_name + (r.serial ? ' · ' + r.serial : '')) + '</div>' +
           '<div class="er-row" style="margin-top:6px">' + statusChip(st, r.status) + (r.urgent ? '<span class="er-tag er-t-urg">Urgente</span>' : '') + (r.waiting_part ? '<span class="er-tag er-t-wait">Esperando pieza</span>' : '') + (r.warranty ? '<span class="er-tag er-t-gar">Garantía</span>' : '') + '</div></div></div>' +
         (r.id_employee_tech ? '<div class="er-app-tech">' + icon('user', true) + 'Técnico: <b>' + esc(r.tech_name) + '</b>' + (mine ? ' (tú)' : '') + '</div>'
@@ -261,9 +264,8 @@ window.ECOR.ready(function () {
         (R.repeat ? '<div class="er-banner ' + (R.repeat.same ? 'er-bad' : 'er-warn') + '">' + icon('refresh') + '<div><b>Repetida:</b> vuelve ' + R.repeat.days + ' días después de ' + esc(R.repeat.reference) +
           (R.repeat.same ? ' por la misma avería' : ' (otra avería)') + (R.repeat.tech ? ' · técnico ' + esc(R.repeat.tech) : '') + '.</div></div>' : '') +
         (R.kbCount && R.kbCount.faults ? '<a class="er-banner er-info" href="' + base + '/manual">' + icon('book') + '<div>Este modelo tiene <b>' + R.kbCount.faults + ' fallo' + (R.kbCount.faults === 1 ? '' : 's') + ' conocido' + (R.kbCount.faults === 1 ? '' : 's') + '</b> con solución.</div></a>' : '') +
-        '<div class="er-seg er-seg-4">' + [['work', 'Trabajo'], ['parts', 'Presupuesto'], ['codes', 'Códigos'], ['manual', 'Manual']].map(function (t) {
-          return '<a href="' + base + '/' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</a>';
-        }).join('') + '</div>' +
+        '<div class="er-app-sect">' + (tab !== 'work' ? '<a class="er-app-sback" href="' + base + '/work">' + icon('back', true) + 'Trabajo</a>' : '') +
+          '<h2>' + ({ work: 'Trabajo', parts: R._sub === 'unlock' ? 'Deslimitar' : 'Presupuesto', codes: 'Códigos de error', manual: 'Manual' }[tab] || 'Trabajo') + '</h2></div>' +
         '<div id="er-tab"></div>' +
       '</div>';
     main.querySelector('[data-zoom]').addEventListener('click', function () {
@@ -277,6 +279,8 @@ window.ECOR.ready(function () {
         return;
       }
       if (e.target.closest('[data-batt]')) { openBattery(); return; }
+      if (e.target.closest('[data-gounl]')) { nextSub = 'unlock'; if (location.hash === base + '/parts') { R._sub = 'unlock'; nextSub = null; drawRepair('parts'); } return; }
+      if (e.target.closest('a[href$="/parts"]')) { nextSub = 'parts'; if (location.hash === base + '/parts') { R._sub = 'parts'; nextSub = null; drawRepair('parts'); } }
       if (e.target.closest('[data-print]')) { printAsk(); return; }
       if (e.target.closest('[data-qdetail]') && !e.target.closest('[data-qnew]')) { quoteDetail(); return; }
       var qn = e.target.closest('[data-qnew]');
@@ -303,8 +307,7 @@ window.ECOR.ready(function () {
     var el = main.querySelector('#er-tab');
     if (tab === 'parts') {
       var sub = R._sub || 'parts';
-      el.innerHTML = '<div class="er-app-ub">' + E.unlockButton(R.unlock || [], 'data-sub="unlock"' + (sub === 'unlock' ? ' aria-pressed="true"' : '')) +
-        E.incompatButton(R.incompat || [], false) + '</div>' +
+      el.innerHTML = '<div class="er-app-ub">' + E.incompatButton(R.incompat || [], false) + '</div>' +
         (R.battery && E.batterySummary(R.battery) ? '<div class="er-banner">' + icon('battery') + '<div><b>Batería:</b> ' + esc(E.batterySummary(R.battery)) +
           ((R.battery.ctrl || []).length ? ' · ' + esc(R.battery.ctrl.map(function (k) { return (R.battery.connectors.controller || {})[k] || k; }).join(', ')) : '') + '</div></div>' : '') +
         '<div class="er-seg">' + [['parts', 'Piezas'], ['fixed', 'Precio cerrado' + ((R.fixed || []).length ? ' ' + R.fixed.length : '')]].map(function (t) {
@@ -324,15 +327,15 @@ window.ECOR.ready(function () {
       }
       if (sub === 'fixed') {
         host.className = 'er-panel';
-        E.FixedPanel(host, { list: R.fixed || [], onAdd: canWork ? function (f, btn) { quoteAdd('fixedAdd', f.id, btn, '«' + f.name + '» añadido al presupuesto'); } : null });
+        E.FixedPanel(host, { list: R.fixed || [], onAdd: canQuote ? function (f, btn) { quoteAdd('fixedAdd', f.id, btn, '«' + f.name + '» añadido al presupuesto'); } : null });
       } else if (sub === 'unlock') {
         host.className = 'er-panel';
-        E.UnlockPanel(host, { list: R.unlock || [], admin: false, onAdd: canWork ? function (u, btn) { quoteAdd('unlockAdd', u.id, btn, 'Deslimitación añadida al presupuesto'); } : null });
+        E.UnlockPanel(host, { list: R.unlock || [], admin: false, onAdd: canQuote ? function (u, btn) { quoteAdd('unlockAdd', u.id, btn, 'Deslimitación añadida al presupuesto'); } : null });
       } else {
         host.innerHTML = '<div class="er-panel"><h3>' + icon('box') + 'Piezas de este modelo</h3><div id="er-mp"></div></div><div id="er-pt"></div>';
-        var pt = partsTab(host.querySelector('#er-pt'), canWork || (me.reception && !closed));
+        var pt = partsTab(host.querySelector('#er-pt'), canQuote);
         E.PartsDiagram(host.querySelector('#er-mp'), { parts: R.modelParts, zones: R.zones, sections: R.sections, map: R.modelMap, photo: R.modelPhoto, suggested: R.suggestedZones, admin: false, incompat: R.incompat || [],
-          onAdd: (canWork || (me.reception && !closed)) ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
+          onAdd: canQuote ? function (p) { pt.add({ id_product: p.id_product, id_product_attribute: p.id_product_attribute, name: p.product.name, reference: p.product.reference, price: p.product.price, tax_rate: p.product.tax_rate }); } : null });
       }
     }
     else if (tab === 'codes' || tab === 'manual') kbTab(el, r.id_brand, r.id_model, r.device_name, tab, r.id);
@@ -385,18 +388,23 @@ window.ECOR.ready(function () {
   function customerBox(r, closed) {
     var c = R.customer, bt = R.battery || {}, tag = bt.volt ? bt.volt + ' V' + (bt.maxAh ? ' · ' + bt.maxAh + ' Ah' : '') : '';
     var tel = c && c.phone ? String(c.phone).replace(/[^\d+]/g, '') : '';
-    return '<div class="er-panel er-app-cust"><h3>' + icon('user') + 'Cliente</h3>' +
+    var base = '#id/' + r.id;
+    return '<div class="er-panel er-app-cust">' +
+      '<div class="er-app-chead"><div class="er-app-cinfo"><div class="er-small er-muted">' + icon('user', true) + 'Cliente</div>' +
       (c ? '<div class="er-app-cname">' + esc(c.name) + (c.company ? ' <span class="er-muted er-small">· ' + esc(c.company) + '</span>' : '') + '</div>' +
         '<div class="er-app-cdata">' +
           (c.phone ? '<a href="tel:' + esc(tel) + '">' + icon('phone', true) + esc(c.phone) + '</a>' : '<span class="er-muted">Sin teléfono</span>') +
           (c.email ? '<a href="mailto:' + esc(c.email) + '">' + icon('mail', true) + esc(c.email) + '</a>' : '') +
-          '<span class="er-muted er-small">' + c.repairs + ' reparaci' + (c.repairs === 1 ? 'ón' : 'ones') + (c.orders ? ' · ' + c.orders + ' pedido' + (c.orders === 1 ? '' : 's') : '') +
-            (c.whatsapp ? ' · acepta WhatsApp' : '') + '</span></div>' : '<p class="er-muted" style="margin:0">Sin datos del cliente.</p>') +
-      '<div class="er-app-quick">' +
-        (c && c.phone ? '<a class="er-btn er-app-q-call" href="tel:' + esc(tel) + '">' + icon('phone') + '<span>Llamar</span></a>' : '') +
-        (c && c.phone ? '<button type="button" class="er-btn er-btn-wa" data-wa>' + icon('whatsapp') + '<span>WhatsApp</span></button>' : '') +
-        '<button type="button" class="er-btn" data-print>' + icon('print') + '<span>Imprimir</span></button>' +
-        (r.id_model ? '<button type="button" class="er-btn er-ink" data-batt>' + icon('battery') + '<span>Batería</span><em class="er-ink-tag' + (tag ? ' ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>' : '') +
+          '<span class="er-muted er-small">' + c.repairs + ' reparaci' + (c.repairs === 1 ? 'ón' : 'ones') + (c.whatsapp ? ' · acepta WhatsApp' : '') + '</span></div>' : '<p class="er-muted" style="margin:0">Sin datos del cliente.</p>') +
+      '</div>' + (c && c.phone ? '<button type="button" class="er-app-waround" data-wa aria-label="Enviar WhatsApp">' + icon('whatsapp') + '</button>' : '') + '</div>' +
+      '<div class="er-app-grid">' +
+        '<a class="er-app-gb" href="' + base + '/parts">' + icon('box') + '<span>Presupuesto</span></a>' +
+        '<a class="er-app-gb er-app-gb-unl" href="' + base + '/parts" data-gounl>' + icon('bolt') + '<span>Deslimitar</span></a>' +
+        (r.id_model ? '<button type="button" class="er-app-gb er-app-gb-bat" data-batt>' + icon('battery') + '<span>Batería</span><em class="' + (tag ? 'ok' : '') + '">' + esc(tag || 'Sin datos') + '</em></button>'
+          : '<span class="er-app-gb er-app-gb-off">' + icon('battery') + '<span>Batería</span><em>Sin modelo</em></span>') +
+        '<a class="er-app-gb" href="' + base + '/codes">' + icon('code') + '<span>Códigos</span></a>' +
+        '<a class="er-app-gb" href="' + base + '/manual">' + icon('book') + '<span>Manual</span></a>' +
+        '<button type="button" class="er-app-gb" data-print>' + icon('print') + '<span>Imprimir</span></button>' +
       '</div></div>';
   }
   /* Imprimir desde el móvil: se manda al ordenador de la tienda, que abre la ventana de imprimir */
@@ -533,8 +541,8 @@ window.ECOR.ready(function () {
             '<button type="button" class="er-btn er-btn-sm er-btn-ghost er-icon-btn er-danger" data-qdel="' + i + '" aria-label="Quitar">' + icon('trash', true) + '</button></div>';
         }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(d.lines.reduce(function (a, l) { return a + (+l.total || 0); }, 0))) + '</b></div>'
           : '<p class="er-muted" style="margin:0">Añade piezas abajo o mano de obra.</p>') +
-        '<div class="er-app-addrow"><button type="button" class="er-btn" data-qlab20>' + icon('wrench', true) + 'Mano de obra · 20 €</button>' +
-          '<button type="button" class="er-btn" data-qform="part">' + icon('plus', true) + 'Producto suelto</button></div>' +
+        '<div class="er-app-addrow"><button type="button" class="er-btn" data-qlab20>' + icon('wrench', true) + '<span>Mano de obra</span><small>20 €</small></button>' +
+          '<button type="button" class="er-btn" data-qform="part">' + icon('plus', true) + '<span>Producto suelto</span><small>Nombre y precio</small></button></div>' +
         '<div class="er-app-qform" id="er-app-qform" hidden></div>' +
         (R.draft && d.lines.length ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-qsend">' + icon('check') + 'Enviar presupuesto al cliente</button>' +
           '<p class="er-muted er-small" style="margin:0">Le llega el enlace por email (si tiene) para aceptarlo. Después puedes avisarle por WhatsApp.</p>' : '') + '</div>';
@@ -547,15 +555,10 @@ window.ECOR.ready(function () {
     }
     function draw(results) {
       el.innerHTML = quoteBox() +
-        (R.draft && canWork && R.quoteState === 'draft' ? '' : '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
-          (R.lines.length ? '<div class="er-mini">' + R.lines.map(function (l) {
-            return '<div><span class="er-grow" style="white-space:normal">' + esc(l.qty_text + ' × ' + l.name) + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.total)) + '</b></div>';
-          }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(R.lines.reduce(function (a, l) { return a + (l.warranty ? 0 : +l.total || 0); }, 0))) + '</b></div>'
-            : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>') +
         (canWork ? '<div class="er-panel"><h3>' + icon('search') + 'Añadir piezas</h3>' +
           '<label class="er-search">' + icon('search') + '<input class="er-input" id="er-app-q" type="search" placeholder="Nombre, referencia o EAN" autocomplete="off"></label>' +
           '<div class="er-app-res" id="er-app-res">' + (results || []).map(function (p, i) {
-            return '<div class="er-app-prod">' + (p.image ? '<img class="er-pimg" src="' + esc(p.image) + '" alt="">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>') +
+            return '<div class="er-app-prod" data-add="' + i + '" role="button" tabindex="0">' + (p.image ? '<img class="er-pimg" src="' + esc(p.image) + '" alt="">' : '<span class="er-pimg er-pimg-empty">' + icon('box', true) + '</span>') +
               '<span class="er-grow"><b>' + esc(p.name) + '</b>' + (p.incompat ? '<span class="er-tag ' + (p.incompat.level === 'block' ? 'er-t-bad' : 'er-t-warn') + '">' + (p.incompat.level === 'block' ? 'No vale para este modelo' : 'Precaución') + '</span><span class="er-small er-muted" style="display:block">' + esc(p.incompat.reason) + '</span>' : '') +
               '<span class="er-row er-small">' + stockTag(p.stock) + '<b class="er-num">' + esc(E.fmtMoney(p.price)) + '</b></span></span>' +
               '<span class="er-stack" style="gap:6px"><button type="button" class="er-btn er-btn-sm er-btn-pri" data-add="' + i + '">' + icon('plus', true) + '</button>' +
@@ -563,15 +566,27 @@ window.ECOR.ready(function () {
               (r.id_brand && !p.incompat ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-inc-mark="' + i + '" title="No vale para este modelo">' + icon('alert', true) + '</button>' : '') + '</span></div>';
           }).join('') + '</div>' +
           (cart.length ? '<div class="er-app-cart"><div class="er-sub">Vas a añadir</div>' + cart.map(function (c, i) {
-            return '<div class="er-row" style="flex-wrap:nowrap"><span class="er-grow">' + esc(c.name) + '</span><button type="button" class="er-btn er-btn-sm er-icon-btn" data-dec="' + i + '">−</button><b class="er-num">' + c.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-inc="' + i + '">+</button></div>';
+            return (r.id_brand && c.id_product ? '<div class="er-app-linkrow"><label><input type="checkbox" data-link="' + i + '"' + (c.link ? ' checked' : '') + '> Guardar como pieza de este patín</label>' +
+              (c.link ? '<select class="er-input" data-zone="' + i + '">' + Object.keys(R.zones || {}).map(function (z) { return '<option value="' + z + '"' + (c.zone === z ? ' selected' : '') + '>' + esc(R.zones[z]) + '</option>'; }).join('') + '</select>' : '') + '</div>' : '') +
+              '<div class="er-row" style="flex-wrap:nowrap"><span class="er-grow">' + esc(c.name) + '</span><button type="button" class="er-btn er-btn-sm er-icon-btn" data-dec="' + i + '">−</button><b class="er-num">' + c.qty + '</b><button type="button" class="er-btn er-btn-sm er-icon-btn" data-inc="' + i + '">+</button></div>';
           }).join('') + '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" id="er-app-addparts">' + icon('check') + 'Añadir al presupuesto</button>' +
           '<p class="er-muted er-small" style="margin:0">Van al borrador del presupuesto. En la tienda lo revisan y lo envían al cliente.</p></div>' : '') +
-          '</div>' : '<p class="er-muted">Asígnate la reparación para añadir piezas.</p>');
+          '</div>' : '<p class="er-muted">Asígnate la reparación para añadir piezas.</p>') +
+        (R.draft && canWork && R.quoteState === 'draft' ? '' : '<div class="er-panel"><h3>' + icon('box') + 'En el presupuesto<span class="er-r">' + esc({ none: 'Sin presupuesto', draft: 'Borrador', sent: 'Enviado al cliente', accepted: 'Aceptado' }[R.quoteState] || '') + '</span></h3>' +
+          (R.lines.length ? '<div class="er-mini">' + R.lines.map(function (l) {
+            return '<div><span class="er-grow" style="white-space:normal">' + esc(l.qty_text + ' × ' + l.name) + (l.warranty ? ' <span class="er-tag er-t-gar">Garantía</span>' : '') + '</span><b class="er-num">' + esc(E.fmtMoney(l.total)) + '</b></div>';
+          }).join('') + '</div><div class="er-app-qtot"><span>Total con IVA</span><b class="er-num">' + esc(E.fmtMoney(R.lines.reduce(function (a, l) { return a + (l.warranty ? 0 : +l.total || 0); }, 0))) + '</b></div>'
+            : '<p class="er-muted" style="margin:0">Todavía no hay piezas.</p>') + '</div>');
       var q = el.querySelector('#er-app-q');
       if (q && last) { q.value = last; }
     }
     var results = [], last = '', timer, seq = 0;
     draw();
+    el.addEventListener('change', function (e) {
+      var a = e.target.getAttribute('data-link'), z = e.target.getAttribute('data-zone');
+      if (a !== null) { cart[+a].link = e.target.checked; if (!cart[+a].zone) cart[+a].zone = (R.suggestedZones || [])[0] || 'other'; draw(results); }
+      else if (z !== null) cart[+z].zone = e.target.value;
+    });
     var api2 = {
       add: function (p) {
         var ex = cart.filter(function (c) { return c.id_product === p.id_product && c.id_product_attribute === p.id_product_attribute; })[0];
@@ -598,7 +613,7 @@ window.ECOR.ready(function () {
     });
     el.addEventListener('click', function (e) {
       var t;
-      if ((t = e.target.closest('[data-add]'))) {
+      if ((t = e.target.closest('[data-add]')) && !e.target.closest('[data-req],[data-inc-mark]')) {
         var p = results[+t.getAttribute('data-add')];
         E.confirmIncompat(p.name, p.incompat, r.device_name).then(function (go) {
           if (!go) return;
@@ -689,10 +704,21 @@ window.ECOR.ready(function () {
         return;
       }
       if (e.target.closest('#er-app-addparts')) {
+        var toLink = cart.filter(function (c) { return c.link && c.id_product; });
         api('addParts', { id: r.id }, { lines: JSON.stringify(cart) }).then(function (res) {
           if (!res.ok) { E.toast(res.error, true); return; }
           R = res; cart = []; results = []; last = '';
-          drawRepair('parts'); E.toast(res.added + ' pieza(s) añadidas al presupuesto');
+          // Las marcadas «Guardar como pieza de este patín» quedan en la ficha del modelo, en su parte
+          var chain = Promise.resolve(), linked = 0;
+          toLink.forEach(function (c) {
+            chain = chain.then(function () {
+              return api('partLink', { id: r.id }, { zone: c.zone || 'other', name: c.name, id_product: c.id_product, id_product_attribute: c.id_product_attribute || 0 }).then(function (x) { if (x.ok) { R = x; linked++; } });
+            });
+          });
+          chain.then(function () {
+            drawRepair('parts');
+            E.toast(res.added + ' pieza(s) añadidas al presupuesto' + (linked ? ' · ' + linked + ' guardada(s) en el patín' : ''));
+          });
         });
       }
     });

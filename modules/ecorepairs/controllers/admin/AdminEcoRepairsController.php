@@ -918,8 +918,13 @@ class AdminEcoRepairsController extends ModuleAdminController
         if ($tech) {
             $tech['link'] = $this->trackingUrl($repair['tracking_code']);
         }
+        $people = EcoRepairPhoto::people((int) $this->context->employee->id, (int) $repair['id_employee_tech']);
+        foreach ($people as &$pp) {
+            $pp['link'] = $this->trackingUrl($repair['tracking_code']) . '&a=' . $pp['id'];
+        }
+        unset($pp);
         $this->jsonOut(array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
-            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received', 'tech' => $tech));
+            'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received', 'tech' => $tech, 'people' => $people));
     }
 
     protected function ajaxLogMessage()

@@ -182,7 +182,8 @@ class EcoRepairsTrackingModuleFrontController extends ModuleFrontController
             'steps' => $steps,
             'quoteLink' => $quoteLink,
             'photos' => $this->publicPhotos((int) $repair['id_ecorepair'], $repair['tracking_code']),
-            'tech' => EcoRepairPhoto::techFor((int) $repair['id_employee_tech']),
+            // «a»: quien le atiende (solo personas con foto, que son las que se enseñan al cliente)
+            'tech' => EcoRepairPhoto::techFor(((int) Tools::getValue('a') && isset(EcoRepairPhoto::avatars()[(int) Tools::getValue('a')])) ? (int) Tools::getValue('a') : (int) $repair['id_employee_tech']),
         );
     }
 

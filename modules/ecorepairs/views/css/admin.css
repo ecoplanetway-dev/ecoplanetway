@@ -1671,3 +1671,7 @@ html:has(.ecor .er-modal), body:has(.ecor .er-modal) { overflow: hidden !importa
 .er-modal .er-wa-techbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #E6E8EC; border-radius: 12px; }
 .er-modal .er-wa-techbox .er-wa-tech { border: 0; padding: 0; flex: 1 1 260px; }
 .er-modal .er-wa-techhelp { flex: 1 1 100%; font-size: 12px; }
+.er-modal .er-wa-people { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.er-modal .er-wa-people button { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 6px; border: 1.5px solid #E6E8EC; border-radius: 10px; background: #fff; cursor: pointer; font: 600 11px Inter, system-ui, sans-serif; min-width: 56px; }
+.er-modal .er-wa-people button[aria-pressed="true"] { border-color: #14161A; box-shadow: 0 0 0 2px var(--er-lime, #D4FF2A); }
+.er-modal .er-wa-people img, .er-modal .er-wa-people span { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #DCFCE7; display: grid; place-items: center; font-weight: 800; }

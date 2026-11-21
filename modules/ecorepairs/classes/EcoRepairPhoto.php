@@ -484,6 +484,32 @@ class EcoRepairPhoto
         return array('name' => trim((string) $e->firstname), 'avatar' => isset($av[$idEmployee]) ? Tools::getShopDomainSsl(true) . $av[$idEmployee] : '');
     }
 
+    /**
+     * Personas que pueden «atender» al cliente en el WhatsApp: las que tienen foto, más quien envía y el técnico.
+     * La primera es la elegida por defecto (quien envía; si no, el técnico).
+     */
+    public static function people($idCurrent, $idTech)
+    {
+        $ids = array_keys(self::avatars());
+        foreach (array((int) $idTech, (int) $idCurrent) as $x) {
+            if ($x && !in_array($x, $ids, true)) {
+                $ids[] = $x;
+            }
+        }
+        $out = array();
+        foreach ($ids as $id) {
+            $p = self::techFor($id);
+            if ($p) {
+                $p['id'] = (int) $id;
+                $out[] = $p;
+            }
+        }
+        $first = (int) $idCurrent ?: (int) $idTech;
+        usort($out, function ($a, $b) use ($first) { return ($b['id'] === $first) - ($a['id'] === $first); });
+
+        return $out;
+    }
+
     /** id_employee => URL de su foto. */
     public static function avatars()
     {

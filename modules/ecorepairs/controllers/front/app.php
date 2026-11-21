@@ -220,6 +220,16 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                         $this->emp(), $this->staff['name'] . ' (móvil)');
                     $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
                     // no break
+                case 'partLink':
+                    // Guardar una pieza de la tienda como pieza de este modelo (en su parte del patín)
+                    $r = $this->findRepair();
+                    if (!(int) $r['id_brand']) {
+                        $this->out(array('ok' => false, 'error' => 'La reparación no tiene marca.'));
+                    }
+                    $res = EcoRepairParts::save(0, (int) $r['id_brand'], (int) $r['id_model'], array('zone' => (string) Tools::getValue('zone'), 'name' => (string) Tools::getValue('name'),
+                        'id_product' => (int) Tools::getValue('id_product'), 'id_product_attribute' => (int) Tools::getValue('id_product_attribute')));
+                    $this->out(!empty($res['ok']) ? array('ok' => true) + $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) : $res);
+                    // no break
                 case 'printAsk':
                     $r = $this->findRepair();
                     $this->out(EcoRepairPrintQueue::add($r, (string) Tools::getValue('type'), $this->staff['name']));
@@ -340,7 +350,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
                 case 'unlockAdd':
                 case 'fixedAdd':
                     $r = $this->findRepair();
-                    $this->mustOwn($r);
+                    $this->open($r); // el presupuesto lo puede gestionar cualquiera (técnico o recepción)
                     $res = $action === 'unlockAdd' ? EcoRepairUnlock::addToQuote($r, (int) Tools::getValue('item'), $this->emp(), $this->staff['name'] . ' (móvil)')
                         : EcoRepairFixed::addToQuote($r, (int) Tools::getValue('item'), $this->emp(), $this->staff['name'] . ' (móvil)');
                     $this->out($res['ok'] ? $this->repairData(EcoRepair::get((int) $r['id_ecorepair'])) + array('added' => $res['added']) : $res);
@@ -590,8 +600,13 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         if ($tech) {
             $tech['link'] = $this->trackingUrl($repair['tracking_code']);
         }
+        $people = EcoRepairPhoto::people($this->emp(), (int) $repair['id_employee_tech']);
+        foreach ($people as &$pp) {
+            $pp['link'] = $this->trackingUrl($repair['tracking_code']) . '&a=' . $pp['id'];
+        }
+        unset($pp);
 
-        return array('ok' => true, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
+        return array('ok' => true, 'people' => $people, 'phone' => $c ? $c['phone'] : '', 'consent' => $c ? (int) $c['consent_whatsapp'] : 0, 'name' => $c ? $c['name'] : '',
             'templates' => $out, 'default' => isset($default[$repair['status']]) ? $default[$repair['status']] : 'received', 'tech' => $tech);
     }
 
@@ -783,7 +798,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
      */
     protected function addParts(array $r)
     {
-        $this->mustOwn($r);
+        $this->open($r); // el presupuesto lo puede gestionar cualquiera (técnico o recepción)
         $new = json_decode((string) Tools::getValue('lines'), true);
         if (!is_array($new) || !$new) {
             return array('ok' => false, 'error' => 'Elige alguna pieza.');

@@ -162,3 +162,45 @@ body.er-appbody { -webkit-tap-highlight-color: transparent; overscroll-behavior-
 .ecor .er-app-pbtn .er-i { width: 26px; height: 26px; flex: none; }
 .ecor .er-app-pbtn b { display: block; font-size: 15px; }
 .ecor .er-app-pbtn small { display: block; color: #5B6170; font-weight: 500; font-size: 12px; }
+/* iPhone: con letra de menos de 16 px en los campos hace zoom al escribir y la pantalla queda movida de lado */
+.ecor.er-app input, .ecor.er-app select, .ecor.er-app textarea, .er-modal input, .er-modal select, .er-modal textarea { font-size: 16px !important; }
+.ecor.er-app { overflow-x: clip; }
+.ecor .er-app-main { max-width: 100%; box-sizing: border-box; }
+.ecor .er-app-next { margin: 0; }
+.ecor .er-app-next .er-btn { min-width: 0; padding: 0 12px; }
+/* Ficha: cabecera del patín centrada */
+.ecor .er-app-rephead-c { flex-direction: column; text-align: center; }
+.ecor .er-app-rephead-c .er-app-cover { width: 120px; height: 120px; }
+.ecor .er-app-rephead-c .er-row { justify-content: center; }
+.ecor .er-app-tech { justify-content: center; }
+/* Bloque cliente: WhatsApp redondo a la derecha del nombre y botones en dos filas de tres */
+.ecor .er-app-chead { display: flex; align-items: center; gap: 12px; }
+.ecor .er-app-cinfo { flex: 1; min-width: 0; }
+.ecor .er-app-cinfo > .er-small { display: flex; align-items: center; gap: 4px; }
+.ecor .er-app-waround { width: 56px; height: 56px; border-radius: 50%; border: 0; background: linear-gradient(135deg, #2FD06F, #12A150); color: #fff; display: grid; place-items: center; flex: none; box-shadow: 0 8px 18px -6px rgba(18,161,80,.6); cursor: pointer; }
+.ecor .er-app-waround .er-i { width: 28px; height: 28px; }
+.ecor .er-app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.ecor .er-app-gb { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 72px; padding: 8px 4px; border-radius: 14px; border: 1px solid #E1E4E8; background: #fff; color: #14161A; text-decoration: none; font: 700 13px Inter, system-ui, sans-serif; text-align: center; cursor: pointer; }
+.ecor .er-app-gb .er-i { width: 24px; height: 24px; }
+.ecor .er-app-gb em { font-style: normal; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: #EEF0F3; color: #5B6170; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ecor .er-app-gb em.ok { background: var(--er-lime, #D4FF2A); color: #14161A; }
+.ecor .er-app-gb-unl { background: linear-gradient(135deg, #F97316, #DC2626); color: #fff; border-color: transparent; }
+.ecor .er-app-gb-bat { background: #0F1113; color: #fff; border-color: #0F1113; }
+.ecor .er-app-gb-bat .er-i { color: var(--er-lime, #D4FF2A); }
+.ecor .er-app-gb-off { opacity: .5; cursor: default; }
+/* Título de la sección */
+.ecor .er-app-sect { position: relative; text-align: center; padding: 6px 0 2px; }
+.ecor .er-app-sect h2 { margin: 0; font-size: 20px; font-weight: 800; }
+.ecor .er-app-sback { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 4px; font: 600 13px Inter, system-ui, sans-serif; color: #0B6E4B; text-decoration: none; }
+/* Diagnóstico: botón centrado */
+.ecor #er-app-diag-save { margin: 0 auto; }
+.ecor #er-app-diag + .er-row { justify-content: center !important; }
+/* Mano de obra / producto suelto legibles */
+.ecor .er-app-addrow .er-btn { flex-direction: column; gap: 2px; min-height: 58px; line-height: 1.15; white-space: normal; }
+.ecor .er-app-addrow .er-btn small { font-weight: 600; font-size: 12px; color: #5B6170; }
+/* Guardar la pieza en el patín */
+.ecor .er-app-linkrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 600; }
+.ecor .er-app-linkrow label { display: inline-flex; align-items: center; gap: 6px; }
+.ecor .er-app-linkrow input { width: 18px; height: 18px; accent-color: #0B6E4B; }
+.ecor .er-app-linkrow select { flex: 1 1 160px; min-height: 40px; }
+.ecor .er-app-prod { cursor: pointer; }

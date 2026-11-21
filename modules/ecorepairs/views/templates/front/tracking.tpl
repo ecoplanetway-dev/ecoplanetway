@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 {if $state == 'ok' && isset($tech) && $tech && $tech.avatar}
-<meta property="og:title" content="Tu {$r.device|escape:'html':'UTF-8'} · lo ha reparado {$tech.name|escape:'html':'UTF-8'}">
+<meta property="og:title" content="Tu {$r.device|escape:'html':'UTF-8'} · te atiende {$tech.name|escape:'html':'UTF-8'}">
 <meta property="og:description" content="{$r.status_name|escape:'html':'UTF-8'} · {$shop.name|escape:'html':'UTF-8'}">
 <meta property="og:image" content="{$tech.avatar|escape:'html':'UTF-8'}">
 <meta property="og:type" content="website">
@@ -85,7 +85,7 @@
     {if isset($tech) && $tech}
       <div class="card tech">
         {if $tech.avatar}<img src="{$tech.avatar|escape:'html':'UTF-8'}" alt="">{else}<span class="tav">{$tech.name|truncate:1:''|escape:'html':'UTF-8'}</span>{/if}
-        <div><span class="muted">Tu técnico</span><b>{$tech.name|escape:'html':'UTF-8'}</b></div>
+        <div><span class="muted">Te atiende</span><b>{$tech.name|escape:'html':'UTF-8'}</b></div>
       </div>
     {/if}
     {if $photos}

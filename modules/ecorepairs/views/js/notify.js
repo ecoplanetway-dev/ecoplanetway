@@ -14,6 +14,9 @@
       if (!res.ok) { E.toast(res.error, true); return null; }
       return new Promise(function (resolve) {
         var key = res.default, texts = {};
+        // Quién le atiende: por defecto quien envía (o el técnico); se puede elegir otra persona con foto
+        var people = res.people && res.people.length ? res.people : (res.tech ? [res.tech] : []);
+        res.tech = people[0] || null;
         Object.keys(res.templates).forEach(function (k) { texts[k] = res.templates[k].text; });
         var wrap = document.createElement('div');
         wrap.className = 'er-modal';
@@ -27,11 +30,7 @@
           '<label class="er-field">Teléfono<input class="er-input er-num" id="er-wa-phone" inputmode="tel" value="' + esc(res.phone) + '"></label>' +
           '<label class="er-field"><span class="er-row" style="flex-wrap:nowrap">Mensaje (puedes cambiarlo antes de abrir WhatsApp)' + (E.hasVoice ? '<button type="button" class="er-btn er-btn-sm er-btn-ghost" data-dict style="margin-left:auto">' + icon('mic', true) + 'Dictar</button>' : '') + '</span>' +
             '<textarea class="er-input" id="er-wa-text" rows="7"></textarea></label>' +
-          (res.tech ? '<div class="er-wa-techbox"><label class="er-wa-tech"><input type="checkbox" id="er-wa-tech">' + (res.tech.avatar ? '<img src="' + esc(res.tech.avatar) + '" alt="">' : '') +
-            '<span><b>Mostrar al técnico</b><small>Añade «Tu patín lo ha reparado ' + esc(res.tech.name) + '» al mensaje</small></span></label>' +
-            (res.tech.avatar ? '<button type="button" class="er-btn er-btn-sm" data-techimg>' + icon(mobile ? 'send' : 'copy', true) + (mobile ? 'Compartir la foto' : 'Copiar la foto') + '</button>' +
-              '<small class="er-muted er-wa-techhelp">' + (mobile ? 'Después de mandar el texto, pulsa «Compartir la foto», elige WhatsApp y el chat del cliente.' : 'Pulsa «Copiar la foto» y en el chat de WhatsApp pulsa Ctrl+V para pegarla.') + '</small>'
-              : '<small class="er-muted er-wa-techhelp">' + esc(res.tech.name) + ' no tiene foto. Súbela en Ajustes → Personal y app.</small>') + '</div>' : '') +
+          (res.tech ? '<div class="er-wa-techbox" id="er-wa-techbox"></div>' : '') +
           '<div class="er-err" id="er-wa-err" hidden></div>' +
           '<div class="er-wa-act">' +
             (mobile ? '<a class="er-btn er-btn-wa er-btn-lg" data-open="mobile" href="https://wa.me/">' + icon('whatsapp') + 'Abrir WhatsApp</a>'
@@ -44,16 +43,34 @@
         ta.value = texts[key] || '';
         ta.addEventListener('input', function () { texts[key] = ta.value; });
         // Técnico (opcional): una línea con su nombre y el enlace de seguimiento, que en WhatsApp sale con su foto
-        var techLine = res.tech ? '\n\nTu patín lo ha reparado ' + res.tech.name + ' 🔧' : '';
         function withTech(txt, on) {
           if (!res.tech) return txt;
-          var base = txt.replace(techLine + '\n' + res.tech.link, '').replace(techLine, '');
+          var base = txt.replace(/\n\n(Te atiende|Tu patín lo ha reparado) [^\n]*(\n\S*[?&]a=\d+\S*)?/g, '');
           if (!on) return base;
-          return base + techLine + (base.indexOf(res.tech.link) > -1 ? '' : '\n' + res.tech.link);
+          return base + '\n\nTe atiende ' + res.tech.name + ' 🔧' + (res.tech.link ? '\n' + res.tech.link : '');
         }
-        var techCb = wrap.querySelector('#er-wa-tech');
+        function drawTechBox() {
+          var box = wrap.querySelector('#er-wa-techbox');
+          if (!box || !res.tech) return;
+          var on = wrap.querySelector('#er-wa-tech') && wrap.querySelector('#er-wa-tech').checked;
+          box.innerHTML = '<label class="er-wa-tech"><input type="checkbox" id="er-wa-tech"' + (on ? ' checked' : '') + '>' + (res.tech.avatar ? '<img src="' + esc(res.tech.avatar) + '" alt="">' : '') +
+            '<span><b>Mostrar quién le atiende</b><small>Añade «Te atiende ' + esc(res.tech.name) + '» y el enlace con su foto</small></span></label>' +
+            (people.length > 1 ? '<div class="er-wa-people">' + people.map(function (pp, k) {
+              return '<button type="button" data-person="' + k + '" aria-pressed="' + (pp === res.tech) + '" title="' + esc(pp.name) + '">' +
+                (pp.avatar ? '<img src="' + esc(pp.avatar) + '" alt="">' : '<span>' + esc(String(pp.name).charAt(0)) + '</span>') + '<small>' + esc(pp.name) + '</small></button>';
+            }).join('') + '</div>' : '') +
+            (res.tech.avatar ? '<button type="button" class="er-btn er-btn-sm" data-techimg>' + icon(mobile ? 'send' : 'copy', true) + (mobile ? 'Compartir la foto' : 'Copiar la foto') + '</button>' +
+              '<small class="er-muted er-wa-techhelp">' + (mobile ? 'Después de mandar el texto, pulsa «Compartir la foto», elige WhatsApp y el chat del cliente.' : 'Pulsa «Copiar la foto» y en el chat de WhatsApp pulsa Ctrl+V para pegarla.') + '</small>'
+              : '<small class="er-muted er-wa-techhelp">' + esc(res.tech.name) + ' no tiene foto. Súbela en Ajustes → Personal y app.</small>');
+          techCb = box.querySelector('#er-wa-tech');
+          techCb.addEventListener('change', function () { ta.value = withTech(ta.value, techCb.checked); texts[key] = ta.value; });
+        }
+        var techCb = null;
+        drawTechBox();
         // En el móvil la foto del técnico se manda como imagen con «Compartir» (se prepara antes para que el botón funcione al primer toque)
         var techFile = null;
+        function prefetch() {
+        techFile = null;
         if (mobile && res.tech && res.tech.avatar && navigator.canShare && window.fetch) {
           var path = res.tech.avatar;
           try { path = new URL(res.tech.avatar, location.href).pathname; } catch (er) { }
@@ -63,6 +80,8 @@
             if (navigator.canShare({ files: [f] })) techFile = f;
           }).catch(function () { });
         }
+        }
+        prefetch();
         // Ordenador: copia la foto al portapapeles (PNG) para pegarla con Ctrl+V en WhatsApp
         function copyTech(btn) {
           var path = res.tech.avatar;
@@ -91,7 +110,7 @@
           }
           navigator.share({ files: [techFile] }).then(function () { close({ ok: true }); }).catch(function () { });
         }
-        if (techCb) techCb.addEventListener('change', function () { ta.value = withTech(ta.value, techCb.checked); texts[key] = ta.value; });
+
         function close(v) { wrap.remove(); resolve(v); }
         function phone() {
           var d = wrap.querySelector('#er-wa-phone').value.replace(/\D+/g, '');
@@ -110,6 +129,15 @@
           }
           if (e.target.closest('[data-dict]')) { e.preventDefault(); E.dictate(ta); return; }
           if (e.target.closest('[data-sharetech]')) { shareTech(); return; }
+          var pe = e.target.closest('[data-person]');
+          if (pe) {
+            res.tech = people[+pe.getAttribute('data-person')];
+            var was = techCb && techCb.checked;
+            drawTechBox();
+            if (was) { ta.value = withTech(ta.value, true); texts[key] = ta.value; }
+            prefetch();
+            return;
+          }
           var ti = e.target.closest('[data-techimg]');
           if (ti) { if (mobile) shareTech(); else copyTech(ti); return; }
           if (e.target.closest('[data-copy]')) {
