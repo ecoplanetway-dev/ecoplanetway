@@ -74,7 +74,7 @@ class EcoRepairsAppModuleFrontController extends ModuleFrontController
         );
         $this->context->smarty->assign(array(
             'css' => array($base . 'views/css/admin.css' . $v, $base . 'views/css/app.css' . $v),
-            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/parts.js' . $v, $base . 'views/js/notify.js' . $v, $base . 'views/js/vendor/qrcode.js' . $v, $base . 'views/js/labels.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
+            'js' => array($base . 'views/js/common.js' . $v, $base . 'views/js/repair-form.js' . $v, $base . 'views/js/parts.js' . $v, $base . 'views/js/notify.js' . $v, $base . 'views/js/vendor/qrcode.js' . $v, $base . 'views/js/vendor/niimbluelib.min.js' . $v, $base . 'views/js/labels.js' . $v, $base . 'views/js/vendor/jsQR.js' . $v, $base . 'views/js/app.js' . $v),
             'boot' => json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'data' => json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'shopName' => Configuration::get('PS_SHOP_NAME'),

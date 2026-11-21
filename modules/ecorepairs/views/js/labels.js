@@ -95,6 +95,65 @@
     });
   }
 
+  /*
+   * Imprimir directamente en la Niimbot por Bluetooth (Chrome en Android o en ordenador con Bluetooth).
+   * Usa la librería libre niimbluelib (MIT). La primera vez sale la lista para elegir la impresora.
+   */
+  var niimClient = null;
+  function canBluetooth() { return !!(navigator.bluetooth && window.niimbluelib); }
+  function printNiimbot(canvas, btn) {
+    var NB = window.niimbluelib;
+    if (!canBluetooth()) { E.toast('Este navegador no deja usar Bluetooth. Usa Chrome en Android, o «Guardar imagen».', true); return Promise.resolve(false); }
+    var label = btn ? btn.innerHTML : '';
+    function state(t) { if (btn) btn.innerHTML = t; }
+    if (btn) btn.disabled = true;
+    var connect = niimClient && niimClient.isConnected() ? Promise.resolve() : (function () {
+      niimClient = new NB.NiimbotBluetoothClient();
+      state('Conectando con la Niimbot…');
+      return niimClient.connect();
+    })();
+    var task = null;
+    return connect.then(function () {
+      var meta = niimClient.getModelMetadata() || {};
+      var dpmm = (meta.dpi || 203) / 25.4;
+      // La imagen se rehace al tamaño exacto de la impresora (50 × 30 mm)
+      var c = document.createElement('canvas');
+      c.width = Math.round(50 * dpmm); c.height = Math.round(30 * dpmm);
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(canvas, 0, 0, c.width, c.height);
+      var enc = NB.ImageEncoder.encodeCanvas(c, NB.PageColorType ? NB.PageColorType.SingleColor : 0, meta.printDirection || 'left');
+      task = niimClient.protocol.newPrintTask(niimClient.getPrintTaskType() || 'B1', {
+        totalPages: 1, density: meta.densityDefault || 3, labelType: NB.LabelType ? NB.LabelType.WithGaps : 1
+      });
+      state('Imprimiendo…');
+      return task.printInit().then(function () { return task.printPage(enc, 1); }).then(function () { return task.waitForFinished(); });
+    }).then(function () {
+      return task.printEnd().catch(function () { });
+    }).then(function () {
+      if (btn) { btn.disabled = false; state(label); }
+      E.toast('Pegatina impresa');
+      return true;
+    }, function (err) {
+      if (task) task.printEnd().catch(function () { });
+      if (btn) { btn.disabled = false; state(label); }
+      var msg = String(err && err.message || err || '');
+      if (/cancel|chooser|User/i.test(msg)) E.toast('No se eligió ninguna impresora.', true);
+      else { E.toast('No se pudo imprimir en la Niimbot: ' + msg + '. Prueba a apagarla y encenderla, o usa «Guardar imagen».', true); niimClient = null; }
+      return false;
+    });
+  }
+  function saveCanvas(canvas, name) {
+    canvas.toBlob(function (blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      E.toast('Imagen guardada. En la app de Niimbot: Imagen → elige la última → imprimir a 50 × 30 mm.');
+    }, 'image/png');
+  }
+
   /* Comparte la imagen (móvil → app de Niimbot) o la descarga (ordenador) */
   function shareCanvas(canvas, name) {
     return new Promise(function (ok) {
@@ -122,13 +181,19 @@
       wrap.innerHTML = '<div class="er-dlg" style="max-width:460px"><div class="er-row" style="flex-wrap:nowrap"><h2 style="margin-right:auto">' + E.esc(title) + '</h2>' +
         '<button type="button" class="er-btn er-btn-ghost er-icon-btn" data-x aria-label="Cerrar">✕</button></div>' +
         '<div class="er-lbl-prev"></div>' +
-        '<p class="er-muted er-small" style="margin:0">Pulsa el botón, elige la app <b>Niimbot</b> (o guárdala en fotos y ábrela desde Niimbot → Imagen) e imprime en la etiqueta de 50 × 30 mm.</p>' +
-        '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-share>Enviar a Niimbot</button></div>';
+        (canBluetooth() ? '<button type="button" class="er-btn er-btn-pri er-btn-lg er-btn-block" data-bt>Imprimir en Niimbot (Bluetooth)</button>' +
+          '<p class="er-muted er-small" style="margin:0">La primera vez elige tu Niimbot en la lista. Tenla encendida y con la app de Niimbot cerrada.</p>'
+          : '<p class="er-muted er-small" style="margin:0">Para imprimir directo por Bluetooth hace falta Chrome en Android. Aquí: guarda la imagen y ábrela en la app de Niimbot (Imagen) a 50 × 30 mm.</p>') +
+        '<div class="er-row" style="gap:8px;flex-wrap:nowrap"><button type="button" class="er-btn er-grow" data-save>Guardar imagen</button>' +
+        '<button type="button" class="er-btn er-btn-ghost er-grow" data-share>Compartir</button></div></div>';
       (E.root() || document.body).appendChild(wrap);
       canvas.className = 'er-lbl-canvas';
       wrap.querySelector('.er-lbl-prev').appendChild(canvas);
       wrap.addEventListener('click', function (e) {
         if (e.target === wrap || e.target.closest('[data-x]')) { wrap.remove(); return; }
+        var bt = e.target.closest('[data-bt]');
+        if (bt) { printNiimbot(canvas, bt); return; }
+        if (e.target.closest('[data-save]')) { saveCanvas(canvas, name); return; }
         if (e.target.closest('[data-share]')) shareCanvas(canvas, name);
       });
     });

@@ -60,6 +60,7 @@ class AdminEcoRepairsController extends ModuleAdminController
             $this->addJS($base . 'views/js/techs.js' . $v, false);
         } elseif ($view === 'batteries') {
             $this->addJS($base . 'views/js/vendor/qrcode.js' . $v, false);
+            $this->addJS($base . 'views/js/vendor/niimbluelib.min.js' . $v, false);
             $this->addJS($base . 'views/js/labels.js' . $v, false);
             $this->addJS($base . 'views/js/batteries.js' . $v, false);
         } elseif ($view === 'model') {
